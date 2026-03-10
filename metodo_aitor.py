@@ -2,31 +2,31 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 
-st.set_page_config(page_title="A.I.T.O.R. 2.8 - Valoración Dinámica", layout="wide")
+st.set_page_config(page_title="A.I.T.O.R. 2.9 - Ranking Pro", layout="wide")
 
-# --- BASE DE DATOS ---
+# --- INICIALIZAR BASE DE DATOS (En la memoria de la sesión) ---
 if 'analisis' not in st.session_state:
-    st.session_state.analisis = pd.DataFrame(columns=["Ticker", "Tier", "EV_Pond", "IDT", "ITE", "Verdict"])
+    st.session_state.analisis = pd.DataFrame(columns=[
+        "Ticker", "Tier", "EV Ponderado", "IDT Puntos", "ITE %", "EPS >25%", "Inst.", "Veredicto"
+    ])
 
-# --- SIDEBAR: FUNDAMENTALES (LOS QUE CAMBIAN LA VALORACIÓN) ---
-st.sidebar.header("🏢 Filtros de Calidad (Libro Blanco)")
+# --- BARRA LATERAL: INPUTS ---
+st.sidebar.header("🏢 Filtros Libro Blanco")
 c_eps = st.sidebar.checkbox("Crecimiento EPS > 25%", value=True)
 c_inst = st.sidebar.checkbox("Instituciones Comprando", value=True)
 c_sector = st.sidebar.checkbox("Líder de Sector", value=True)
-
-# Cálculo de Puntos Fundamentales (0 a 3)
 puntos_fund = sum([c_eps, c_inst, c_sector])
 
 ticker_input = st.sidebar.text_input("TICKER", "CRDO").upper()
 secuencia = [st.sidebar.number_input(f"Día {i+1}", value=v, key=f"d{i}") for i, v in enumerate([1, 3, 8, 14, 21])]
 
 # --- PESTAÑAS ---
-tab1, tab2, tab3 = st.tabs(["🔍 Escáner Quant & Fund", "💼 Cartera", "📊 Performance"])
+tab1, tab2, tab3 = st.tabs(["🔍 Escáner Quant & Fund", "💼 Mi Cartera", "📊 Performance"])
 
 with tab1:
     st.title(f"🚀 Análisis de {ticker_input}")
     
-    # ENTRADA DE DATOS QUANT
+    # 1. ENTRADA DE DATOS POR SISTEMA
     ev_list, wr_list, estados = [], [], []
     cols = st.columns(5)
     for i, d in enumerate(secuencia):
@@ -38,58 +38,78 @@ with tab1:
             ev_ind = ((wr/100) * ratio) - ((1 - wr/100) * 1)
             ev_list.append(ev_ind); wr_list.append(wr); estados.append(estado)
 
-    # --- 🧠 EL NUEVO CEREBRO DE VALORACIÓN (ESTO ES LO QUE BUSCABAS) ---
+    # --- 2. MOTOR DE VALORACIÓN INTEGRAL ---
     ev_pond = round(sum(ev_list) / 5, 2)
     
-    # La Valoración cambia según los puntos fundamentales
+    # Tier S si cumple fundamentales Y EV > 4.0
     if puntos_fund == 3 and ev_pond >= 4.0:
-        tier_label = "👑 TIER S (Supremo)"
+        tier_label = "👑 TIER S"
         bonus_tier = 15
     elif puntos_fund >= 2 and ev_pond >= 3.0:
-        tier_label = "🟢 TIER A (Guepardo)"
+        tier_label = "🟢 TIER A"
         bonus_tier = 0
     else:
-        tier_label = "🔴 TIER C (Descarte)"
-        bonus_tier = -50 # Penalización crítica por falta de calidad
+        tier_label = "🔴 DESCARTE"
+        bonus_tier = -50
 
-    # CÁLCULO IDT TOTAL
+    # 3. CÁLCULO IDT
     base_wr = wr_list[0]
-    puntos_estructura = sum(1 for e in estados[1:] if "🔵 Compra" in e) * 10
-    puntos_señal = 10 if "🔵 Compra" in estados[0] else 0
-    
-    # AQUÍ SE SUMA TODO
-    idt_total = base_wr + bonus_tier + puntos_estructura + puntos_señal
+    p_estructura = sum(1 for e in estados[1:] if "🔵 Compra" in e) * 10
+    p_señal = 10 if "🔵 Compra" in estados[0] else 0
+    idt_total = base_wr + bonus_tier + p_estructura + p_señal
 
-    # --- RESULTADOS EN PANTALLA ---
+    # 4. RIESGO ITE
     st.markdown("---")
-    r1, r2, r3 = st.columns(3)
+    res1, res2, res3 = st.columns(3)
+    p_in = res3.number_input("Precio Entrada $", value=100.0)
+    p_st = res3.number_input("Precio Stop $", value=95.0)
+    ite = round(((p_in - p_st) / p_st) * 100, 2) if p_st > 0 else 0
+
+    # --- 5. BOTÓN DE GUARDAR Y RANKING ---
+    st.markdown("### 🏆 Ranking de Candidatos")
     
-    with r1:
-        st.metric("TIER / VALORACIÓN", tier_label)
-        st.write(f"Puntos Fundamentales: **{puntos_fund}/3**")
-        st.write(f"EV Ponderado: **{ev_pond}**")
+    if st.button("💾 GUARDAR Y ACTUALIZAR RANKING"):
+        # Veredicto visual para la tabla
+        if idt_total >= 100 and ite <= 5: v_tab = "🔥 COMPRA"
+        elif idt_total >= 85 and ite <= 8: v_tab = "🟡 TÁCTICO"
+        else: v_tab = "🚫 BLOQUEO"
 
-    with r2:
-        # Aquí el usuario verá el cambio real al activar los checks
-        st.metric("PUNTUACIÓN IDT", f"{idt_total} pts")
-        if bonus_tier == 15:
-            st.success("✅ Bonus Tier S aplicado: +15 pts")
-        elif bonus_tier == -50:
-            st.error("❌ Penalización Tier C: -50 pts")
+        nuevo_dato = {
+            "Ticker": ticker_input,
+            "Tier": tier_label,
+            "EV Ponderado": ev_pond,
+            "IDT Puntos": idt_total,
+            "ITE %": ite,
+            "EPS >25%": "✅" if c_eps else "❌",
+            "Inst.": "✅" if c_inst else "❌",
+            "Veredicto": v_tab
+        }
+        
+        # Añadir a la tabla y eliminar duplicados del mismo ticker (deja el último análisis)
+        st.session_state.analisis = pd.concat([
+            st.session_state.analisis, 
+            pd.DataFrame([nuevo_dato])
+        ]).drop_duplicates('Ticker', keep='last')
+        
+        st.success(f"¡{ticker_input} guardado con {idt_total} puntos!")
 
-    with r3:
-        p_in = st.number_input("Precio Entrada $", value=100.0)
-        p_st = st.number_input("Precio Stop $", value=95.0)
-        ite = round(((p_in - p_st) / p_st) * 100, 2)
-        st.metric("RIESGO ITE", f"{ite}%")
+    # MOSTRAR TABLA ORDENADA DE MEJOR A PEOR IDT
+    if not st.session_state.analisis.empty:
+        # Ordenamos por IDT de mayor a menor
+        df_ranking = st.session_state.analisis.sort_values(by="IDT Puntos", ascending=False)
+        
+        # Mostramos la tabla (st.dataframe permite ordenar al usuario también haciendo clic en el título)
+        st.dataframe(
+            df_ranking, 
+            use_container_width=True,
+            column_config={
+                "IDT Puntos": st.column_config.NumberColumn(format="%d pts"),
+                "EV Ponderado": st.column_config.NumberColumn(format="%.2f")
+            }
+        )
+    else:
+        st.info("La tabla está vacía. Analiza un valor y dale a Guardar.")
 
-    # VERDICTO
-    if idt_total >= 100 and ite <= 5: v, col = "🔥 DISPARO OBLIGATORIO", "#00ffcc"
-    elif idt_total >= 85 and ite <= 8: v, col = "🟡 DISPARO TÁCTICO", "#ffcc00"
-    else: v, col = "🚫 ARMA BLOQUEADA", "#ff4b4b"
-
-    st.markdown(f"<h2 style='text-align:center; color:{col};'>{v}</h2>", unsafe_allow_html=True)
-
-    if st.button("💾 Guardar en Ranking"):
-        nuevo = {"Ticker": ticker_input, "Tier": tier_label, "EV_Pond": ev_pond, "IDT": idt_total, "ITE": ite, "Verdict": v}
-        st.session_state.analisis = pd.concat([st.session_state.analisis, pd.DataFrame([nuevo])]).drop_duplicates('Ticker', keep='last')
+    if st.button("🗑️ Borrar Ranking"):
+        st.session_state.analisis = pd.DataFrame(columns=st.session_state.analisis.columns)
+        st.rerun()
