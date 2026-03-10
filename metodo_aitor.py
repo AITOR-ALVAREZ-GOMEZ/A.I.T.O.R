@@ -90,4 +90,10 @@ with tab1:
     elif idt_total >= 85 and ite <= 8: v, col = "🟡 COMPRA TÁCTICA", "#ffcc00"
     else: v, col = "🚫 ARMA BLOQUEADA", "#ff4b4b"
 
-    st.markdown(f"<h2 style='
+    st.markdown(f"<h2 style='text-align:center; color:{col};'>{v}</h2>", unsafe_allow_html=True)
+
+    if st.button("💾 Guardar en Ranking"):
+        nuevo = {"Ticker": ticker_input, "Tier": tier_label, "EV_Pond": round(ev_pond, 2), "IDT": idt_total, "ITE": round(ite, 2), "Verdict": v}
+        st.session_state.analisis = pd.concat([st.session_state.analisis, pd.DataFrame([nuevo])]).drop_duplicates('Ticker', keep='last')
+    
+    st.dataframe(st.session_state.analisis.sort_values("IDT", ascending=False), use_container_width=True)
