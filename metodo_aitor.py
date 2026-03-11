@@ -6,7 +6,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 20.0", layout="wide")
+st.set_page_config(page_title="AITOR 21.0", layout="wide")
 
 # --- CSS ESTILO APPLE AVANZADO ---
 st.markdown("""
@@ -28,7 +28,6 @@ st.markdown("""
         font-weight: 700 !important;
         letter-spacing: -0.5px;
     }
-    /* Estilos para ocultar el metric por defecto de Streamlit en Cartera */
     .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div {
         background-color: #ffffff !important;
         border-radius: 12px !important;
@@ -47,15 +46,9 @@ st.markdown("""
     .tag-on { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .tag-off { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; }
     
-    /* NUEVAS TARJETAS APPLE PERSONALIZADAS (SIN CORTES) */
-    .apple-kpi-container {
-        display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;
-    }
-    .apple-kpi-card {
-        background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03);
-        display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
-    }
+    /* NUEVAS TARJETAS APPLE PERSONALIZADAS */
+    .apple-kpi-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
+    .apple-kpi-card { background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
     .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
     .apple-kpi-value { font-size: 2.2rem; font-weight: 800; color: #1d1d1f; line-height: 1; margin-bottom: 5px; white-space: nowrap; }
     .apple-kpi-sub { font-size: 0.9rem; font-weight: 600; padding: 4px 8px; border-radius: 8px; }
@@ -63,7 +56,7 @@ st.markdown("""
     .sub-red { background-color: #fce8e6; color: #c5221f; }
     .sub-gray { background-color: #f1f3f4; color: #5f6368; }
 
-    /* INDICADOR LUMINOSO DE RENTABILIDAD */
+    /* INDICADOR LUMINOSO */
     .led-box { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;}
     .led-green { width: 14px; height: 14px; background-color: #34c759; border-radius: 50%; box-shadow: 0 0 10px #34c759, inset 0 0 4px #000; animation: pulse-green 2s infinite; }
     .led-red { width: 14px; height: 14px; background-color: #ff3b30; border-radius: 50%; box-shadow: 0 0 10px #ff3b30, inset 0 0 4px #000; animation: pulse-red 2s infinite; }
@@ -276,62 +269,53 @@ with tab3:
                 
                 with st.spinner(f"Escaneando {ticker_sel} y descargando histórico desde {fecha_in}..."):
                     stock_cartera = yf.Ticker(ticker_sel)
-                    # Descargamos histórico completo para el gráfico y medias
                     hist_largo = stock_cartera.history(start=fecha_in, end=datetime.date.today() + datetime.timedelta(days=1))
                     
                     if hist_largo.empty:
-                        # Fallback por si la fecha es muy reciente o hay error
                         hist_largo = stock_cartera.history(period="6mo")
                         
                     precio_vivo = hist_largo['Close'].iloc[-1]
                     media_s5 = hist_largo['Close'].rolling(window=55).mean().iloc[-1]
                     
-                    # Previsiones EPS del Ticker actual
                     eps_t_base = stock_cartera.info.get("trailingEps", 0.0)
                     eps_t_fwd = stock_cartera.info.get("forwardEps", 0.0)
                     crec_eps = ((eps_t_fwd - eps_t_base) / eps_t_base * 100) if eps_t_base > 0 and eps_t_fwd > eps_t_base else 0.0
                 
-                # MATEMÁTICA DE TU POSICIÓN
                 beneficio_eur = (precio_vivo - precio_in) * acciones
                 beneficio_pct = ((precio_vivo - precio_in) / precio_in) * 100
                 dias_en_posicion = (datetime.date.today() - fecha_in).days
                 if dias_en_posicion <= 0: dias_en_posicion = 1
                 dist_real_s5 = ((precio_vivo - media_s5) / media_s5) * 100 if media_s5 > 0 else 0
                 
-                # --- NUEVO PANEL DE TARJETAS HTML/CSS (SIN CORTES) ---
+                # --- KPI HTML/CSS APLANADO PARA EVITAR CONFLICTO CON MARKDOWN ---
                 led_class = "led-green" if beneficio_pct >= 0 else "led-red"
                 sub_class_ben = "sub-green" if beneficio_pct >= 0 else "sub-red"
+                color_borde = '#34c759' if beneficio_pct >= 0 else '#ff3b30'
                 
-                html_kpis = f"""
-                <div class="apple-kpi-container">
-                    <div class="apple-kpi-card" style="border-left: 5px solid {'#34c759' if beneficio_pct>=0 else '#ff3b30'};">
-                        <div class="led-box">
-                            <div class="{led_class}"></div>
-                            <div class="apple-kpi-title" style="margin:0;">Rentabilidad Real</div>
-                        </div>
-                        <div class="apple-kpi-value">{beneficio_pct:+.2f}%</div>
-                        <div class="apple-kpi-sub {sub_class_ben}">{beneficio_eur:+.2f} € Netos</div>
-                    </div>
-                    
-                    <div class="apple-kpi-card">
-                        <div class="apple-kpi-title">Precio Mercado</div>
-                        <div class="apple-kpi-value">{precio_vivo:.2f}</div>
-                        <div class="apple-kpi-sub sub-gray">Entrada: {precio_in:.2f}</div>
-                    </div>
-                    
-                    <div class="apple-kpi-card">
-                        <div class="apple-kpi-title">Tiempo en Tendencia</div>
-                        <div class="apple-kpi-value">{dias_en_posicion} Días</div>
-                        <div class="apple-kpi-sub sub-gray">Desde {fecha_in.strftime('%d/%m/%Y')}</div>
-                    </div>
-                    
-                    <div class="apple-kpi-card">
-                        <div class="apple-kpi-title">Distancia a S5 (55D)</div>
-                        <div class="apple-kpi-value">{dist_real_s5:.1f}%</div>
-                        <div class="apple-kpi-sub sub-gray">Aceleración</div>
-                    </div>
-                </div>
-                """
+                html_kpis = (
+                    '<div class="apple-kpi-container">'
+                    f'<div class="apple-kpi-card" style="border-left: 5px solid {color_borde};">'
+                    f'<div class="led-box"><div class="{led_class}"></div><div class="apple-kpi-title" style="margin:0;">Rentabilidad Real</div></div>'
+                    f'<div class="apple-kpi-value">{beneficio_pct:+.2f}%</div>'
+                    f'<div class="apple-kpi-sub {sub_class_ben}">{beneficio_eur:+.2f} € Netos</div>'
+                    '</div>'
+                    '<div class="apple-kpi-card">'
+                    '<div class="apple-kpi-title">Precio Mercado</div>'
+                    f'<div class="apple-kpi-value">{precio_vivo:.2f}</div>'
+                    f'<div class="apple-kpi-sub sub-gray">Entrada: {precio_in:.2f}</div>'
+                    '</div>'
+                    '<div class="apple-kpi-card">'
+                    '<div class="apple-kpi-title">Tiempo en Tendencia</div>'
+                    f'<div class="apple-kpi-value">{dias_en_posicion} Días</div>'
+                    f'<div class="apple-kpi-sub sub-gray">Desde {fecha_in.strftime("%d/%m/%Y")}</div>'
+                    '</div>'
+                    '<div class="apple-kpi-card">'
+                    '<div class="apple-kpi-title">Distancia a S5 (55D)</div>'
+                    f'<div class="apple-kpi-value">{dist_real_s5:.1f}%</div>'
+                    '<div class="apple-kpi-sub sub-gray">Aceleración</div>'
+                    '</div>'
+                    '</div>'
+                )
                 st.markdown(html_kpis, unsafe_allow_html=True)
                 
                 # --- CONTEXTO: SISTEMAS Y FUNDAMENTALES ---
@@ -358,9 +342,7 @@ with tab3:
                 st.markdown("### Evolución del Precio")
                 fig = go.Figure()
                 fig.add_trace(go.Scatter(x=hist_largo.index, y=hist_largo['Close'], mode='lines', name='Precio', line=dict(color='#2b8af7', width=2)))
-                # Linea de Entrada
                 fig.add_hline(y=precio_in, line_dash="dash", line_color="green", annotation_text="Entrada", annotation_position="bottom right")
-                # Linea de Stop
                 fig.add_hline(y=stop_actual, line_dash="dot", line_color="red", annotation_text="Stop Actual", annotation_position="bottom right")
                 
                 fig.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
@@ -376,7 +358,9 @@ with tab3:
                 parabola_estadistica = dist_real_s5 > 25.0 
                 
                 if stop_roto:
-                    st.error(f"🚨 **¡STOP ROTO!** El precio actual ({precio_vivo:.2f}) ha cruzado tu nivel crítico. Cierra posición y registra en Historial.")
+                    alarma_html = "<style>@keyframes parpadeo_rojo { 0% { background-color: #ff0000; color: white; transform: scale(1); } 50% { background-color: #8b0000; color: yellow; transform: scale(1.02); } 100% { background-color: #ff0000; color: white; transform: scale(1); } } .caja-alarma { animation: parpadeo_rojo 0.8s infinite; padding: 30px; border-radius: 15px; text-align: center; border: 5px solid black; } .texto-alarma { font-size: 40px; font-weight: 900; margin: 0; font-family: 'Arial Black', sans-serif;}</style><div class='caja-alarma'><p class='texto-alarma'>🚨 ¡STOP ROTO! CERRAR POSICIÓN 🚨</p></div>"
+                    st.markdown(alarma_html, unsafe_allow_html=True)
+                    st.error(f"El precio actual ({precio_vivo:.2f}) ha cruzado tu nivel crítico. Cierra posición y registra en Historial.")
                 elif colchon_masivo and not parabola_estadistica:
                     st.success(f"🛡️ **COLCHÓN ESTADÍSTICO:** Tienes ventaja matemática. El valor orbita sano sobre su S5. Mantén el Stop relajado (S5 o S4) para absorber ruido y exprimir la tendencia.")
                 elif parabola_estadistica:
