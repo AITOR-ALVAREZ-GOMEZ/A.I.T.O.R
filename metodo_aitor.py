@@ -7,23 +7,27 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 28.0 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 29.0 QUANT", layout="wide")
 
-# --- CSS ESTILO APPLE ---
+# --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
     .stApp { background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: rgba(255, 255, 255, 0.7) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0,0,0,0.05) !important; }
     h1, h2, h3, h1 *, h2 *, h3 * { color: #1d1d1f !important; font-weight: 700 !important; letter-spacing: -0.5px; }
+    
     [data-testid="stMetric"] { background-color: #ffffff; border-radius: 18px; padding: 15px 20px; min-height: 140px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); }
     [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #1d1d1f !important; font-weight: 700 !important; font-size: 2.2rem !important; }
     [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: #86868b !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.5px; }
+    
     .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div { background-color: #ffffff !important; border-radius: 12px !important; border: 1px solid rgba(0,0,0,0.1) !important; }
     .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; }
+    
     .rank-box { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
     .tag-on { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .tag-off { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; }
+    
     .apple-kpi-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
     .apple-kpi-card { background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
     .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
@@ -32,11 +36,13 @@ st.markdown("""
     .sub-green { background-color: #e5fbee; color: #188038; }
     .sub-red { background-color: #fce8e6; color: #c5221f; }
     .sub-gray { background-color: #f1f3f4; color: #5f6368; }
+
     .led-box { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;}
     .led-green { width: 14px; height: 14px; background-color: #34c759; border-radius: 50%; box-shadow: 0 0 10px #34c759, inset 0 0 4px #000; animation: pulse-green 2s infinite; }
     .led-red { width: 14px; height: 14px; background-color: #ff3b30; border-radius: 50%; box-shadow: 0 0 10px #ff3b30, inset 0 0 4px #000; animation: pulse-red 2s infinite; }
     @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(52, 199, 89, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); } }
     @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
+    
     .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 15px;}
     .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; }
     .quant-desc { font-size: 0.85rem; color: #86868b; line-height: 1.4; margin-bottom: 15px; }
@@ -54,9 +60,19 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 try: df_datos = conn.read(worksheet="Sheet1", ttl=5)
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
-# --- BUSCADOR LATERAL ---
+# =====================================================================
+# BUSCADOR LATERAL CON MEMORIA DE AUDITORÍA
+# =====================================================================
 st.sidebar.header("Buscador de Activos")
-ticker = st.sidebar.text_input("Ticker", "MSFT").upper()
+opciones_bd = df_datos['Ticker'].dropna().unique().tolist() if not df_datos.empty else []
+
+ticker_manual = st.sidebar.text_input("Nuevo Ticker (Ej: MSFT):", "").upper()
+ticker_lista = st.sidebar.selectbox("O cargar de Auditoría:", [""] + opciones_bd)
+
+# Lógica de prioridad: Si escribes uno nuevo, manda el nuevo. Si no, manda el de la lista.
+ticker = ticker_manual if ticker_manual != "" else ticker_lista
+if ticker == "": ticker = "MSFT"
+
 nom_emp, p_merc, prev_1y, eps_base = "Buscando...", 0.0, 0.0, 0.0
 
 if ticker != "":
@@ -72,6 +88,7 @@ if ticker != "":
 
 st.sidebar.subheader("Empresa: " + nom_emp)
 st.sidebar.markdown("---")
+
 st.sidebar.header("Calidad (Libro Blanco)")
 if prev_1y > 0 and eps_base > 0:
     st.sidebar.markdown("### Proyeccion Beneficios (3Y)")
@@ -93,6 +110,7 @@ r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
 
+# CARGA DE DATOS HISTÓRICOS DE LA AUDITORÍA
 d_defs, w_defs, r_defs = [1, 3, 8, 14, 21], [50]*5, [2.0]*5
 if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
     df_filtro = df_datos[df_datos["Ticker"] == ticker]
@@ -111,7 +129,7 @@ if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
 # =====================================================================
 tab1, tab2, tab3 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría", "💼 Cartera en Vivo"])
 
-# --- PESTAÑA 1: ESCÁNER (CON ORÁCULO RENAISSANCE) ---
+# --- PESTAÑA 1: ESCÁNER ---
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
@@ -170,9 +188,59 @@ with tab1:
     inv_t = n_tit * p_buy
 
     st.markdown("---")
+    st.subheader(f"Ejecución Recomendada (Capital: {CAPITAL:,.0f} EUR)")
+    c4, c5, c6 = st.columns(3)
+    c4.metric("Riesgo Maximo", str(int(p_max)) + " EUR")
+    c5.metric("Acciones", str(int(n_tit)) + " titulos")
+    c6.metric("Posicion Total", str(int(inv_t)) + " EUR")
+
+    # =====================================================================
+    # NUEVO: TERMÓMETRO DE TOMA DE DECISIÓN EN EL ESCÁNER
+    # =====================================================================
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.subheader("🎯 Controlador de Decisión Pre-Compra (Riesgo del Trade)")
+    
+    col_radar_esc, col_txt_esc = st.columns([2, 1])
+    with col_radar_esc:
+        if p_buy > 0 and p_sl > 0 and p_buy > p_sl:
+            rango_min_esc = p_sl * 0.95
+            rango_max_esc = p_buy * 1.05
+            lim_peligro_esc = p_sl + (p_buy - p_sl) * 0.20 # 20% inferior del riesgo
+            
+            fig_radar_esc = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=p_buy,
+                title=dict(text="Distancia Estructural al Stop Loss", font=dict(size=14)),
+                number=dict(suffix=" €", valueformat=".2f"),
+                gauge=dict(
+                    axis=dict(range=[rango_min_esc, rango_max_esc]),
+                    bar=dict(color="#1d1d1f"),
+                    steps=[
+                        dict(range=[rango_min_esc, p_sl], color="#ff3b30"),
+                        dict(range=[p_sl, lim_peligro_esc], color="#ffcc00"),
+                        dict(range=[lim_peligro_esc, rango_max_esc], color="#34c759")
+                    ],
+                    threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=p_sl)
+                )
+            ))
+            fig_radar_esc.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
+            st.plotly_chart(fig_radar_esc, use_container_width=True)
+        else:
+            st.info("⚠️ Configura el Precio de Compra y el Stop Loss correctamente en el panel lateral para ver el Radar.")
+
+    with col_txt_esc:
+        st.markdown("<br><br>", unsafe_allow_html=True)
+        if ite <= 5:
+            st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento sin disparar tu riesgo máximo de ruina.")
+        elif ite <= 8:
+            st.warning(f"**🟠 Riesgo Límite ({ite}%):** El Stop empieza a estar lejos. Tienes que reducir drásticamente el número de acciones para mantenerte bajo tu riesgo del {r_pct}%.")
+        else:
+            st.error(f"**🔴 Riesgo Excesivo ({ite}%):** El Stop está demasiado lejos de tu entrada. Operación matemáticamente suicida. Ajusta la entrada o descarta el valor.")
+
+    st.markdown("---")
     
     # =====================================================================
-    # NUEVO: ORÁCULO CUANTITATIVO DE ENTRADA (ESTILO RENAISSANCE)
+    # ORÁCULO CUANTITATIVO RENAISSANCE
     # =====================================================================
     st.subheader("🔮 Oráculo de Entrada (Modelo Cuantitativo)")
     if ticker != "":
@@ -182,7 +250,6 @@ with tab1:
                 df_esc = stock_esc.history(period="2y")
                 
                 if not df_esc.empty:
-                    # Matemáticas
                     df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
                     df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
                     df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
@@ -221,19 +288,18 @@ with tab1:
                         st.markdown("</div>", unsafe_allow_html=True)
                         
                     with col_eq2:
-                        st.markdown("""<div class="quant-card"><div class="quant-title">Exponente Hurst (Memoria)</div><div class="quant-desc">Filtro Renaissance: Solo comprar si es > 0.55 (Probabilidad matemática de que haya tendencia).</div>""", unsafe_allow_html=True)
+                        st.markdown("""<div class="quant-card"><div class="quant-title">Exponente Hurst (Memoria)</div><div class="quant-desc">Filtro Renaissance: Solo comprar si es > 0.55 (Probabilidad de que haya tendencia).</div>""", unsafe_allow_html=True)
                         fig_he = go.Figure(go.Indicator(mode="gauge+number", value=hurst_in, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[0, 1]), bar=dict(color="darkblue"), steps=[dict(range=[0, 0.55], color="lightgray"), dict(range=[0.55, 1], color="lightgreen")])))
                         fig_he.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
                         st.plotly_chart(fig_he, use_container_width=True)
                         st.markdown("</div>", unsafe_allow_html=True)
                         
-                        st.markdown(f"""<div class="quant-card"><div class="quant-title">Drawdown (Riesgo Histórico)</div><div class="quant-desc">El valor ha llegado a caer un {dd_min_in:.1f}%. Tenlo en cuenta para tu Stop Loss.</div>""", unsafe_allow_html=True)
+                        st.markdown(f"""<div class="quant-card"><div class="quant-title">Drawdown (Riesgo Histórico)</div><div class="quant-desc">El valor ha llegado a caer un {dd_min_in:.1f}%. Úsalo para planificar tu Stop.</div>""", unsafe_allow_html=True)
                         fig_dde = go.Figure(go.Scatter(x=df_esc.index[-150:], y=df_esc['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
                         fig_dde.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False), yaxis=dict(range=[dd_min_in*1.1, 0]))
                         st.plotly_chart(fig_dde, use_container_width=True)
                         st.markdown("</div>", unsafe_allow_html=True)
 
-                    # VEREDICTO DE ENTRADA RENAISSANCE
                     if hurst_in > 0.55 and (0.5 <= z_in <= 2.0) and acc_in > 0:
                         st.success("🟢 **SEÑAL CUANTITATIVA APROBADA (Modo Renaissance):** El activo cumple los 3 requisitos estadísticos. Tiene memoria tendencial, aceleración positiva y no está parabólico. ¡Buena oportunidad de compra!")
                     elif z_in > 2.0:
@@ -244,13 +310,6 @@ with tab1:
                         st.info("⚪ **NEUTRAL:** El activo no cumple los criterios estrictos de momentum cuantitativo. Depende de tu criterio estructural (IDT/EV).")
             except:
                 st.error("No se pudo calcular el modelo para este ticker.")
-
-    st.markdown("---")
-    st.subheader(f"Ejecución Recomendada (Capital: {CAPITAL:,.0f} EUR)")
-    c4, c5, c6 = st.columns(3)
-    c4.metric("Riesgo Maximo", str(int(p_max)) + " EUR")
-    c5.metric("Acciones", str(int(n_tit)) + " titulos")
-    c6.metric("Posicion Total", str(int(inv_t)) + " EUR")
 
     if ev_tot < 5 or ite > 8: v_c, v_t = "#ff3b30", "OPERACION NO VIABLE"
     elif idt >= 100 and ite <= 5: v_c, v_t = "#1d1d1f", "COMPRA OBLIGATORIA"
@@ -273,9 +332,12 @@ with tab1:
         st.success("Guardado ok.")
 
 # --- PESTAÑA 2: AUDITORÍA ---
-with tab2: st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
+with tab2: 
+    st.markdown("### Base de Datos de Escaneos")
+    st.info("💡 **Consejo de Gestión:** Si quieres re-evaluar un valor de esta tabla, ve al menú de la izquierda y selecciónalo en el desplegable 'O cargar de Auditoría'. El Escáner recuperará tus sistemas automáticamente.")
+    st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
 
-# --- PESTAÑA 3: CARTERA EN VIVO (LA MAGIA QUANT) ---
+# --- PESTAÑA 3: CARTERA EN VIVO ---
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
@@ -389,71 +451,4 @@ with tab3:
                 
                 if stop_roto:
                     st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio actual ({precio_vivo:.2f}) ha cruzado tu umbral rojo. Ejecuta la venta matemáticamente.")
-                    stop_sugerido = stop_actual
-                elif z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
-                    st.warning(f"🚀 **CLÍMAX COMPRADOR:** Tensión probabilística extrema (Z-Score +{z_actual:.2f}). \n\n**VEREDICTO:** Sube agresivamente tu Stop al sistema **S1 ({s1_d} Días) en {media_s1:.2f} €** o **S2 ({s2_d} Días) en {media_s2:.2f} €**.")
-                    stop_sugerido = media_s2
-                elif hurst_val < 0.45:
-                    st.warning(f"⚠️ **RUIDO LATERAL:** El exponente Hurst ({hurst_val:.2f}) indica fase de descanso. \n\n**VEREDICTO:** Para no salirte por una sacudida tonta, mantén el Stop en tu media lenta **S5 ({s5_d} Días) ubicada en {media_s5:.2f} €**.")
-                    stop_sugerido = media_s5
-                else:
-                    st.success(f"🛡️ **TENDENCIA SANA:** La matemática está de tu lado (Hurst {hurst_val:.2f}). \n\n**VEREDICTO:** Deja correr los beneficios usando tu Stop en **S4 ({s4_d} Días) en {media_s4:.2f} €** o **S5 ({s5_d} Días) en {media_s5:.2f} €**.")
-                    stop_sugerido = media_s4
-
-                st.markdown("<br>", unsafe_allow_html=True)
-                col_term, col_vacia = st.columns([2, 1])
-                with col_term:
-                    rango_min = stop_sugerido * 0.90 
-                    rango_max = max(precio_vivo * 1.05, stop_sugerido * 1.10) 
-                    limite_naranja = stop_sugerido * 1.03 
-                    
-                    fig_riesgo = go.Figure(go.Indicator(
-                        mode="gauge+number",
-                        value=precio_vivo,
-                        title=dict(text="Radar Cuántico (Precio vs Stop Matemático)", font=dict(size=14)),
-                        number=dict(suffix=" €", valueformat=".2f"),
-                        gauge=dict(
-                            axis=dict(range=[rango_min, rango_max]),
-                            bar=dict(color="#1d1d1f"),
-                            steps=[
-                                dict(range=[rango_min, stop_sugerido], color="#ff3b30"),
-                                dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"),
-                                dict(range=[limite_naranja, rango_max], color="#34c759")
-                            ],
-                            threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido)
-                        )
-                    ))
-                    fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
-                    st.plotly_chart(fig_riesgo, use_container_width=True)
-                    
-        except Exception as e:
-            st.error(f"Error técnico: {e}")
-
-    # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
-    with tab_add:
-        st.markdown("### ➕ Registrar Nueva Compra")
-        with st.form("form_add"):
-            c1, c2, c3 = st.columns(3)
-            with c1: t_ticker = st.text_input("Ticker").upper(); t_fecha_in = st.date_input("Fecha"); t_precio_in = st.number_input("Precio Compra", format="%.2f")
-            with c2: t_acciones = st.number_input("Acciones", format="%.2f"); t_stop = st.number_input("Stop Loss", format="%.2f"); t_fecha_s4 = st.date_input("Fecha S4")
-            with c3: t_precio_s4 = st.number_input("Precio S4", format="%.2f"); t_fecha_s5 = st.date_input("Fecha S5"); t_precio_s5 = st.number_input("Precio S5", format="%.2f")
-            if st.form_submit_button("Añadir a Cartera") and t_ticker != "":
-                df_c = conn.read(worksheet="Cartera", ttl=0)
-                n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
-                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                st.success("Añadido.")
-
-    # --- HISTORIAL ---
-    with tab_historial:
-        try:
-            df_h = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
-            if not df_h.empty:
-                df_h['Fecha_Venta'] = pd.to_datetime(df_h['Fecha_Venta']).dt.date
-                f_in = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
-                df_f = df_h[df_h['Fecha_Venta'] >= f_in]
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Beneficio Neto", f"{df_f['Beneficio_EUR'].sum():.2f} €")
-                c2.metric("Operaciones", len(df_f))
-                c3.metric("Win Rate", f"{(len(df_f[df_f['Beneficio_EUR'] > 0]) / len(df_f) * 100) if len(df_f)>0 else 0:.1f}%")
-                st.dataframe(df_f[['Ticker', 'Beneficio_EUR']], use_container_width=True)
-        except: pass
+                    stop_sugerido =
