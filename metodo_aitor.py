@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 23.1 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 24.0 QUANT", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -340,7 +340,6 @@ with tab3:
                         <div class="quant-desc">Mide cuántas desviaciones estándar se aleja el precio de su Media de 55 días. Valores > 2.5 indican riesgo extremo de reversión.</div>
                     """, unsafe_allow_html=True)
                     
-                    # GRAFICO Z-SCORE (A PRUEBA DE ERRORES SINTAXIS)
                     fig_z = go.Figure(go.Indicator(
                         mode="gauge+number", 
                         value=z_actual,
@@ -365,8 +364,9 @@ with tab3:
                         <div class="quant-title">3. Aceleración Pura</div>
                         <div class="quant-desc">Cambio en la velocidad del precio. Un pico extremo avisa de un "clímax comprador" (parábola inminente). Actual: {accel_actual:.2f}</div>
                     """, unsafe_allow_html=True)
-                    fig_acc = go.Figure(go.Scatter(y=df_q['Accel'].tail(60), mode='lines', fill='tozeroy', line_color='purple'))
-                    fig_acc.update_layout(height=120, margin=dict(l=0, r=0, t=0, b=0), xaxis_visible=False)
+                    # GRAFICO CON EJE X (FECHAS) ACTIVADO Y MAYOR ALTURA
+                    fig_acc = go.Figure(go.Scatter(x=df_q.index[-60:], y=df_q['Accel'].tail(60), mode='lines', fill='tozeroy', line_color='purple'))
+                    fig_acc.update_layout(height=160, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"), yaxis=dict(showgrid=False))
                     st.plotly_chart(fig_acc, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -377,7 +377,6 @@ with tab3:
                         <div class="quant-desc">Mide la "memoria" del precio en el último año de mercado (252 días). > 0.5 es tendencia sana. < 0.5 es mercado en rango errático.</div>
                     """, unsafe_allow_html=True)
                     
-                    # GRAFICO HURST (A PRUEBA DE ERRORES SINTAXIS)
                     fig_h = go.Figure(go.Indicator(
                         mode="gauge+number", 
                         value=hurst_val,
@@ -401,8 +400,9 @@ with tab3:
                         <div class="quant-title">4. Perfil Drawdown</div>
                         <div class="quant-desc">Caída actual respecto a su máximo. Históricamente, este valor ha llegado a caer un {dd_max:.1f}% sin perder tendencia estructural.</div>
                     """, unsafe_allow_html=True)
-                    fig_dd = go.Figure(go.Scatter(y=df_q['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
-                    fig_dd.update_layout(height=120, margin=dict(l=0, r=0, t=0, b=0), xaxis_visible=False, yaxis=dict(range=[dd_max, 0]))
+                    # GRAFICO CON EJE X (FECHAS) ACTIVADO Y MAYOR ALTURA
+                    fig_dd = go.Figure(go.Scatter(x=df_q.index[-150:], y=df_q['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
+                    fig_dd.update_layout(height=160, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"), yaxis=dict(range=[dd_max*1.1, 0]))
                     st.plotly_chart(fig_dd, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
@@ -413,13 +413,13 @@ with tab3:
                 stop_roto = precio_vivo < stop_actual
                 
                 if stop_roto:
-                    st.error(f"🚨 **¡STOP ROTO!** El precio ha cruzado el umbral. Vende matemáticamente.")
+                    st.error(f"🚨 **¡STOP ROTO!** El precio ha cruzado tu umbral de {stop_actual:.2f}. Vende matemáticamente para proteger el capital.")
                 elif z_actual > 2.5:
-                    st.warning(f"🚀 **ANOMALÍA (Z-Score +{z_actual:.2f}):** Tensión probabilística extrema. Ajusta el Stop a corto plazo para proteger la parábola.")
+                    st.warning(f"🚀 **ANOMALÍA (Z-Score +{z_actual:.2f}):** Tensión probabilística extrema. El precio está en modo parábola. Ajusta tu Stop al sistema más rápido (S1 o S2) porque el colapso a la media es inminente.")
                 elif hurst_val < 0.45:
-                    st.warning("⚠️ **PÉRDIDA DE TENDENCIA:** El exponente Hurst advierte que el valor ha entrado en fase de ruido aleatorio.")
+                    st.warning(f"⚠️ **PÉRDIDA DE TENDENCIA (Hurst {hurst_val:.2f}):** El valor ha entrado en fase de ruido o descanso lateral. Usa el dato de 'Perfil Drawdown' ({dd_max:.1f}%) para saber dónde situar tu Stop de largo plazo y que el ruido no te eche prematuramente.")
                 else:
-                    st.success(f"🛡️ **VÍA LIBRE ESTADÍSTICA:** Z-Score normal ({z_actual:.2f}) y Tendencia viva (Hurst {hurst_val:.2f}). Mantén el Stop relajado en S5.")
+                    st.success(f"🛡️ **VÍA LIBRE ESTADÍSTICA:** Z-Score normal ({z_actual:.2f}) y Tendencia viva (Hurst {hurst_val:.2f}). La matemática está de tu lado. Mantén tu Stop relajado en la Media Lenta (S4 o S5).")
                     
         except Exception as e:
             st.error(f"Error técnico: {e}")
