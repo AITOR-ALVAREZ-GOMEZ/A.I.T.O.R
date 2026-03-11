@@ -4,20 +4,25 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 import datetime
 
-st.set_page_config(page_title="AITOR 14.1", layout="wide")
+st.set_page_config(page_title="AITOR 14.2", layout="wide")
 
+# --- CSS APPLE TABS ---
 css = "<style>\n"
 css += ".stApp {background-color:#f5f5f7; color:#1d1d1f;}\n"
-css += "[data-testid='stSidebar'] {background:rgba(255,255,255,0.7);}\n"
+css += "[data-testid=\"stSidebar\"] {background:rgba(255,255,255,0.7);}\n"
 css += "h1,h2,h3 {color:#1d1d1f!important; font-weight:700!important;}\n"
-css += "[data-testid='stMetric'] {background:#fff; border-radius:18px;\n"
+css += "[data-testid=\"stMetric\"] {background:#fff; border-radius:18px;\n"
 css += "padding:15px; min-height:140px; box-shadow:0 4px 15px rgba(0,0,0,0.04);}\n"
-css += "[data-testid='stMetricValue'] {color:#1d1d1f!important;}\n"
-css += "[data-testid='stMetricLabel'] {color:#86868b!important;}\n"
+css += "[data-testid=\"stMetricValue\"] {color:#1d1d1f!important;}\n"
+css += "[data-testid=\"stMetricLabel\"] {color:#86868b!important;}\n"
 css += ".stTextInput input, .stNumberInput input {border-radius:12px;}\n"
 css += ".stButton>button {background:#0071e3; color:#fff; border-radius:20px;}\n"
-css += ".apple-rank-tag {border-radius:14px; padding:6px 14px; font-weight:600;\n"
-css += "font-size:0.9rem; display:inline-block; margin-top:10px;}\n"
+# Clases nuevas para los cuadraditos de opciones
+css += ".rank-box {display:flex; gap:6px; margin-top:12px; flex-wrap:wrap;}\n"
+css += ".tag-on {border-radius:12px; padding:6px 10px; font-size:0.75rem;\n"
+css += "font-weight:700; color:#fff; box-shadow:0 2px 5px rgba(0,0,0,0.1);}\n"
+css += ".tag-off {border-radius:12px; padding:6px 10px; font-size:0.75rem;\n"
+css += "font-weight:600; color:#8e8e93; border:1px solid #d2d2d7; background:#fff;}\n"
 css += "</style>"
 
 st.markdown(css, unsafe_allow_html=True)
@@ -152,112 +157,36 @@ with tab1:
     st.markdown("---")
     r_cols = st.columns(3)
     
-    # 1. EV TOTAL
+    # 1. EV TOTAL (TABS)
     with r_cols[0]:
         st.subheader("EV Total")
-        st.caption("Esperanza: Calidad + Ventaja")
         st.metric("SCORE", str(ev_tot), "+" + str(round(ev_plus, 2)))
+        st.caption("Esperanza: Calidad + Ventaja")
         
-        if ev_tot >= 10: 
-            r1_c = "color:#fff; background:#34c759;"
-            r1_t = "TIER S (Elite)"
-        elif ev_tot >= 5: 
-            r1_c = "color:#fff; background:#2b8af7;"
-            r1_t = "TIER A (Bueno)"
-        else: 
-            r1_c = "color:#fff; background:#ff3b30;"
-            r1_t = "Descarte (<5)"
-            
-        st.markdown("<div class='apple-rank-tag' style='" + r1_c + "'>" + r1_t + "</div>", unsafe_allow_html=True)
+        h_ev = "<div class=\"rank-box\">"
+        if ev_tot >= 10:
+            h_ev += "<div class=\"tag-on\" style=\"background:#34c759;\">TIER S</div>"
+            h_ev += "<div class=\"tag-off\">TIER A</div>"
+            h_ev += "<div class=\"tag-off\">DESCARTE</div>"
+        elif ev_tot >= 5:
+            h_ev += "<div class=\"tag-off\">TIER S</div>"
+            h_ev += "<div class=\"tag-on\" style=\"background:#2b8af7;\">TIER A</div>"
+            h_ev += "<div class=\"tag-off\">DESCARTE</div>"
+        else:
+            h_ev += "<div class=\"tag-off\">TIER S</div>"
+            h_ev += "<div class=\"tag-off\">TIER A</div>"
+            h_ev += "<div class=\"tag-on\" style=\"background:#ff3b30;\">DESCARTE</div>"
+        h_ev += "</div>"
+        st.markdown(h_ev, unsafe_allow_html=True)
     
-    # 2. IDT PUNTOS
+    # 2. IDT PUNTOS (TABS)
     with r_cols[1]:
         st.subheader("Fuerza IDT")
-        st.caption("Disparo Tactico")
         st.metric("PUNTOS", str(idt) + " pts")
+        st.caption("Disparo Tactico y Estructura")
         
-        if idt >= 100: 
-            r2_c = "color:#fff; background:#1d1d1f;"
-            r2_t = "OBLIGATORIA (>100)"
-        elif idt >= 85: 
-            r2_c = "color:#fff; background:#ff9500;"
-            r2_t = "TACTICA (85-99)"
-        else: 
-            r2_c = "color:#fff; background:#ff3b30;"
-            r2_t = "BLOQUEADA (<85)"
-            
-        st.markdown("<div class='apple-rank-tag' style='" + r2_c + "'>" + r2_t + "</div>", unsafe_allow_html=True)
-
-    # 3. ITE %
-    with r_cols[2]:
-        st.subheader("Tension ITE")
-        st.caption("Riesgo al Stop")
-        st.metric("RIESGO", str(ite) + "%")
-        
-        if ite <= 5: 
-            r3_c = "color:#fff; background:#34c759;"
-            r3_t = "OPTIMO (<5%)"
-        elif ite <= 8: 
-            r3_c = "color:#fff; background:#ff9500;"
-            r3_t = "LIMITE (5-8%)"
-        else: 
-            r3_c = "color:#fff; background:#ff3b30;"
-            r3_t = "NO OPERABLE"
-            
-        st.markdown("<div class='apple-rank-tag' style='" + r3_c + "'>" + r3_t + "</div>", unsafe_allow_html=True)
-
-    # --- CALCULADORA DE RIESGO ---
-    pct_riesgo = r_pct / 100.0
-    p_max = CAPITAL * pct_riesgo
-    dif_p = p_buy - p_sl
-    n_tit = 0
-    if dif_p > 0:
-        n_tit = int(p_max / dif_p)
-    inv_t = n_tit * p_buy
-
-    st.markdown("---")
-    st.subheader("Ejecucion (Capital: 277k)")
-    
-    c1, c2, c3 = st.columns(3)
-    c1.metric("Riesgo Max", str(int(p_max)) + " EUR")
-    c2.metric("Acciones", str(int(n_tit)) + " titulos")
-    c3.metric("Posicion", str(int(inv_t)) + " EUR")
-
-    # --- VERDICTO FINAL ---
-    if ev_tot < 5 or ite > 8:
-        v_c = "color:#fff; background:#ff3b30;"
-        v_t = "NO VIABLE"
-    elif idt >= 100 and ite <= 5:
-        v_c = "color:#fff; background:#1d1d1f;"
-        v_t = "COMPRA OBLIGATORIA"
-    elif idt >= 85 and ite <= 8:
-        v_c = "color:#fff; background:#ff9500;"
-        v_t = "COMPRA TACTICA"
-    else:
-        v_c = "color:#fff; background:#ff3b30;"
-        v_t = "ARMA BLOQUEADA"
-        
-    tag = "<div style='text-align:center;'><div class='apple-rank-tag' "
-    tag += "style='" + v_c + " font-size:1.3rem;'>" + v_t + "</div></div>"
-    st.markdown("<br>" + tag, unsafe_allow_html=True)
-
-    # --- GUARDAR ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("Guardar en Nube"):
-        d_sav = {
-            "Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, 
-            "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, 
-            "Acciones": n_tit, "Inversion": inv_t
-        }
-        for j in range(5):
-            d_sav["S" + str(j+1) + "_Dias"] = s_elegidos[j]
-            d_sav["W" + str(j+1)] = l_wr[j]
-            d_sav["R" + str(j+1)] = l_rt[j]
-            
-        new_row = pd.DataFrame([d_sav])
-        df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
-        conn.update(worksheet="Sheet1", data=df_upd)
-        st.success("Guardado ok.")
-
-with tab2:
-    st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
+        h_idt = "<div class=\"rank-box\">"
+        if idt >= 100:
+            h_idt += "<div class=\"tag-on\" style=\"background:#1d1d1f;\">OBLIGATORIA</div>"
+            h_idt += "<div class=\"tag-off\">TACTICA</div>"
+            h_idt
