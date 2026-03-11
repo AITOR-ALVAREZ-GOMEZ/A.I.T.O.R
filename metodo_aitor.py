@@ -8,20 +8,72 @@ import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 22.0 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 23.0 QUANT", layout="wide")
 
-# --- CSS ESTILO APPLE AVANZADO ---
+# --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
     
-    .stApp { background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1d1d1f; }
-    [data-testid="stSidebar"] { background-color: rgba(255, 255, 255, 0.7) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0,0,0,0.05) !important; }
-    h1, h2, h3, h1 *, h2 *, h3 * { color: #1d1d1f !important; font-weight: 700 !important; letter-spacing: -0.5px; }
-    .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div { background-color: #ffffff !important; border-radius: 12px !important; border: 1px solid rgba(0,0,0,0.1) !important; }
-    .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; }
+    .stApp {
+        background-color: #f5f5f7;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        color: #1d1d1f;
+    }
+    [data-testid="stSidebar"] {
+        background-color: rgba(255, 255, 255, 0.7) !important;
+        backdrop-filter: blur(20px) !important;
+        border-right: 1px solid rgba(0,0,0,0.05) !important;
+    }
+    h1, h2, h3, h1 *, h2 *, h3 * {
+        color: #1d1d1f !important;
+        font-weight: 700 !important;
+        letter-spacing: -0.5px;
+    }
     
-    /* TARJETAS KPI (SIN CORTES) */
+    /* RESTAURACIÓN DE LAS TARJETAS PRINCIPALES DEL ESCÁNER */
+    [data-testid="stMetric"] {
+        background-color: #ffffff;
+        border-radius: 18px;
+        padding: 15px 20px;
+        min-height: 140px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        border: 1px solid rgba(0,0,0,0.03);
+    }
+    [data-testid="stMetricValue"], [data-testid="stMetricValue"] * {
+        color: #1d1d1f !important;
+        font-weight: 700 !important;
+        font-size: 2.2rem !important;
+    }
+    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {
+        color: #86868b !important;
+        font-weight: 600 !important;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+    }
+    
+    /* INPUTS Y BOTONES */
+    .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div {
+        background-color: #ffffff !important;
+        border-radius: 12px !important;
+        border: 1px solid rgba(0,0,0,0.1) !important;
+    }
+    .stButton>button {
+        background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important;
+        color: white !important;
+        border: none !important;
+        border-radius: 20px !important;
+        padding: 10px 24px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important;
+    }
+    
+    /* ETIQUETAS DE TIER */
+    .rank-box { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    .tag-on { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .tag-off { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; }
+    
+    /* TARJETAS KPI (CARTERA) */
     .apple-kpi-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
     .apple-kpi-card { background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
     .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
@@ -114,7 +166,7 @@ if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
 # =====================================================================
 tab1, tab2, tab3 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría", "💼 Cartera en Vivo"])
 
-# --- PESTAÑA 1: ESCÁNER --- (Ocultado el código idéntico por brevedad, es el mismo de la v21)
+# --- PESTAÑA 1: ESCÁNER ---
 with tab1:
     st.title("Análisis: " + ticker)
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
@@ -141,7 +193,66 @@ with tab1:
 
     st.markdown("---")
     c1, c2, c3 = st.columns(3)
-    c1.metric("SCORE EV", str(ev_tot)); c2.metric("PUNTOS IDT", str(idt)); c3.metric("RIESGO ITE", str(ite) + "%")
+    
+    with c1:
+        st.metric("SCORE EV", str(ev_tot))
+        h_ev = "<div class='rank-box'>"
+        if ev_tot >= 10: h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
+        elif ev_tot >= 5: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-on' style='background:#2b8af7;'>TIER A</div><div class='tag-off'>DESCARTE</div>"
+        else: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-on' style='background:#ff3b30;'>DESCARTE</div>"
+        h_ev += "</div>"
+        st.markdown(h_ev, unsafe_allow_html=True)
+        
+    with c2:
+        st.metric("PUNTOS IDT", str(idt))
+        h_idt = "<div class='rank-box'>"
+        if idt >= 100: h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
+        elif idt >= 85: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-on' style='background:#ff9500;'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
+        else: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-on' style='background:#ff3b30;'>BLOQUEADA</div>"
+        h_idt += "</div>"
+        st.markdown(h_idt, unsafe_allow_html=True)
+        
+    with c3:
+        st.metric("RIESGO ITE", str(ite) + "%")
+        h_ite = "<div class='rank-box'>"
+        if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
+        elif ite <= 8: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
+        else: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-on' style='background:#ff3b30;'>NO OPERABLE</div>"
+        h_ite += "</div>"
+        st.markdown(h_ite, unsafe_allow_html=True)
+
+    pct_riesgo = r_pct / 100.0
+    p_max = CAPITAL * pct_riesgo
+    dif_p = p_buy - p_sl
+    n_tit = int(p_max / dif_p) if dif_p > 0 else 0
+    inv_t = n_tit * p_buy
+
+    st.markdown("---")
+    st.subheader(f"Ejecución Recomendada (Capital: {CAPITAL:,.0f} EUR)")
+    c4, c5, c6 = st.columns(3)
+    c4.metric("Riesgo Maximo", str(int(p_max)) + " EUR")
+    c5.metric("Acciones", str(int(n_tit)) + " titulos")
+    c6.metric("Posicion Total", str(int(inv_t)) + " EUR")
+
+    if ev_tot < 5 or ite > 8: v_c, v_t = "#ff3b30", "OPERACION NO VIABLE"
+    elif idt >= 100 and ite <= 5: v_c, v_t = "#1d1d1f", "COMPRA OBLIGATORIA"
+    elif idt >= 85 and ite <= 8: v_c, v_t = "#ff9500", "COMPRA TACTICA"
+    else: v_c, v_t = "#ff3b30", "ARMA BLOQUEADA"
+        
+    tag_v = f"<div style='text-align:center; margin-top:20px;'><div class='tag-on' style='background:{v_c}; font-size:1.2rem; padding:15px 30px;'>{v_t}</div></div>"
+    st.markdown(tag_v, unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("Guardar en Nube"):
+        d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
+        for j in range(5):
+            d_sav[f"S{j+1}_Dias"] = s_elegidos[j]
+            d_sav[f"W{j+1}"] = l_wr[j]
+            d_sav[f"R{j+1}"] = l_rt[j]
+        new_row = pd.DataFrame([d_sav])
+        df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
+        conn.update(worksheet="Sheet1", data=df_upd)
+        st.success("Guardado ok.")
 
 # --- PESTAÑA 2: AUDITORÍA ---
 with tab2: st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
@@ -265,75 +376,10 @@ with tab3:
                     st.markdown(f"""
                     <div class="quant-card">
                         <div class="quant-title">2. Exponente de Hurst</div>
-                        <div class="quant-desc">Mide la "memoria" del precio. > 0.5 es tendencia sana. < 0.5 es mercado en rango errático o ruido.</div>
+                        <div class="quant-desc">Mide la "memoria" del precio en el último año de mercado (252 días). > 0.5 es tendencia sana. < 0.5 es mercado en rango errático o ruido.</div>
                     </div>
                     """, unsafe_allow_html=True)
                     fig_h = go.Figure(go.Indicator(
                         mode = "gauge+number", value = hurst_val,
                         number = {'valueformat': '.2f'},
-                        gauge = {'axis': {'range': [0, 1]},
-                                 'bar': {'color': "darkblue"},
-                                 'steps': [{'range': [0, 0.45], 'color': "lightgray"},
-                                           {'range': [0.45, 0.55], 'color': "yellow"},
-                                           {'range': [0.55, 1], 'color': "lightgreen"}]}
-                    ))
-                    fig_h.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10))
-                    st.plotly_chart(fig_h, use_container_width=True)
-
-                    st.markdown(f"""
-                    <div class="quant-card">
-                        <div class="quant-title">4. Perfil Drawdown</div>
-                        <div class="quant-desc">Caída actual respecto a su máximo. Históricamente, este valor ha llegado a caer un {dd_max:.1f}% sin perder tendencia.</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    # Minigráfico de Drawdown
-                    fig_dd = go.Figure(go.Scatter(y=df_q['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
-                    fig_dd.update_layout(height=120, margin=dict(l=0, r=0, t=0, b=0), xaxis_visible=False, yaxis=dict(range=[dd_max, 0]))
-                    st.plotly_chart(fig_dd, use_container_width=True)
-
-                st.markdown("---")
-                
-                # --- NUEVO MOTOR DE DECISIÓN ESTADÍSTICO ---
-                st.subheader("🤖 Decisión Cuántica del Algoritmo")
-                stop_roto = precio_vivo < stop_actual
-                
-                if stop_roto:
-                    st.error(f"🚨 **¡STOP ROTO!** El precio ha cruzado el umbral. Vende matemáticamente.")
-                elif z_actual > 2.5:
-                    st.warning(f"🚀 **ANOMALÍA (Z-Score +{z_actual:.2f}):** Tensión probabilística extrema. Ajusta el Stop a corto plazo para proteger la parábola.")
-                elif hurst_val < 0.45:
-                    st.warning("⚠️ **PÉRDIDA DE TENDENCIA:** El exponente Hurst advierte que el valor ha entrado en fase de ruido aleatorio.")
-                else:
-                    st.success(f"🛡️ **VÍA LIBRE ESTADÍSTICA:** Z-Score normal ({z_actual:.2f}) y Tendencia viva (Hurst {hurst_val:.2f}). Mantén el Stop relajado en S5.")
-                    
-        except Exception as e:
-            st.error(f"Error técnico: {e}")
-
-    # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
-    with tab_add:
-        st.markdown("### ➕ Registrar Nueva Compra")
-        with st.form("form_add"):
-            c1, c2, c3 = st.columns(3)
-            with c1: t_ticker = st.text_input("Ticker").upper(); t_fecha_in = st.date_input("Fecha"); t_precio_in = st.number_input("Precio Compra", format="%.2f")
-            with c2: t_acciones = st.number_input("Acciones", format="%.2f"); t_stop = st.number_input("Stop Loss", format="%.2f"); t_fecha_s4 = st.date_input("Fecha S4")
-            with c3: t_precio_s4 = st.number_input("Precio S4", format="%.2f"); t_fecha_s5 = st.date_input("Fecha S5"); t_precio_s5 = st.number_input("Precio S5", format="%.2f")
-            if st.form_submit_button("Añadir a Cartera") and t_ticker != "":
-                df_c = conn.read(worksheet="Cartera", ttl=0)
-                n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
-                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                st.success("Añadido.")
-
-    # --- HISTORIAL ---
-    with tab_historial:
-        try:
-            df_h = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
-            if not df_h.empty:
-                df_h['Fecha_Venta'] = pd.to_datetime(df_h['Fecha_Venta']).dt.date
-                f_in = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
-                df_f = df_h[df_h['Fecha_Venta'] >= f_in]
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Beneficio Neto", f"{df_f['Beneficio_EUR'].sum():.2f} €")
-                c2.metric("Operaciones", len(df_f))
-                c3.metric("Win Rate", f"{(len(df_f[df_f['Beneficio_EUR'] > 0]) / len(df_f) * 100) if len(df_f)>0 else 0:.1f}%")
-                st.dataframe(df_f[['Ticker', 'Beneficio_EUR']], use_container_width=True)
-        except: pass
+                        gauge = {'axis': {'range
