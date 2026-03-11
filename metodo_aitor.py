@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 29.3", layout="wide")
+st.set_page_config(page_title="AITOR 29.4", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -55,12 +55,13 @@ try: df_datos = conn.read(worksheet="Sheet1", ttl=5)
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 # =====================================================================
-# BUSCADOR LATERAL CON MEMORIA DE AUDITORÍA Y PRECIO ROBUSTO
+# BUSCADOR LATERAL CON MOTOR ANTI-YAHOO Y LIMPIEZA DE ESPACIOS
 # =====================================================================
 st.sidebar.header("Buscador de Activos")
 opciones_bd = df_datos['Ticker'].dropna().unique().tolist() if not df_datos.empty else []
 
-ticker_manual = st.sidebar.text_input("Nuevo Ticker (Ej: MSFT):", "").upper()
+# .strip() elimina los espacios accidentales que el usuario ponga al final
+ticker_manual = st.sidebar.text_input("Nuevo Ticker (Ej: MSFT):", "").strip().upper()
 ticker_lista = st.sidebar.selectbox("O cargar de Auditoría:", [""] + opciones_bd)
 
 ticker = ticker_manual if ticker_manual != "" else ticker_lista
@@ -69,23 +70,33 @@ if ticker == "": ticker = "MSFT"
 nom_emp, p_merc, prev_1y, eps_base = "Buscando...", 0.0, 0.0, 0.0
 
 if ticker != "":
+    stock = yf.Ticker(ticker)
+    
+    # 1. INTENTO 1: Sacar el precio exacto (Es lo más importante y no falla)
     try:
-        stock = yf.Ticker(ticker)
-        nom_emp = stock.info.get("longName", "Desconocido")
-        
         hist_temp = stock.history(period="5d")
-        if not hist_temp.empty: p_merc = hist_temp['Close'].iloc[-1]
-        else: p_merc = stock.info.get("currentPrice", stock.info.get("regularMarketPrice", 0.0))
+        if not hist_temp.empty:
+            p_merc = float(hist_temp['Close'].iloc[-1])
+    except: pass
+    
+    # 2. INTENTO 2: Sacar los fundamentales (Si falla, el precio ya lo tenemos a salvo)
+    try:
+        info = stock.info
+        nom_emp = info.get("longName", info.get("shortName", ticker))
+        
+        if p_merc == 0.0: # Si falló el historial, intentamos el currentPrice de info
+            p_merc = float(info.get("currentPrice", info.get("regularMarketPrice", 0.0)))
             
-        eps_base = stock.info.get("trailingEps", 0.0)
-        f_eps = stock.info.get("forwardEps", 0.0)
+        eps_base = info.get("trailingEps", 0.0)
+        f_eps = info.get("forwardEps", 0.0)
         
         if eps_base is not None and f_eps is not None and eps_base > 0 and f_eps > eps_base: 
             prev_1y = (f_eps - eps_base) / eps_base
         else: 
-            prev_1y = stock.info.get("revenueGrowth", 0.0)
+            prev_1y = info.get("revenueGrowth", 0.0)
             if prev_1y is None: prev_1y = 0.0
-    except: pass
+    except: 
+        if nom_emp == "Buscando...": nom_emp = ticker
 
 st.sidebar.subheader(nom_emp)
 
@@ -235,9 +246,9 @@ with tab1:
 
     with col_txt_esc:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        if ite <= 5: st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento sin disparar tu riesgo máximo.")
-        elif ite <= 8: st.warning(f"**🟠 Riesgo Límite ({ite}%):** El Stop empieza a estar lejos. Tienes que reducir drásticamente el número de acciones para mantener tu riesgo del {r_pct}%.")
-        else: st.error(f"**🔴 Riesgo Excesivo ({ite}%):** El Stop está demasiado lejos. Operación matemáticamente suicida. Ajusta la entrada o descarta el valor.")
+        if ite <= 5: st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento.")
+        elif ite <= 8: st.warning(f"**🟠 Riesgo Límite ({ite}%):** El Stop empieza a estar lejos. Tienes que reducir drásticamente el número de acciones.")
+        else: st.error(f"**🔴 Riesgo Excesivo ({ite}%):** El Stop está demasiado lejos. Operación matemáticamente suicida.")
 
     st.markdown("---")
     
@@ -301,7 +312,7 @@ with tab1:
                         st.markdown("</div>", unsafe_allow_html=True)
 
                     if hurst_in > 0.55 and (0.5 <= z_in <= 2.0) and acc_in > 0:
-                        st.success("🟢 **SEÑAL CUANTITATIVA APROBADA:** El activo cumple los requisitos estadísticos. Tiene memoria tendencial, aceleración positiva y no está parabólico. ¡Buena compra!")
+                        st.success("🟢 **SEÑAL CUANTITATIVA APROBADA:** El activo cumple los requisitos estadísticos. Tiene memoria tendencial, aceleración positiva y no está parabólico.")
                     elif z_in > 2.0:
                         st.error(f"🔴 **RECHAZO CUANTITATIVO:** Z-Score ({z_in:.2f}) en modo burbuja. Entrar ahora es comprar en el techo. Espera a que descanse.")
                     elif hurst_in <= 0.55:
@@ -419,26 +430,26 @@ with tab3:
                 col_q1, col_q2 = st.columns(2)
                 
                 with col_q1:
-                    st.markdown("""<div class="quant-card"><div class="quant-title">1. Z-Score (Desviación)</div><div class="quant-desc">Mide cuántas desviaciones estándar se aleja el precio de su Media de 55 días. Valores > 2.5 indican riesgo de reversión.</div>""", unsafe_allow_html=True)
+                    st.markdown("""<div class="quant-card"><div class="quant-title">1. Z-Score (Desviación)</div><div class="quant-desc">Mide cuántas desviaciones estándar se aleja el precio de su Media de 55 días.</div>""", unsafe_allow_html=True)
                     fig_z = go.Figure(go.Indicator(mode="gauge+number", value=z_actual, number=dict(valueformat='.2f', suffix=' Sigmas'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2], color="lightpink"), dict(range=[-2, 2], color="lightgreen"), dict(range=[2, 2.5], color="orange"), dict(range=[2.5, 4], color="red")])))
                     fig_z.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_z, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    st.markdown(f"""<div class="quant-card"><div class="quant-title">3. Aceleración Pura</div><div class="quant-desc">Cambio en la velocidad del precio. Un pico extremo avisa de un "clímax comprador". Actual: {accel_actual:.2f}</div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="quant-card"><div class="quant-title">3. Aceleración Pura</div><div class="quant-desc">Cambio en la velocidad del precio. Un pico avisa de un "clímax". Actual: {accel_actual:.2f}</div>""", unsafe_allow_html=True)
                     fig_acc = go.Figure(go.Scatter(x=df_q.index[-60:], y=df_q['Accel'].tail(60), mode='lines', fill='tozeroy', line_color='purple'))
                     fig_acc.update_layout(height=160, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"), yaxis=dict(showgrid=False))
                     st.plotly_chart(fig_acc, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
                 with col_q2:
-                    st.markdown("""<div class="quant-card"><div class="quant-title">2. Exponente de Hurst</div><div class="quant-desc">Mide la "memoria" del precio. > 0.5 es tendencia sana. < 0.5 es mercado en rango errático.</div>""", unsafe_allow_html=True)
+                    st.markdown("""<div class="quant-card"><div class="quant-title">2. Exponente de Hurst</div><div class="quant-desc">Mide la "memoria" del precio. > 0.5 es tendencia sana. < 0.5 es rango.</div>""", unsafe_allow_html=True)
                     fig_h = go.Figure(go.Indicator(mode="gauge+number", value=hurst_val, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[0, 1]), bar=dict(color="darkblue"), steps=[dict(range=[0, 0.45], color="lightgray"), dict(range=[0.45, 0.55], color="yellow"), dict(range=[0.55, 1], color="lightgreen")])))
                     fig_h.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_h, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                    st.markdown(f"""<div class="quant-card"><div class="quant-title">4. Perfil Drawdown</div><div class="quant-desc">Históricamente, este valor ha llegado a caer un {dd_max:.1f}% sin perder tendencia estructural.</div>""", unsafe_allow_html=True)
+                    st.markdown(f"""<div class="quant-card"><div class="quant-title">4. Perfil Drawdown</div><div class="quant-desc">Históricamente, este valor ha caído un {dd_max:.1f}% sin perder tendencia.</div>""", unsafe_allow_html=True)
                     fig_dd = go.Figure(go.Scatter(x=df_q.index[-150:], y=df_q['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
                     fig_dd.update_layout(height=160, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"), yaxis=dict(range=[dd_max*1.1, 0]))
                     st.plotly_chart(fig_dd, use_container_width=True)
@@ -446,6 +457,7 @@ with tab3:
 
                 st.markdown("---")
                 st.subheader("⚖️ Veredicto del Algoritmo y Gestión de Stop")
+                
                 stop_roto = precio_vivo < stop_actual
                 
                 if stop_roto:
@@ -494,7 +506,7 @@ with tab3:
         except Exception as e:
             st.error(f"Error técnico: {e}")
 
-    # --- NUEVA PESTAÑA: AÑADIR A CARTERA (SINTAXIS PLANA ANTI-ERRORES) ---
+    # --- NUEVA PESTAÑA: AÑADIR A CARTERA (SINTAXIS PLANA) ---
     with tab_add:
         st.markdown("### ➕ Registrar Nueva Compra")
         with st.form("form_add"):
@@ -515,10 +527,7 @@ with tab3:
             btn_submit = st.form_submit_button("Añadir a Cartera")
             if btn_submit and t_ticker != "":
                 df_c = conn.read(worksheet="Cartera", ttl=0)
-                
-                # VARIABLE PLANA DE UNA SOLA LÍNEA PARA EVITAR ERRORES DE SINTAXIS AL COPIAR
                 n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
-                
                 conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
                 st.success("Añadido exitosamente.")
 
