@@ -4,8 +4,8 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 import datetime
 
-# --- 1. CONFIGURACION Y ESTILO APPLE (IOS / MACOS) ---
-st.set_page_config(page_title="AITOR 13.0 Pro", layout="wide")
+# --- 1. CONFIGURACION Y ESTILO APPLE (IOS / MACOS) V2 ---
+st.set_page_config(page_title="AITOR 13.1 Balanced", layout="wide")
 
 st.markdown("""
 <style>
@@ -112,6 +112,38 @@ st.markdown("""
         border-radius: 16px !important;
         border: none !important;
         box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
+    }
+    
+    /* ESTILOS ESPECIFICOS AITOR 13.1 (IGUALAR MEDIDAS Y RANKING APPLE) */
+    .stMetric {
+        min-height: 120px; /* Asegura que la tarjeta de la metrica sea idéntica */
+    }
+    
+    .apple-classification-container {
+        display: flex;
+        gap: 10px;
+        margin-top: 15px;
+    }
+    
+    .apple-rank-tag {
+        border-radius: 14px;
+        padding: 6px 14px;
+        font-weight: 600;
+        font-size: 0.9rem;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+    }
+    
+    .stCaption {
+        color: #86868b;
+        margin-top: 5px;
+        font-size: 0.95rem;
+    }
+    
+    [data-testid="stVerticalBlock"] > div > [data-testid="stHorizontalBlock"] {
+        align-items: stretch !important; /* Fuerza a que las columnas se estiren para medir lo mismo */
     }
 </style>
 """, unsafe_allow_html=True)
@@ -244,68 +276,55 @@ with tab1:
     idt = l_wr[0] + bono + p_estr + p_sen - penal
 
     st.markdown("---")
-    r1, r2, r3 = st.columns(3)
-    with r1:
+    
+    # NUEVA SECCION DE RESULTADOS (MEDIDAS IGUALES)
+    r_cols = st.columns(3)
+    
+    # 1. EV TOTAL
+    with r_cols[0]:
         st.subheader("Puntuacion EV")
-        st.metric("SCORE TOTAL", str(ev_tot), "+" + str(round(ev_plus, 2)) + " Bonus Calidad")
-    with r2:
+        st.metric("SCORE TOTAL", str(ev_tot), "+" + str(round(ev_plus, 2)) + " Bonus")
+        st.caption("Esperanza Matematica combinada: Representa la calidad y ventaja operativa.")
+        
+        # Ranking Apple Style (Apple Vision Pro Edition)
+        if ev_tot >= 10: 
+            r1_class, r1_text = "color: white; background: linear-gradient(135deg, #1d976c 0%, #34c759 100%);", "💎 TIER_S (Elite)"
+        elif ev_tot >= 5: 
+            r1_class, r1_text = "color: white; background: linear-gradient(135deg, #3d3393 0%, #2b8af7 100%);", "🟢 TIER_A (Bueno)"
+        else: 
+            r1_class, r1_text = "color: white; background: linear-gradient(135deg, #ed4264 0%, #ff3b30 100%);", "🚫 Descarte (<5)"
+            
+        st.markdown(f'<div class="apple-classification-container"><div class="apple-rank-tag" style="{r1_class}">{r1_text}</div></div>', unsafe_allow_html=True)
+    
+    # 2. IDT PUNTOS
+    with r_cols[1]:
         st.subheader("Fuerza IDT")
         st.metric("PUNTOS TACTICOS", str(idt) + " pts")
-    with r3:
+        st.caption("Indice de Disparo Tactico: Mide la potencia inmediata y estrutura fractal.")
+        
+        if idt >= 100: 
+            r2_class, r2_text = "color: white; background: linear-gradient(135deg, #232526 0%, #1d1d1f 100%);", "🔥 OBLIGATORIA (>100)"
+        elif idt >= 85: 
+            r2_class, r2_text = "color: white; background: linear-gradient(135deg, #ff9966 0%, #ff9500 100%);", "🟡 TACTICA (85-99)"
+        else: 
+            r2_class, r2_text = "color: white; background: linear-gradient(135deg, #ed4264 0%, #ff3b30 100%);", "🚫 BLOQUEADA (<85)"
+            
+        st.markdown(f'<div class="apple-classification-container"><div class="apple-rank-tag" style="{r2_class}">{r2_text}</div></div>', unsafe_allow_html=True)
+
+    # 3. ITE %
+    with r_cols[2]:
         st.subheader("Tension ITE")
-        st.metric("RIESGO", str(ite) + "%")
+        st.metric("RIESGO ITE", str(ite) + "%")
+        st.caption("Indice de Tension Elastica: Distancia al Stop Loss. Control de riesgo.")
+        
+        if ite <= 5: 
+            r3_class, r3_text = "color: white; background: linear-gradient(135deg, #1d976c 0%, #34c759 100%);", "🟢 OPTIMO (<5%)"
+        elif ite <= 8: 
+            r3_class, r3_text = "color: white; background: linear-gradient(135deg, #ff9966 0%, #ff9500 100%);", "🟡 LIMITE (5-8%)"
+        else: 
+            r3_class, r3_text = "color: white; background: linear-gradient(135deg, #ed4264 0%, #ff3b30 100%);", "🚫 NO OPERABLE"
+            
+        st.markdown(f'<div class="apple-classification-container"><div class="apple-rank-tag" style="{r3_class}">{r3_text}</div></div>', unsafe_allow_html=True)
 
     # --- CALCULADORA 277k ---
-    p_max = CAPITAL * (r_pct / 100.0)
-    dif_p = p_buy - p_sl
-    
-    n_tit = 0
-    if dif_p > 0:
-        n_tit = int(p_max / dif_p)
-        
-    inv_t = n_tit * p_buy
-
-    st.markdown("---")
-    st.subheader("Ejecucion Recomendada (Capital: 277.000 EUR)")
-    
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        st.metric("Capital en Riesgo", str(int(p_max)) + " EUR")
-    with c2:
-        st.metric("Acciones a Comprar", str(int(n_tit)) + " titulos")
-    with c3:
-        st.metric("Tamaño Posicion", str(int(inv_t)) + " EUR")
-
-    # --- VERDICTO ---
-    if ev_tot < 5 or ite > 8:
-        v_txt, v_col = "Operacion No Viable", "#ff3b30" # Rojo Apple
-    elif idt >= 100 and ite <= 5:
-        v_txt, v_col = "Compra Obligatoria", "#34c759" # Verde Apple
-    elif idt >= 85 and ite <= 8:
-        v_txt, v_col = "Compra Tactica", "#ff9500" # Naranja Apple
-    else:
-        v_txt, v_col = "Arma Bloqueada", "#ff3b30"
-        
-    st.markdown("<h2 style='text-align:center; color:" + v_col + "; margin-top: 30px; font-weight: 700;'>" + v_txt + "</h2>", unsafe_allow_html=True)
-
-    # --- GUARDAR ---
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("Sincronizar con iCloud (Sheets)"):
-        tier = "TIER S" if ev_tot >= 10 else "TIER A" if ev_tot >= 5 else "DESC"
-        d_sav = {
-            "Ticker": ticker, "Tier": tier, "EV_Total": ev_tot, 
-            "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_txt, 
-            "Acciones": n_tit, "Inversion": inv_t
-        }
-        for j in range(5):
-            d_sav["S" + str(j+1) + "_Dias"] = s_elegidos[j]
-            d_sav["W" + str(j+1)] = l_wr[j]
-            d_sav["R" + str(j+1)] = l_rt[j]
-            
-        new_row = pd.DataFrame([d_sav])
-        df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates('Ticker', keep='last')
-        conn.update(worksheet="Sheet1", data=df_upd)
-        st.success("Guardado y Sincronizado correctamente.")
-
-with tab2:
-    st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
+    p_max = CAPITAL * (r_pct / 1
