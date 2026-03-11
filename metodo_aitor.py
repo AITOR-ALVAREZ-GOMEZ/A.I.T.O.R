@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 26.0 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 27.0 QUANT", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -227,7 +227,6 @@ with tab3:
                 fecha_in = pd.to_datetime(datos_ticker['Fecha_Entrada']).date()
                 precio_in = float(datos_ticker['Precio_Entrada'])
                 acciones = float(datos_ticker['Num_Acciones'])
-                stop_actual = float(datos_ticker['Stop_Actual'])
                 
                 with st.spinner(f"Analizando data científica de {ticker_sel}..."):
                     stock_cartera = yf.Ticker(ticker_sel)
@@ -243,7 +242,7 @@ with tab3:
                     s4_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S4_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 34
                     s5_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S5_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 55
 
-                    # CALCULO DE MEDIAS VIVAS (PRECIOS EXACTOS DE STOP)
+                    # CALCULO DE MEDIAS VIVAS
                     media_s1 = df_q['Close'].rolling(window=s1_d, min_periods=1).mean().iloc[-1]
                     media_s2 = df_q['Close'].rolling(window=s2_d, min_periods=1).mean().iloc[-1]
                     media_s4 = df_q['Close'].rolling(window=s4_d, min_periods=1).mean().iloc[-1]
@@ -326,13 +325,8 @@ with tab3:
                 # --- NUEVO MOTOR DE DECISIÓN ESTADÍSTICO SINTETIZADO ---
                 st.subheader("⚖️ Veredicto del Algoritmo y Gestión de Stop")
                 
-                stop_roto = precio_vivo < stop_actual
-                
-                # LÓGICA DE DECISIÓN CORREGIDA (Límites en precios reales)
-                if stop_roto:
-                    st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio actual ({precio_vivo:.2f}) ha cruzado tu umbral rojo. Ejecuta la venta matemáticamente.")
-                    stop_sugerido = stop_actual
-                elif z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
+                # LÓGICA DE DECISIÓN: Qué stop usar según la fase de mercado
+                if z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
                     st.warning(f"🚀 **CLÍMAX COMPRADOR:** Tensión probabilística extrema (Z-Score +{z_actual:.2f}). \n\n**VEREDICTO:** Sube agresivamente tu Stop al sistema **S1 ({s1_d} Días) en {media_s1:.2f} €** o **S2 ({s2_d} Días) en {media_s2:.2f} €**.")
                     stop_sugerido = media_s2
                 elif hurst_val < 0.45:
@@ -342,27 +336,29 @@ with tab3:
                     st.success(f"🛡️ **TENDENCIA SANA:** La matemática está de tu lado (Hurst {hurst_val:.2f}). \n\n**VEREDICTO:** Deja correr los beneficios usando tu Stop en **S4 ({s4_d} Días) en {media_s4:.2f} €** o **S5 ({s5_d} Días) en {media_s5:.2f} €**.")
                     stop_sugerido = media_s4
 
-                # --- EL TERMÓMETRO DE RIESGO ---
+                # --- EL TERMÓMETRO DE RIESGO CORREGIDO ---
+                # Ahora usa el "stop_sugerido" matemático, no el del Excel
                 st.markdown("<br>", unsafe_allow_html=True)
                 col_term, col_vacia = st.columns([2, 1])
                 with col_term:
-                    rango_min = stop_actual * 0.85
-                    rango_max = max(precio_vivo * 1.05, stop_actual * 1.1)
+                    rango_min = stop_sugerido * 0.90  # El gráfico empieza un 10% por debajo del stop
+                    rango_max = max(precio_vivo * 1.05, stop_sugerido * 1.10) # El gráfico termina un 5% por encima del precio actual
+                    limite_naranja = stop_sugerido * 1.03 # Aviso de peligro al acercarse a un 3% del stop
                     
                     fig_riesgo = go.Figure(go.Indicator(
                         mode="gauge+number",
                         value=precio_vivo,
-                        title=dict(text="Radar de Peligro (Precio vs Stop Loss)", font=dict(size=14)),
+                        title=dict(text="Radar Cuántico (Precio vs Stop Matemático)", font=dict(size=14)),
                         number=dict(suffix=" €", valueformat=".2f"),
                         gauge=dict(
                             axis=dict(range=[rango_min, rango_max]),
-                            bar=dict(color="black"),
+                            bar=dict(color="#1d1d1f"), # Aguja negra
                             steps=[
-                                dict(range=[rango_min, stop_actual], color="#ff3b30"), # Zona Roja (Venta)
-                                dict(range=[stop_actual, stop_actual * 1.05], color="#ff9500"), # Zona Naranja (Alerta)
-                                dict(range=[stop_actual * 1.05, rango_max], color="#34c759") # Zona Verde (Seguro)
+                                dict(range=[rango_min, stop_sugerido], color="#ff3b30"), # Zona Roja
+                                dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"), # Zona Naranja (Alerta)
+                                dict(range=[limite_naranja, rango_max], color="#34c759") # Zona Verde (Seguro)
                             ],
-                            threshold=dict(line=dict(color="red", width=4), thickness=0.75, value=stop_actual)
+                            threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido)
                         )
                     ))
                     fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
