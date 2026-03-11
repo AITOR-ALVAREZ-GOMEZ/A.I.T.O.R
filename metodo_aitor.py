@@ -4,46 +4,53 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 
 # 1. CONFIGURACIÓN
-st.set_page_config(page_title="A.I.T.O.R. 7.0 - Fractal Master", layout="wide")
+st.set_page_config(page_title="A.I.T.O.R. 7.1 - Transparencia Pro", layout="wide")
 
-# Lista Maestra de tus Días Fibonacci/Fractales
 DIAS_DISPONIBLES = [1, 2, 3, 5, 6, 7, 8, 11, 14, 17, 21, 26, 34, 55]
-
-# Columnas para el Ranking Eterno
 COL_BASE = ["Ticker", "Tier", "EV_Total", "IDT_Puntos", "ITE_Porc", "Veredicto"]
-# Guardamos: Dia, WR y Ratio para cada uno de los 5 sistemas seleccionados
 COL_SISTEMAS = []
 for i in range(1, 6):
     COL_SISTEMAS.extend([f"S{i}_Dias", f"W{i}", f"R{i}"])
 COL_TOTALES = COL_BASE + COL_SISTEMAS
 
-# Conexión a Google Sheets
+# Conexión GSheets
 conn = st.connection("gsheets", type=GSheetsConnection)
-
 try:
     existing_data = conn.read(worksheet="Sheet1", ttl=5)
 except:
     existing_data = pd.DataFrame(columns=COL_TOTALES)
 
-# --- 2. SIDEBAR: CONFIGURACIÓN FRACTAL ---
-st.sidebar.header("🔍 Buscador")
+# --- 2. BUSCADOR CON SENSOR DE PRECISIÓN ---
+st.sidebar.header("🔍 Buscador de Activos")
 ticker_input = st.sidebar.text_input("TICKER", "MSFT").upper()
 
-# ... (Lógica de auto-detección y Yahoo Finance igual que V6.1) ...
-nombre_emp, p_mercado, f_growth = "Buscando...", 0.0, 0.0
+nombre_emp, p_mercado, valor_eps_detectado = "Buscando...", 0.0, 0.0
 try:
     stock = yf.Ticker(ticker_input); inf = stock.info
     nombre_emp = inf.get('longName', 'Ticker no detectado')
     p_mercado = inf.get('regularMarketPrice', inf.get('previousClose', 0.0))
+    
+    # MEJORA: Buscamos crecimiento futuro (Forward) y actual
+    # Intentamos obtener el crecimiento de beneficios estimado
     f_growth = inf.get('earningsGrowth', 0) or 0
+    q_growth = inf.get('earningsQuarterlyGrowth', 0) or 0
+    # Usamos el mayor de los dos para el sensor, pero lo mostramos
+    valor_eps_detectado = f_growth if f_growth > 0 else q_growth
 except: pass
 
 st.sidebar.subheader(f"🏢 {nombre_emp}")
-st.sidebar.markdown("---")
+st.sidebar.write(f"**Precio:** {p_mercado} $")
 
 # 3. FILTROS LIBRO BLANCO (DINÁMICOS)
 st.sidebar.header("📚 Calidad (Libro Blanco)")
-auto_eps = "Explosivo (>25%)" if f_growth > 0.25 else "Alto (>15%)" if f_growth > 0.15 else "Medio (>10%)" if f_growth > 0.10 else "Bajo (<10%)"
+
+# Mostramos el dato real para que Aitor no dude
+if valor_eps_detectado > 0:
+    st.sidebar.info(f"📊 Crecimiento detectado: {valor_eps_detectado*100:.2f}%")
+else:
+    st.sidebar.warning("⚠️ No hay datos de previsión EPS")
+
+auto_eps = "Explosivo (>25%)" if valor_eps_detectado > 0.25 else "Alto (>15%)" if valor_eps_detectado > 0.15 else "Medio (>10%)" if valor_eps_detectado > 0.10 else "Bajo (<10%)"
 eps_choice = st.sidebar.selectbox("Expectativa Crecimiento", 
                                  ["Bajo (<10%)", "Medio (>10%)", "Alto (>15%)", "Explosivo (>25%)"], 
                                  index=["Bajo (<10%)", "Medio (>10%)", "Alto (>15%)", "Explosivo (>25%)"].index(auto_eps))
@@ -59,88 +66,61 @@ st.sidebar.header("🎯 Ejecución")
 p_gatillo = st.sidebar.number_input("Precio Gatillo $", value=float(p_mercado))
 p_entrada = st.sidebar.number_input("Precio Compra $", value=float(p_mercado))
 
-# --- NUEVO: SELECCIÓN DINÁMICA DE SISTEMAS ---
-st.sidebar.header("🧬 Configuración de Sistemas")
-st.sidebar.caption("Elige tus 5 marcos temporales Fibonacci:")
+st.sidebar.header("🧬 Configuración Fractal")
 sistemas_elegidos = []
 default_fibs = [1, 3, 8, 14, 21]
-
 for i in range(5):
     s_dia = st.sidebar.selectbox(f"Sistema {i+1}", DIAS_DISPONIBLES, 
-                                 index=DIAS_DISPONIBLES.index(default_fibs[i]) if default_fibs[i] in DIAS_DISPONIBLES else 0,
-                                 key=f"select_s{i}")
+                                 index=DIAS_DISPONIBLES.index(default_fibs[i]), key=f"sel_s{i}")
     sistemas_elegidos.append(s_dia)
 
-# 4. INTERFAZ PRINCIPAL
+# 4. CUERPO PRINCIPAL
 tab1, tab2 = st.tabs(["🔍 Escáner Fractal", "📊 Auditoría & Ranking"])
 
 with tab1:
     st.title(f"🚀 Análisis Cuantitativo: {ticker_input}")
     ev_list, wr_list, ratio_list, estados = [], [], [], []
     cols = st.columns(5)
-    
     for i, s_v in enumerate(sistemas_elegidos):
         with cols[i]:
             st.markdown(f"### {s_v} Días")
             wr = st.number_input(f"WR% {s_v}D", 0, 100, 50, key=f"wr_{i}")
             ratio = st.number_input(f"Ratio {s_v}D", 0.0, 100.0, 2.0, key=f"rt_{i}")
-            est = st.radio(f"Estado {s_v}D", ["🔴 Venta", "🔵 Compra"], key=f"es_{i}")
-            
-            # $EV = (WR \times Ratio) - ((1 - WR) \times 1)$
-            wr_f = wr / 100
-            ev_i = round((wr_f * ratio) - ((1 - wr_f) * 1), 2)
-            
+            est = st.radio(f"Estado", ["🔴 Venta", "🔵 Compra"], key=f"es_{i}")
+            ev_i = round(((wr/100) * ratio) - ((1 - wr/100) * 1), 2)
             ev_list.append(ev_i); wr_list.append(wr); ratio_list.append(ratio); estados.append(est)
             st.metric(f"EV {s_v}D", f"{ev_i}")
 
-    # Cálculos Finales
     ev_total = round((sum(ev_list) / 5) + plus_ev_final, 2)
-    
-    dist_perc = ((p_entrada - p_gatillo) / p_gatillo) * 100 if p_gatillo > 0 else 0
-    penalizacion = 30 if dist_perc > 5.0 else 10 if dist_perc >= 2.0 else 0
-    
-    p_estruc = sum(1 for e in estados[1:] if "🔵" in e) * 10
-    p_senal = 10 if "🔵" in estados[0] else 0
-    idt_total = wr_list[0] + plus_calidad_idt + p_estruc + p_senal - penalizacion
+    idt_total = wr_list[0] + plus_calidad_idt + (sum(1 for e in estados[1:] if "🔵" in e) * 10) + (10 if "🔵" in estados[0] else 0) - (30 if ((p_entrada-p_gatillo)/p_gatillo)*100 > 5 else 0)
 
     m1, m2, m3 = st.columns(3)
     with m1:
         st.metric("EV TOTAL", f"{ev_total}", f"+{plus_ev_final:.2f} Calidad")
-        st.write(f"👉 **Tier {'S' if ev_total >= 10 else 'A' if ev_total >= 5 else 'Descarte'}**")
     with m2:
         st.metric("IDT PUNTOS", f"{idt_total} pts")
     with m3:
         p_stop = st.number_input("Precio Stop $", value=float(p_entrada * 0.95))
-        ite = round(((p_entrada - p_stop) / p_stop) * 100, 2)
+        ite = round(((p_entrada - p_stop) / p_stop) * 100, 2) if p_stop > 0 else 0
         st.metric("RIESGO ITE", f"{ite}%")
 
-    # Veredicto
     if ev_total < 5 or ite > 8: v_txt, v_col = "🚫 NO OPERABLE", "#ff4b4b"
     elif idt_total >= 100 and ite <= 5: v_txt, v_col = "🔥 COMPRA OBLIGATORIA", "#00ffcc"
     elif idt_total >= 85 and ite <= 8: v_txt, v_col = "🟡 COMPRA TÁCTICA", "#ffcc00"
     else: v_txt, v_col = "🚫 ARMA BLOQUEADA", "#ff4b4b"
     st.markdown(f"<h2 style='text-align:center; color:{v_col};'>{v_txt}</h2>", unsafe_allow_html=True)
 
-    # BOTÓN DE GUARDADO DINÁMICO
-    if st.button("💾 GUARDAR AUDITORÍA FRACTAL EN DRIVE"):
+    if st.button("💾 GUARDAR AUDITORÍA EN DRIVE"):
         t_label = "👑 TIER S" if ev_total >= 10 else "🟢 TIER A" if ev_total >= 5 else "🔴 DESCARTE"
-        
-        # Construimos el diccionario de datos dinámicamente
-        data_dict = {
-            "Ticker": ticker_input, "Tier": t_label, "EV_Total": ev_total,
-            "IDT_Puntos": idt_total, "ITE_Porc": ite, "Veredicto": v_txt
-        }
-        # Añadimos los 5 sistemas elegidos y sus resultados
+        data_dict = {"Ticker": ticker_input, "Tier": t_label, "EV_Total": ev_total, "IDT_Puntos": idt_total, "ITE_Porc": ite, "Veredicto": v_txt}
         for i in range(5):
             data_dict[f"S{i+1}_Dias"] = sistemas_elegidos[i]
             data_dict[f"W{i+1}"] = wr_list[i]
             data_dict[f"R{i+1}"] = ratio_list[i]
-        
         new_row = pd.DataFrame([data_dict])
         updated_df = pd.concat([existing_data, new_row], ignore_index=True).drop_duplicates('Ticker', keep='last')
         conn.update(worksheet="Sheet1", data=updated_df)
-        st.success(f"¡Análisis fractal de {ticker_input} guardado!")
+        st.success("Sincronizado con Sheets.")
 
 with tab2:
-    st.subheader("📊 Histórico de Operaciones Dinámicas")
     st.dataframe(existing_data.sort_values("EV_Total", ascending=False), use_container_width=True)
