@@ -4,9 +4,8 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 import datetime
 
-st.set_page_config(page_title="AITOR 14.0", layout="wide")
+st.set_page_config(page_title="AITOR 14.1", layout="wide")
 
-# --- CSS PARTIDO EN TROZOS PEQUEÑOS ---
 css = "<style>\n"
 css += ".stApp {background-color:#f5f5f7; color:#1d1d1f;}\n"
 css += "[data-testid='stSidebar'] {background:rgba(255,255,255,0.7);}\n"
@@ -124,4 +123,141 @@ with tab1:
         with cols[i]:
             st.markdown("### " + str(dia) + " Dias")
             wr = st.number_input("WR %", 0, 100, 50, key="w"+str(i))
-            rt = st.number_input("R/R", 0.0, 50.
+            rt = st.number_input("R/R", 0.0, 50.0, 2.0, key="r"+str(i))
+            es = st.radio("Señal", ["Venta", "Compra"], key="e"+str(i))
+            
+            wr_dec = wr / 100.0
+            ev_i = round((wr_dec * rt) - ((1.0 - wr_dec) * 1.0), 2)
+            
+            l_ev.append(ev_i)
+            l_wr.append(wr)
+            l_rt.append(rt)
+            l_es.append(es)
+            
+            st.metric("EV " + str(dia) + "D", str(ev_i))
+
+    # --- RESULTADOS FINALES ---
+    ev_tot = round((sum(l_ev) / 5.0) + ev_plus, 2)
+    
+    ite = 0.0
+    if p_buy > 0:
+        ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2)
+        
+    p_estr = sum(10 for e in l_es[1:] if e == "Compra")
+    p_sen = 10 if l_es[0] == "Compra" else 0
+    penal = 30 if ite > 8 else 0
+    
+    idt = l_wr[0] + bono + p_estr + p_sen - penal
+
+    st.markdown("---")
+    r_cols = st.columns(3)
+    
+    # 1. EV TOTAL
+    with r_cols[0]:
+        st.subheader("EV Total")
+        st.caption("Esperanza: Calidad + Ventaja")
+        st.metric("SCORE", str(ev_tot), "+" + str(round(ev_plus, 2)))
+        
+        if ev_tot >= 10: 
+            r1_c = "color:#fff; background:#34c759;"
+            r1_t = "TIER S (Elite)"
+        elif ev_tot >= 5: 
+            r1_c = "color:#fff; background:#2b8af7;"
+            r1_t = "TIER A (Bueno)"
+        else: 
+            r1_c = "color:#fff; background:#ff3b30;"
+            r1_t = "Descarte (<5)"
+            
+        st.markdown("<div class='apple-rank-tag' style='" + r1_c + "'>" + r1_t + "</div>", unsafe_allow_html=True)
+    
+    # 2. IDT PUNTOS
+    with r_cols[1]:
+        st.subheader("Fuerza IDT")
+        st.caption("Disparo Tactico")
+        st.metric("PUNTOS", str(idt) + " pts")
+        
+        if idt >= 100: 
+            r2_c = "color:#fff; background:#1d1d1f;"
+            r2_t = "OBLIGATORIA (>100)"
+        elif idt >= 85: 
+            r2_c = "color:#fff; background:#ff9500;"
+            r2_t = "TACTICA (85-99)"
+        else: 
+            r2_c = "color:#fff; background:#ff3b30;"
+            r2_t = "BLOQUEADA (<85)"
+            
+        st.markdown("<div class='apple-rank-tag' style='" + r2_c + "'>" + r2_t + "</div>", unsafe_allow_html=True)
+
+    # 3. ITE %
+    with r_cols[2]:
+        st.subheader("Tension ITE")
+        st.caption("Riesgo al Stop")
+        st.metric("RIESGO", str(ite) + "%")
+        
+        if ite <= 5: 
+            r3_c = "color:#fff; background:#34c759;"
+            r3_t = "OPTIMO (<5%)"
+        elif ite <= 8: 
+            r3_c = "color:#fff; background:#ff9500;"
+            r3_t = "LIMITE (5-8%)"
+        else: 
+            r3_c = "color:#fff; background:#ff3b30;"
+            r3_t = "NO OPERABLE"
+            
+        st.markdown("<div class='apple-rank-tag' style='" + r3_c + "'>" + r3_t + "</div>", unsafe_allow_html=True)
+
+    # --- CALCULADORA DE RIESGO ---
+    pct_riesgo = r_pct / 100.0
+    p_max = CAPITAL * pct_riesgo
+    dif_p = p_buy - p_sl
+    n_tit = 0
+    if dif_p > 0:
+        n_tit = int(p_max / dif_p)
+    inv_t = n_tit * p_buy
+
+    st.markdown("---")
+    st.subheader("Ejecucion (Capital: 277k)")
+    
+    c1, c2, c3 = st.columns(3)
+    c1.metric("Riesgo Max", str(int(p_max)) + " EUR")
+    c2.metric("Acciones", str(int(n_tit)) + " titulos")
+    c3.metric("Posicion", str(int(inv_t)) + " EUR")
+
+    # --- VERDICTO FINAL ---
+    if ev_tot < 5 or ite > 8:
+        v_c = "color:#fff; background:#ff3b30;"
+        v_t = "NO VIABLE"
+    elif idt >= 100 and ite <= 5:
+        v_c = "color:#fff; background:#1d1d1f;"
+        v_t = "COMPRA OBLIGATORIA"
+    elif idt >= 85 and ite <= 8:
+        v_c = "color:#fff; background:#ff9500;"
+        v_t = "COMPRA TACTICA"
+    else:
+        v_c = "color:#fff; background:#ff3b30;"
+        v_t = "ARMA BLOQUEADA"
+        
+    tag = "<div style='text-align:center;'><div class='apple-rank-tag' "
+    tag += "style='" + v_c + " font-size:1.3rem;'>" + v_t + "</div></div>"
+    st.markdown("<br>" + tag, unsafe_allow_html=True)
+
+    # --- GUARDAR ---
+    st.markdown("<br>", unsafe_allow_html=True)
+    if st.button("Guardar en Nube"):
+        d_sav = {
+            "Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, 
+            "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, 
+            "Acciones": n_tit, "Inversion": inv_t
+        }
+        for j in range(5):
+            d_sav["S" + str(j+1) + "_Dias"] = s_elegidos[j]
+            d_sav["W" + str(j+1)] = l_wr[j]
+            d_sav["R" + str(j+1)] = l_rt[j]
+            
+        new_row = pd.DataFrame([d_sav])
+        df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
+        conn.update(worksheet="Sheet1", data=df_upd)
+        st.success("Guardado ok.")
+
+with tab2:
+    st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
