@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 29.2", layout="wide")
+st.set_page_config(page_title="AITOR 29.3", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -16,18 +16,14 @@ st.markdown("""
     .stApp { background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: rgba(255, 255, 255, 0.7) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0,0,0,0.05) !important; }
     h1, h2, h3, h1 *, h2 *, h3 * { color: #1d1d1f !important; font-weight: 700 !important; letter-spacing: -0.5px; }
-    
     [data-testid="stMetric"] { background-color: #ffffff; border-radius: 18px; padding: 15px 20px; min-height: 140px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); }
     [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #1d1d1f !important; font-weight: 700 !important; font-size: 2.2rem !important; }
     [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: #86868b !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.5px; }
-    
     .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div { background-color: #ffffff !important; border-radius: 12px !important; border: 1px solid rgba(0,0,0,0.1) !important; }
     .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; }
-    
     .rank-box { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
     .tag-on { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .tag-off { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; }
-    
     .apple-kpi-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
     .apple-kpi-card { background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
     .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
@@ -36,13 +32,11 @@ st.markdown("""
     .sub-green { background-color: #e5fbee; color: #188038; }
     .sub-red { background-color: #fce8e6; color: #c5221f; }
     .sub-gray { background-color: #f1f3f4; color: #5f6368; }
-
     .led-box { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;}
     .led-green { width: 14px; height: 14px; background-color: #34c759; border-radius: 50%; box-shadow: 0 0 10px #34c759, inset 0 0 4px #000; animation: pulse-green 2s infinite; }
     .led-red { width: 14px; height: 14px; background-color: #ff3b30; border-radius: 50%; box-shadow: 0 0 10px #ff3b30, inset 0 0 4px #000; animation: pulse-red 2s infinite; }
     @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(52, 199, 89, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); } }
     @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
-    
     .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 15px;}
     .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; }
     .quant-desc { font-size: 0.85rem; color: #86868b; line-height: 1.4; margin-bottom: 15px; }
@@ -61,7 +55,7 @@ try: df_datos = conn.read(worksheet="Sheet1", ttl=5)
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 # =====================================================================
-# BUSCADOR LATERAL REPARADO (PRECIO ROBUSTO)
+# BUSCADOR LATERAL CON MEMORIA DE AUDITORÍA Y PRECIO ROBUSTO
 # =====================================================================
 st.sidebar.header("Buscador de Activos")
 opciones_bd = df_datos['Ticker'].dropna().unique().tolist() if not df_datos.empty else []
@@ -79,28 +73,22 @@ if ticker != "":
         stock = yf.Ticker(ticker)
         nom_emp = stock.info.get("longName", "Desconocido")
         
-        # EXTRACCIÓN ROBUSTA DE PRECIO DE MERCADO (VELAS REALES)
         hist_temp = stock.history(period="5d")
-        if not hist_temp.empty:
-            p_merc = hist_temp['Close'].iloc[-1]
-        else:
-            p_merc = stock.info.get("currentPrice", stock.info.get("regularMarketPrice", 0.0))
+        if not hist_temp.empty: p_merc = hist_temp['Close'].iloc[-1]
+        else: p_merc = stock.info.get("currentPrice", stock.info.get("regularMarketPrice", 0.0))
             
         eps_base = stock.info.get("trailingEps", 0.0)
         f_eps = stock.info.get("forwardEps", 0.0)
         
-        # Prevenir errores por NoneType
         if eps_base is not None and f_eps is not None and eps_base > 0 and f_eps > eps_base: 
             prev_1y = (f_eps - eps_base) / eps_base
         else: 
             prev_1y = stock.info.get("revenueGrowth", 0.0)
             if prev_1y is None: prev_1y = 0.0
-            
     except: pass
 
 st.sidebar.subheader(nom_emp)
 
-# MOSTRAR PRECIO REAL CONFIRMADO
 if p_merc > 0:
     st.sidebar.markdown(f"<div style='background:#1d1d1f; color:white; padding:10px; border-radius:8px; text-align:center; font-size:1.2rem; font-weight:bold; margin-bottom:15px;'>Precio Mercado: {p_merc:.2f} $</div>", unsafe_allow_html=True)
 else:
@@ -126,8 +114,6 @@ ev_plus = bono / 7.0
 
 st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
-
-# LOS CAMPOS AHORA SE RELLENAN SOLOS CON EL PRECIO CONFIRMADO
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
 
@@ -169,9 +155,7 @@ with tab1:
             st.metric("EV " + str(s_val) + "D", str(ev_i))
 
     ev_tot = round((sum(l_ev) / 5.0) + ev_plus, 2)
-    # EL CÁLCULO ESTUCTURAL (ITE) AHORA ES TOTALMENTE SEGURO
     ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
-    
     p_estr = sum(10 for e in l_es[1:] if e == "Compra")
     p_sen = 10 if l_es[0] == "Compra" else 0
     penal = 30 if ite > 8 else 0
@@ -217,9 +201,7 @@ with tab1:
     c5.metric("Acciones", str(int(n_tit)) + " titulos")
     c6.metric("Posicion Total", str(int(inv_t)) + " EUR")
 
-    # =====================================================================
     # TERMÓMETRO DE TOMA DE DECISIÓN EN EL ESCÁNER
-    # =====================================================================
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("🎯 Controlador de Decisión Pre-Compra (Riesgo del Trade)")
     
@@ -253,18 +235,13 @@ with tab1:
 
     with col_txt_esc:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        if ite <= 5:
-            st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento sin disparar tu riesgo máximo.")
-        elif ite <= 8:
-            st.warning(f"**🟠 Riesgo Límite ({ite}%):** El Stop empieza a estar lejos. Tienes que reducir drásticamente el número de acciones para mantener tu riesgo del {r_pct}%.")
-        else:
-            st.error(f"**🔴 Riesgo Excesivo ({ite}%):** El Stop está demasiado lejos. Operación matemáticamente suicida. Ajusta la entrada o descarta el valor.")
+        if ite <= 5: st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento sin disparar tu riesgo máximo.")
+        elif ite <= 8: st.warning(f"**🟠 Riesgo Límite ({ite}%):** El Stop empieza a estar lejos. Tienes que reducir drásticamente el número de acciones para mantener tu riesgo del {r_pct}%.")
+        else: st.error(f"**🔴 Riesgo Excesivo ({ite}%):** El Stop está demasiado lejos. Operación matemáticamente suicida. Ajusta la entrada o descarta el valor.")
 
     st.markdown("---")
     
-    # =====================================================================
     # ORÁCULO CUANTITATIVO RENAISSANCE
-    # =====================================================================
     st.subheader("🔮 Oráculo de Entrada (Modelo Cuantitativo)")
     if ticker != "":
         with st.spinner("Descargando data algorítmica para entrada..."):
@@ -357,7 +334,7 @@ with tab1:
 # --- PESTAÑA 2: AUDITORÍA ---
 with tab2: 
     st.markdown("### Base de Datos de Escaneos")
-    st.info("💡 **Consejo de Gestión:** Si quieres re-evaluar un valor de esta tabla, ve al menú de la izquierda y selecciónalo en el desplegable 'O cargar de Auditoría'. El Escáner recuperará tus sistemas automáticamente.")
+    st.info("💡 **Consejo de Gestión:** Si quieres re-evaluar un valor de esta tabla, ve al menú de la izquierda y selecciónalo en el desplegable 'O cargar de Auditoría'.")
     st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
 
 # --- PESTAÑA 3: CARTERA EN VIVO ---
@@ -469,7 +446,6 @@ with tab3:
 
                 st.markdown("---")
                 st.subheader("⚖️ Veredicto del Algoritmo y Gestión de Stop")
-                
                 stop_roto = precio_vivo < stop_actual
                 
                 if stop_roto:
@@ -518,20 +494,45 @@ with tab3:
         except Exception as e:
             st.error(f"Error técnico: {e}")
 
-    # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
+    # --- NUEVA PESTAÑA: AÑADIR A CARTERA (SINTAXIS PLANA ANTI-ERRORES) ---
     with tab_add:
         st.markdown("### ➕ Registrar Nueva Compra")
         with st.form("form_add"):
             c1, c2, c3 = st.columns(3)
-            with c1: t_ticker = st.text_input("Ticker").upper(); t_fecha_in = st.date_input("Fecha"); t_precio_in = st.number_input("Precio Compra", format="%.2f")
-            with c2: t_acciones = st.number_input("Acciones", format="%.2f"); t_stop = st.number_input("Stop Loss", format="%.2f"); t_fecha_s4 = st.date_input("Fecha S4")
-            with c3: t_precio_s4 = st.number_input("Precio S4", format="%.2f"); t_fecha_s5 = st.date_input("Fecha S5"); t_precio_s5 = st.number_input("Precio S5", format="%.2f")
+            with c1: 
+                t_ticker = st.text_input("Ticker").upper()
+                t_fecha_in = st.date_input("Fecha")
+                t_precio_in = st.number_input("Precio Compra", format="%.2f")
+            with c2: 
+                t_acciones = st.number_input("Acciones", format="%.2f")
+                t_stop = st.number_input("Stop Loss", format="%.2f")
+                t_fecha_s4 = st.date_input("Fecha S4")
+            with c3: 
+                t_precio_s4 = st.number_input("Precio S4", format="%.2f")
+                t_fecha_s5 = st.date_input("Fecha S5")
+                t_precio_s5 = st.number_input("Precio S5", format="%.2f")
             
             btn_submit = st.form_submit_button("Añadir a Cartera")
             if btn_submit and t_ticker != "":
                 df_c = conn.read(worksheet="Cartera", ttl=0)
-                n_pos = {
-                    "Ticker": t_ticker, 
-                    "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), 
-                    "Precio_Entrada": t_precio_in, 
-                    "Num_Acciones":
+                
+                # VARIABLE PLANA DE UNA SOLA LÍNEA PARA EVITAR ERRORES DE SINTAXIS AL COPIAR
+                n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
+                
+                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                st.success("Añadido exitosamente.")
+
+    # --- HISTORIAL ---
+    with tab_historial:
+        try:
+            df_h = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
+            if not df_h.empty:
+                df_h['Fecha_Venta'] = pd.to_datetime(df_h['Fecha_Venta']).dt.date
+                f_in = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
+                df_f = df_h[df_h['Fecha_Venta'] >= f_in]
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Beneficio Neto", f"{df_f['Beneficio_EUR'].sum():.2f} €")
+                c2.metric("Operaciones", len(df_f))
+                c3.metric("Win Rate", f"{(len(df_f[df_f['Beneficio_EUR'] > 0]) / len(df_f) * 100) if len(df_f)>0 else 0:.1f}%")
+                st.dataframe(df_f[['Ticker', 'Beneficio_EUR']], use_container_width=True)
+        except: pass
