@@ -4,8 +4,60 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 import datetime
 
-# --- 1. CONFIGURACION ---
-st.set_page_config(page_title="AITOR 11.0", layout="wide")
+# --- 1. CONFIGURACION Y ESTILO CYBERPUNK ---
+st.set_page_config(page_title="TERMINAL AITOR 12.0", layout="wide")
+
+# INYECCION CSS PARA APARIENCIA DE CONSOLA FLUOR
+st.markdown("""
+<style>
+    /* Fondo principal negro profundo */
+    .stApp {
+        background-color: #050505;
+        color: #00ffcc;
+        font-family: 'Courier New', Courier, monospace;
+    }
+    /* Panel lateral oscuro con borde neon */
+    [data-testid="stSidebar"] {
+        background-color: #0a0a0a;
+        border-right: 1px solid #39ff14;
+    }
+    /* Titulos brillantes */
+    h1, h2, h3 {
+        color: #00ffcc !important;
+        text-shadow: 0 0 5px #00ffcc;
+        font-family: 'Courier New', Courier, monospace !important;
+    }
+    /* Numeros grandes en verde matrix */
+    [data-testid="stMetricValue"] {
+        color: #39ff14 !important;
+        text-shadow: 0 0 8px #39ff14;
+        font-weight: bold;
+    }
+    /* Etiquetas de las metricas en cyan */
+    [data-testid="stMetricLabel"] {
+        color: #00ffcc !important;
+    }
+    /* Botones estilo terminal */
+    .stButton>button {
+        background-color: #000000;
+        color: #39ff14;
+        border: 1px solid #39ff14;
+        border-radius: 0px;
+        font-family: 'Courier New', Courier, monospace;
+    }
+    .stButton>button:hover {
+        background-color: #39ff14;
+        color: #000000;
+        box-shadow: 0 0 10px #39ff14;
+    }
+    /* Cajas de informacion */
+    .stAlert {
+        background-color: #0a0a0a !important;
+        color: #00ffcc !important;
+        border: 1px solid #00ffcc !important;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 CAPITAL = 277000.0
 DIAS = [1, 2, 3, 5, 6, 7, 8, 11, 14, 17, 21, 26, 34, 55]
@@ -22,7 +74,7 @@ except:
     df_datos = pd.DataFrame(columns=COL_DB)
 
 # --- 2. BUSCADOR ---
-st.sidebar.header("Buscador")
+st.sidebar.header("> SYSTEM_SEARCH")
 ticker = st.sidebar.text_input("TICKER", "MSFT").upper()
 
 nom_emp = "Buscando..."
@@ -45,21 +97,21 @@ if ticker != "":
     except:
         pass
 
-st.sidebar.subheader("Empresa: " + nom_emp)
+st.sidebar.subheader("> TARGET: " + nom_emp)
 st.sidebar.markdown("---")
 
 # --- 3. CALIDAD ---
-st.sidebar.header("Calidad (Libro Blanco)")
+st.sidebar.header("> CALIDAD_FUNDAMENTAL")
 
 if prev_1y > 0 and eps_base > 0:
-    st.sidebar.markdown("### Proyeccion EPS")
+    st.sidebar.markdown("### PROYECCION EPS (3Y)")
     e1 = eps_base * (1 + prev_1y)
     e2 = e1 * (1 + prev_1y)
     e3 = e2 * (1 + prev_1y)
     st.sidebar.info(
-        str(A_ACTUAL) + ": " + str(round(e1, 2)) + " $\n\n" +
-        str(A_ACTUAL + 1) + ": " + str(round(e2, 2)) + " $\n\n" +
-        str(A_ACTUAL + 2) + ": " + str(round(e3, 2)) + " $"
+        "> " + str(A_ACTUAL) + ": " + str(round(e1, 2)) + " $\n\n" +
+        "> " + str(A_ACTUAL + 1) + ": " + str(round(e2, 2)) + " $\n\n" +
+        "> " + str(A_ACTUAL + 2) + ": " + str(round(e3, 2)) + " $"
     )
 elif prev_1y > 0:
     st.sidebar.success("Prev: " + str(round(prev_1y*100, 1)) + "%")
@@ -82,17 +134,17 @@ bono = pts_eps + (10 if c_inst else 0) + (10 if c_sect else 0)
 ev_plus = bono / 7.0
 
 # --- 4. RIESGO ---
-st.sidebar.header("Gestion Capital")
-r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
+st.sidebar.header("> GESTION_RIESGO")
+r_pct = st.sidebar.slider("Riesgo Cuenta (%)", 0.5, 3.0, 1.0, step=0.5)
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
 
 # --- 5. DASHBOARD ---
-tab1, tab2 = st.tabs(["Escaner", "Auditoria"])
+tab1, tab2 = st.tabs(["[ ESCANER_CUANTICO ]", "[ AUDITORIA_DATOS ]"])
 
 with tab1:
-    st.title("Analisis: " + ticker)
-    st.sidebar.header("Sistemas")
+    st.title(">> TERMINAL_ANALISIS: " + ticker)
+    st.sidebar.header("> SISTEMAS_FRACTALES")
     
     d_defs = [1, 3, 8, 14, 21]
     s_elegidos = []
@@ -137,11 +189,17 @@ with tab1:
     st.markdown("---")
     r1, r2, r3 = st.columns(3)
     with r1:
-        st.metric("EV TOTAL", str(ev_tot), "+" + str(round(ev_plus, 2)) + " Cal")
+        st.subheader("EV TOTAL")
+        st.caption("Esperanza Matematica: Calidad del Activo + Ventaja del Sistema.")
+        st.metric("SCORE", str(ev_tot), "+" + str(round(ev_plus, 2)) + " Fundamental")
     with r2:
-        st.metric("IDT PUNTOS", str(idt) + " pts")
+        st.subheader("IDT PUNTOS")
+        st.caption("Indice de Disparo Tactico: Potencia de entrada y estructura.")
+        st.metric("POTENCIAL", str(idt) + " pts")
     with r3:
-        st.metric("RIESGO ITE", str(ite) + "%")
+        st.subheader("ITE %")
+        st.caption("Indice de Tension Elastica: Distancia al Stop Loss. Control de riesgo.")
+        st.metric("RIESGO", str(ite) + "%")
 
     # --- CALCULADORA 277k ---
     p_max = CAPITAL * (r_pct / 100.0)
@@ -154,31 +212,31 @@ with tab1:
     inv_t = n_tit * p_buy
 
     st.markdown("---")
-    st.subheader("Ejecucion (Capital: 277000 EUR)")
+    st.subheader("> PROTOCOLO_EJECUCION (CAPITAL_TOTAL: 277,000 EUR)")
     
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Riesgo Max", str(int(p_max)) + " EUR")
+        st.metric("CAPITAL_EN_RIESGO", str(int(p_max)) + " EUR")
     with c2:
-        st.metric("Acciones", str(int(n_tit)) + " uds")
+        st.metric("TITULOS_A_COMPRAR", str(int(n_tit)) + " ACC")
     with c3:
-        st.metric("Inversion", str(int(inv_t)) + " EUR")
+        st.metric("TAMAÑO_POSICION", str(int(inv_t)) + " EUR")
 
     # --- VERDICTO ---
     if ev_tot < 5 or ite > 8:
-        v_txt, v_col = "NO OPERABLE", "#ff4b4b"
+        v_txt, v_col = "[ ERROR: NO OPERABLE ]", "#ff4b4b"
     elif idt >= 100 and ite <= 5:
-        v_txt, v_col = "COMPRA OBLIGATORIA", "#00ffcc"
+        v_txt, v_col = "[ ALERTA: COMPRA OBLIGATORIA ]", "#39ff14"
     elif idt >= 85 and ite <= 8:
-        v_txt, v_col = "COMPRA TACTICA", "#ffcc00"
+        v_txt, v_col = "[ AVISO: COMPRA TACTICA ]", "#00ffcc"
     else:
-        v_txt, v_col = "ARMA BLOQUEADA", "#ff4b4b"
+        v_txt, v_col = "[ SISTEMA: ARMA BLOQUEADA ]", "#ff4b4b"
         
     st.markdown("<h2 style='text-align:center; color:" + v_col + ";'>" + v_txt + "</h2>", unsafe_allow_html=True)
 
     # --- GUARDAR ---
-    if st.button("GUARDAR AUDITORIA"):
-        tier = "TIER S" if ev_tot >= 10 else "TIER A" if ev_tot >= 5 else "DESC"
+    if st.button("> EJECUTAR_GUARDADO_EN_NUBE"):
+        tier = "TIER_S" if ev_tot >= 10 else "TIER_A" if ev_tot >= 5 else "DESC"
         d_sav = {
             "Ticker": ticker, "Tier": tier, "EV_Total": ev_tot, 
             "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_txt, 
@@ -192,7 +250,7 @@ with tab1:
         new_row = pd.DataFrame([d_sav])
         df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates('Ticker', keep='last')
         conn.update(worksheet="Sheet1", data=df_upd)
-        st.success("Guardado.")
+        st.success("DATOS_ENCRIPTADOS_Y_GUARDADOS_CON_EXITO.")
 
 with tab2:
     st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
