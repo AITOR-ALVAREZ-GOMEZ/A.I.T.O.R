@@ -255,4 +255,199 @@ if modo_app == "Escáner Cuántico":
         with r_cols[1]:
             st.subheader("Fuerza IDT")
             st.metric("PUNTOS", str(idt) + " pts")
-            st.caption
+            st.caption("Disparo Tactico y Estructura")
+            
+            h_idt = "<div class='rank-box'>"
+            if idt >= 100:
+                h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
+            elif idt >= 85:
+                h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-on' style='background:#ff9500;'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
+            else:
+                h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-on' style='background:#ff3b30;'>BLOQUEADA</div>"
+            h_idt += "</div>"
+            st.markdown(h_idt, unsafe_allow_html=True)
+
+        # 3. ITE % (TABS APPLE)
+        with r_cols[2]:
+            st.subheader("Tension ITE")
+            st.metric("RIESGO", str(ite) + "%")
+            st.caption("Distancia porcentual al Stop")
+            
+            h_ite = "<div class='rank-box'>"
+            if ite <= 5:
+                h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
+            elif ite <= 8:
+                h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
+            else:
+                h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-on' style='background:#ff3b30;'>NO OPERABLE</div>"
+            h_ite += "</div>"
+            st.markdown(h_ite, unsafe_allow_html=True)
+
+        # --- CALCULADORA DE RIESGO ---
+        pct_riesgo = r_pct / 100.0
+        p_max = CAPITAL * pct_riesgo
+        dif_p = p_buy - p_sl
+        n_tit = 0
+        if dif_p > 0:
+            n_tit = int(p_max / dif_p)
+        inv_t = n_tit * p_buy
+
+        st.markdown("---")
+        st.subheader("Ejecucion Recomendada (Capital: 277.000 EUR)")
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("Riesgo Maximo", str(int(p_max)) + " EUR")
+        c2.metric("Acciones", str(int(n_tit)) + " titulos")
+        c3.metric("Posicion Total", str(int(inv_t)) + " EUR")
+
+        # --- VERDICTO FINAL ---
+        if ev_tot < 5 or ite > 8:
+            v_c = "#ff3b30"
+            v_t = "OPERACION NO VIABLE"
+        elif idt >= 100 and ite <= 5:
+            v_c = "#1d1d1f"
+            v_t = "COMPRA OBLIGATORIA"
+        elif idt >= 85 and ite <= 8:
+            v_c = "#ff9500"
+            v_t = "COMPRA TACTICA"
+        else:
+            v_c = "#ff3b30"
+            v_t = "ARMA BLOQUEADA"
+            
+        tag_v = f"<div style='text-align:center; margin-top:20px;'><div class='tag-on' style='background:{v_c}; font-size:1.2rem; padding:15px 30px;'>{v_t}</div></div>"
+        st.markdown(tag_v, unsafe_allow_html=True)
+
+        # --- GUARDAR ---
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("Guardar en Nube"):
+            d_sav = {
+                "Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, 
+                "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, 
+                "Acciones": n_tit, "Inversion": inv_t
+            }
+            for j in range(5):
+                d_sav[f"S{j+1}_Dias"] = s_elegidos[j]
+                d_sav[f"W{j+1}"] = l_wr[j]
+                d_sav[f"R{j+1}"] = l_rt[j]
+                
+            new_row = pd.DataFrame([d_sav])
+            df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
+            conn.update(worksheet="Sheet1", data=df_upd)
+            st.success("Guardado ok.")
+
+    with tab2:
+        st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
+
+
+# =====================================================================
+# MODO 2: MI CARTERA ACTIVA (El nuevo módulo de Gestión y Rentabilidad)
+# =====================================================================
+elif modo_app == "Mi Cartera Activa":
+    st.title("💼 Cuadro de Mandos y Rentabilidad")
+    
+    tab_vivas, tab_historial = st.tabs(["🟢 Posiciones Vivas", "📚 Historial y Rentabilidad"])
+    
+    # --- PESTAÑA 1: POSICIONES VIVAS ---
+    with tab_vivas:
+        try:
+            df_cartera = conn.read(worksheet="Cartera", ttl=0).dropna(how="all")
+            
+            if df_cartera.empty:
+                st.warning("Tu cartera está vacía. Añade valores en la pestaña 'Cartera' del Excel.")
+            else:
+                ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
+                datos_ticker = df_cartera[df_cartera['Ticker'] == ticker_sel].iloc[0]
+                
+                # Cargar tus datos de entrada
+                fecha_in = pd.to_datetime(datos_ticker['Fecha_Entrada']).date()
+                precio_in = float(datos_ticker['Precio_Entrada'])
+                acciones = float(datos_ticker['Num_Acciones'])
+                stop_actual = float(datos_ticker['Stop_Actual'])
+                
+                # Múltiples niveles de ruptura largos
+                p_ruptura_s4 = float(datos_ticker['Precio_Ruptura_S4'])
+                p_ruptura_s5 = float(datos_ticker['Precio_Ruptura_S5'])
+                
+                with st.spinner(f"Escaneando {ticker_sel}..."):
+                    stock = yf.Ticker(ticker_sel)
+                    hist = stock.history(period="1mo")
+                    precio_vivo = hist['Close'].iloc[-1]
+                
+                # MATEMÁTICA DE TU POSICIÓN
+                beneficio_eur = (precio_vivo - precio_in) * acciones
+                beneficio_pct = ((precio_vivo - precio_in) / precio_in) * 100
+                
+                # ¿Cuánto tiempo llevas dentro?
+                dias_en_posicion = (datetime.date.today() - fecha_in).days
+                if dias_en_posicion <= 0: dias_en_posicion = 1
+                
+                # Distancias a las rupturas largas
+                dist_s4 = ((precio_vivo - p_ruptura_s4) / p_ruptura_s4) * 100 if p_ruptura_s4 > 0 else 0
+                dist_s5 = ((precio_vivo - p_ruptura_s5) / p_ruptura_s5) * 100 if p_ruptura_s5 > 0 else 0
+                
+                # PANEL VISUAL DE DATOS
+                col1, col2, col3, col4 = st.columns(4)
+                col1.metric("Precio Actual", f"{precio_vivo:.2f}", f"{beneficio_pct:.2f}% (Latente)")
+                col2.metric("Beneficio Neto", f"{beneficio_eur:.2f} €")
+                col3.metric("Tiempo en Pos.", f"{dias_en_posicion} días", f"Desde {fecha_in.strftime('%d/%m/%Y')}")
+                col4.metric("Aceleración S5", f"{dist_s5:.2f}%", "Distancia al origen S5")
+                
+                st.markdown("---")
+                
+                # MOTOR DE DECISIÓN Y ALARMA ROJA
+                fase_explosiva = dist_s5 >= 20.0 or dist_s4 >= 15.0
+                stop_roto = precio_vivo < stop_actual
+                
+                st.subheader("🤖 Algoritmo de Gestión Quántica")
+                if stop_roto:
+                    alarma_html = """
+                    <style>
+                    @keyframes parpadeo_rojo { 0% { background-color: #ff0000; color: white; transform: scale(1); } 50% { background-color: #8b0000; color: yellow; transform: scale(1.02); } 100% { background-color: #ff0000; color: white; transform: scale(1); } }
+                    .caja-alarma { animation: parpadeo_rojo 0.8s infinite; padding: 30px; border-radius: 15px; text-align: center; border: 5px solid black; }
+                    .texto-alarma { font-size: 40px; font-weight: 900; margin: 0; font-family: 'Arial Black', sans-serif;}
+                    </style>
+                    <div class="caja-alarma"><p class="texto-alarma">🚨 ¡STOP ROTO! CERRAR POSICIÓN 🚨</p></div>
+                    """
+                    st.markdown(alarma_html, unsafe_allow_html=True)
+                    st.error(f"El precio actual ({precio_vivo:.2f}) ha perforado tu Stop ({stop_actual:.2f}). Vende y registra el resultado en 'Historial'.")
+                elif fase_explosiva:
+                    st.success(f"🚀 **ACELERACIÓN EXTREMA:** El precio está un {dist_s5:.1f}% por encima de S5. Ajusta el Stop agresivamente (S1 o S2) para no devolver la ganancia.")
+                else:
+                    st.info("🟢 **TENDENCIA EN DESARROLLO:** Mantén el Stop en sistemas lentos (S3/S4) para darle aire al precio.")
+                    
+        except Exception as e:
+            st.error(f"Error al leer Cartera. Comprueba que las columnas de la pestaña 'Cartera' están bien escritas. Detalles técnicos: {e}")
+
+    # --- PESTAÑA 2: HISTORIAL Y RENTABILIDAD ---
+    with tab_historial:
+        st.subheader("📊 Contador de Rentabilidad Global")
+        try:
+            df_historial = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
+            if df_historial.empty:
+                st.info("Aún no tienes operaciones cerradas en el Historial. Cuando vendas algo, apúntalo en el Excel.")
+            else:
+                # Convertir fechas para poder filtrar
+                df_historial['Fecha_Venta'] = pd.to_datetime(df_historial['Fecha_Venta']).dt.date
+                
+                # FILTRO DE FECHAS
+                fecha_inicio = st.date_input("Analizar rentabilidad desde:", value=pd.to_datetime("2024-01-01").date())
+                
+                # Filtrar el dataframe
+                df_filtrado = df_historial[df_historial['Fecha_Venta'] >= fecha_inicio]
+                
+                # Calcular Totales
+                total_eur = df_filtrado['Beneficio_EUR'].sum()
+                ops_ganadoras = len(df_filtrado[df_filtrado['Beneficio_EUR'] > 0])
+                ops_totales = len(df_filtrado)
+                win_rate_global = (ops_ganadoras / ops_totales * 100) if ops_totales > 0 else 0
+                
+                # Mostrar el Dashboard de Resultados
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Beneficio Neto (Periodo)", f"{total_eur:.2f} €")
+                c2.metric("Operaciones Cerradas", ops_totales)
+                c3.metric("Win Rate de Cartera", f"{win_rate_global:.1f}%")
+                
+                st.dataframe(df_filtrado[['Ticker', 'Fecha_Venta', 'Beneficio_EUR', 'Rentabilidad_Pct']], use_container_width=True)
+                
+        except Exception as e:
+            st.error(f"Falta la pestaña 'Historial' en el Excel o tiene un error. Detalles: {e}")
