@@ -103,4 +103,30 @@ with tab1:
     # --- VERDICTO ---
     if ev_total < 5: v_txt, v_col = "🚫 NO OPERABLE (Calidad)", "#ff4b4b"
     elif ite > 8: v_txt, v_col = "🚫 NO OPERABLE (Riesgo)", "#ff4b4b"
-    elif idt
+    elif idt_total >= 100 and ite <= 5: v_txt, v_col = "🔥 COMPRA OBLIGATORIA", "#00ffcc"
+    elif idt_total >= 85 and ite <= 8: v_txt, v_col = "🟡 COMPRA TÁCTICA", "#ffcc00"
+    else: v_txt, v_col = "🚫 ARMA BLOQUEADA (Puntos)", "#ff4b4b"
+    
+    st.markdown(f"<h2 style='text-align:center; color:{v_col};'>{v_txt}</h2>", unsafe_allow_html=True)
+
+    if st.button("💾 GUARDAR EN RANKING"):
+        nuevo = {
+            "Ticker": ticker_input, 
+            "Tier": tier, 
+            "EV_Total": ev_total,
+            "IDT_Puntos": idt_total, 
+            "ITE_Porc": ite, 
+            "Veredicto": v_txt
+        }
+        # Forzamos que el nuevo dato use las columnas correctas
+        nuevo_df = pd.DataFrame([nuevo])
+        st.session_state.analisis = pd.concat([st.session_state.analisis, nuevo_df], ignore_index=True).drop_duplicates('Ticker', keep='last')
+
+    st.subheader("📋 Tu Ranking de Guepardos")
+    if not st.session_state.analisis.empty:
+        # Mostramos solo las columnas que queremos y ordenadas
+        st.dataframe(st.session_state.analisis[COLUMNAS].sort_values("EV_Total", ascending=False), use_container_width=True)
+
+    if st.button("🗑️ RESETEAR MEMORIA (Limpiar Nones)"):
+        st.session_state.analisis = pd.DataFrame(columns=COLUMNAS)
+        st.rerun()
