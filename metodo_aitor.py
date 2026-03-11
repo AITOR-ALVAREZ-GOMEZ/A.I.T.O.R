@@ -6,7 +6,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 17.0", layout="wide")
+st.set_page_config(page_title="AITOR 18.0", layout="wide")
 
 # --- CSS ESTILO APPLE ---
 st.markdown("""
@@ -338,14 +338,14 @@ with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     
     # Sub-pestañas para organizar la cartera
-    tab_vivas, tab_historial = st.tabs(["🟢 Posiciones Vivas", "📚 Historial de Rentabilidad"])
+    tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial de Rentabilidad"])
     
     with tab_vivas:
         try:
             df_cartera = conn.read(worksheet="Cartera", ttl=0).dropna(how="all")
             
             if df_cartera.empty:
-                st.warning("Tu cartera está vacía. Añade tus compras en la pestaña 'Cartera' de tu Excel.")
+                st.warning("Tu cartera está vacía. Ve a la pestaña '➕ Añadir a Cartera' para registrar tu primera compra.")
             else:
                 ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
                 datos_ticker = df_cartera[df_cartera['Ticker'] == ticker_sel].iloc[0]
@@ -409,6 +409,63 @@ with tab3:
                     
         except Exception as e:
             st.error(f"Error al leer Cartera. Comprueba que las columnas de la pestaña 'Cartera' están bien escritas. Detalles técnicos: {e}")
+
+    # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
+    with tab_add:
+        st.markdown("### ➕ Registrar Nueva Compra")
+        st.caption("Rellena los datos de tu nueva posición. Se guardarán automáticamente en tu base de datos de Google Sheets.")
+        
+        with st.form("form_add_cartera"):
+            col_f1, col_f2, col_f3 = st.columns(3)
+            
+            with col_f1:
+                t_ticker = st.text_input("Ticker (Ej: MSFT, TEMN.SW)").upper()
+                t_fecha_in = st.date_input("Fecha de Entrada")
+                t_precio_in = st.number_input("Precio de Compra $", min_value=0.0, format="%.2f")
+                
+            with col_f2:
+                t_acciones = st.number_input("Nº de Acciones", min_value=0.0, format="%.2f")
+                t_stop = st.number_input("Stop Loss Inicial $", min_value=0.0, format="%.2f")
+                t_fecha_s4 = st.date_input("Fecha Ruptura S4")
+                
+            with col_f3:
+                t_precio_s4 = st.number_input("Precio Ruptura S4 $", min_value=0.0, format="%.2f")
+                t_fecha_s5 = st.date_input("Fecha Ruptura S5")
+                t_precio_s5 = st.number_input("Precio Ruptura S5 $", min_value=0.0, format="%.2f")
+                
+            st.markdown("<br>", unsafe_allow_html=True)
+            btn_add = st.form_submit_button("🚀 Añadir a Cartera")
+            
+            if btn_add:
+                if t_ticker.strip() == "":
+                    st.error("⚠️ El campo Ticker es obligatorio.")
+                elif t_acciones <= 0 or t_precio_in <= 0:
+                    st.error("⚠️ El Precio de Compra y el Nº de Acciones deben ser mayores que cero.")
+                else:
+                    try:
+                        # Leer los datos actuales de la cartera
+                        df_cartera = conn.read(worksheet="Cartera", ttl=0)
+                        
+                        # Crear la nueva fila
+                        nueva_posicion = {
+                            "Ticker": t_ticker,
+                            "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"),
+                            "Precio_Entrada": t_precio_in,
+                            "Num_Acciones": t_acciones,
+                            "Stop_Actual": t_stop,
+                            "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"),
+                            "Precio_Ruptura_S4": t_precio_s4,
+                            "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"),
+                            "Precio_Ruptura_S5": t_precio_s5
+                        }
+                        
+                        # Añadir la fila y actualizar el Excel
+                        df_upd = pd.concat([df_cartera, pd.DataFrame([nueva_posicion])], ignore_index=True)
+                        conn.update(worksheet="Cartera", data=df_upd)
+                        st.success(f"¡Genial! {t_ticker} se ha añadido a tu Cartera en Vivo. Ve a la pestaña 'Posiciones Vivas' para ver la magia.")
+                        
+                    except Exception as e:
+                        st.error(f"Error al guardar. Asegúrate de que la pestaña 'Cartera' de tu Excel tiene las 9 columnas correctas. Detalles: {e}")
 
     with tab_historial:
         st.markdown("### Contador de Rentabilidad Global")
