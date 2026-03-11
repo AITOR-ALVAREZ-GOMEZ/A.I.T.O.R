@@ -1,42 +1,59 @@
 import streamlit as st
 import pandas as pd
+import yfinance as yf # Importante: Asegúrate de tenerlo en requirements.txt
 
-st.set_page_config(page_title="A.I.T.O.R. 3.1 - Quant Core", layout="wide")
+st.set_page_config(page_title="A.I.T.O.R. 3.2 - Search & Quant", layout="wide")
 
-# --- BASE DE DATOS ---
+# --- INICIALIZAR BASE DE DATOS ---
 if 'analisis' not in st.session_state:
     st.session_state.analisis = pd.DataFrame(columns=[
         "Ticker", "Tier", "EV Total", "IDT Puntos", "WR Gatillo", "ITE %", "Veredicto"
     ])
 
-# --- SIDEBAR: CONFIGURACIÓN ---
+# --- SIDEBAR: BUSCADOR (AHORA ARRIBA DEL TODO) ---
+st.sidebar.header("🔍 Buscador de Activos")
+ticker_input = st.sidebar.text_input("INTRODUCE TICKER", "CRDO").upper()
+
+# --- MOTOR DE BÚSQUEDA REAL ---
+nombre_empresa = "Esperando Ticker..."
+precio_actual = 0.0
+try:
+    stock = yf.Ticker(ticker_input)
+    info = stock.info
+    nombre_empresa = info.get('longName', 'Ticker no encontrado')
+    precio_actual = info.get('regularMarketPrice', info.get('previousClose', 0.0))
+except:
+    st.sidebar.error("Error de conexión con Wall Street")
+
+st.sidebar.subheader(f"🏢 {nombre_empresa}")
+st.sidebar.write(f"**Precio de Mercado:** {precio_actual} $")
+
+st.sidebar.markdown("---")
+
+# --- FILTROS DE CALIDAD ---
 st.sidebar.header("🏢 Filtros de Calidad")
 eps_level = st.sidebar.selectbox("Nivel de EPS", 
                                  ["Bajo (<10%)", "Medio (>10%)", "Alto (>15%)", "Explosivo (>25%)"], index=3)
-
 puntos_eps = {"Bajo (<10%)": 0, "Medio (>10%)": 5, "Alto (>15%)": 10, "Explosivo (>25%)": 15}[eps_level]
 c_inst = st.sidebar.checkbox("Instituciones Comprando", value=True)
 c_sector = st.sidebar.checkbox("Líder de Sector (RS > 90)", value=True)
 puntos_fund = puntos_eps + (10 if c_inst else 0) + (10 if c_sector else 0)
 
 st.sidebar.header("🎯 Control de Ejecución")
-p_disparo = st.sidebar.number_input("Precio Disparo (Gatillo) $", value=100.0)
-p_actual = st.sidebar.number_input("Precio Actual $", value=102.0)
+p_disparo = st.sidebar.number_input("Precio Disparo (Gatillo) $", value=float(precio_actual))
+# p_actual lo cogemos del buscador para mayor precisión
+p_actual_input = st.sidebar.number_input("Precio Entrada Deseado $", value=float(precio_actual))
 
-# Espacios Temporales (FRACTALIDAD)
 st.sidebar.header("🧬 Sistemas (Fibonacci)")
-# CAMBIO DE ETIQUETA: "Sistema" en lugar de "Día"
 secuencia = [st.sidebar.number_input(f"Sistema {i+1}", value=v, key=f"s{i}") for i, v in enumerate([1, 3, 8, 14, 21])]
-
-ticker_input = st.sidebar.text_input("TICKER", "CRDO").upper()
 
 # --- INTERFAZ PRINCIPAL ---
 tab1, tab2, tab3 = st.tabs(["🔍 Análisis Cuantitativo", "💼 Cartera", "📊 Performance"])
 
 with tab1:
-    st.title(f"🚀 Escáner de Esperanza Matemática: {ticker_input}")
+    st.title(f"🚀 Dashboard Cuantitativo: {nombre_empresa} ({ticker_input})")
     
-    # 1. ENTRADA DE DATOS Y CÁLCULO DE EV INDIVIDUAL
+    # 1. MATRIZ DE ESPERANZA MATEMÁTICA
     ev_list, wr_list, estados = [], [], []
     cols = st.columns(5)
     
@@ -47,24 +64,21 @@ with tab1:
             ratio = st.number_input(f"Ratio {s}D", 0.0, 100.0, 2.0, key=f"r{i}")
             estado = st.radio(f"Estado {s}D", ["🔴 Venta", "🔵 Compra"], key=f"e{i}")
             
-            # Cálculo EV Individual: $EV = (WR * Ratio) - ((1-WR) * 1)$
+            # $EV = (WR \cdot Ratio) - ((1-WR) \cdot 1)$
             wr_f = wr / 100
             ev_ind = round((wr_f * ratio) - ((1 - wr_f) * 1), 2)
             
             ev_list.append(ev_ind)
             wr_list.append(wr)
             estados.append(estado)
-            
-            # MOSTRAR EV INDIVIDUAL DE FORMA PREFERENTE
             st.metric(f"EV Sist. {s}D", f"{ev_ind}")
 
-    # --- 2. CÁLCULO DE ESPERANZA TOTAL Y TIER ---
+    # --- 2. CÁLCULOS CENTRALES (PREFERENTES) ---
     ev_total = round(sum(ev_list) / 5, 2)
     es_tier_s = puntos_fund >= 30 and ev_total >= 4.0
     tier_label = "👑 TIER S" if es_tier_s else "🟢 TIER A" if ev_total >= 3.0 else "🔴 DESCARTE"
 
-    # --- 3. CÁLCULO IDT CON PENALIZACIÓN ---
-    distancia = ((p_actual - p_disparo) / p_disparo) * 100
+    distancia = ((p_actual_input - p_disparo) / p_disparo) * 100
     penalizacion = 30 if distancia > 5.0 else 10 if distancia >= 2.0 else 0
     
     base_wr = wr_list[0]
@@ -72,39 +86,24 @@ with tab1:
     p_señal = 10 if "🔵 Compra" in estados[0] else 0
     idt_total = base_wr + (20 if es_tier_s else 0) + p_estructura + p_señal - penalizacion
 
-    # --- 4. PANEL PREFERENTE (ESPERANZA MATEMÁTICA TOTAL) ---
     st.markdown("---")
-    main_col1, main_col2, main_col3 = st.columns(3)
+    m1, m2, m3 = st.columns(3)
     
-    with main_col1:
-        st.subheader("📊 Esperanza Matemática")
-        st.metric("EV TOTAL DEL VALOR", f"{ev_total}", delta=tier_label)
-        st.caption("Media de los 5 sistemas Fibonacci")
+    with m1:
+        st.subheader("🧪 Esperanza Matemática")
+        st.metric("EV TOTAL DEL VALOR", f"{ev_total}", f"Calidad: {tier_label}")
+        st.progress(min(max(ev_total/15, 0.0), 1.0)) # Barra visual de esperanza
 
-    with main_col2:
-        st.subheader("🎯 Potencial de Disparo")
-        st.metric("IDT PUNTOS", f"{idt_total} pts", f"-{penalizacion} por distancia" if penalizacion > 0 else None)
-        
-    with main_col3:
-        st.subheader("🛡️ Gestión de Riesgo")
-        p_stop = st.number_input("Precio Stop Loss $", value=float(p_actual * 0.95))
-        ite = round(((p_actual - p_stop) / p_stop) * 100, 2)
-        st.metric("RIESGO ITE", f"{ite}%")
+    with m2:
+        st.subheader("🎯 IDT (Disparo)")
+        st.metric("PUNTUACIÓN TOTAL", f"{idt_total} pts", f"-{penalizacion} Persecución" if penalizacion > 0 else None)
 
-    # --- 5. VERDICTO Y GUARDADO ---
+    with m3:
+        st.subheader("🛡️ ITE (Escudo)")
+        p_stop = st.number_input("Precio Stop Loss $", value=float(p_actual_input * 0.95))
+        ite = round(((p_actual_input - p_stop) / p_stop) * 100, 2)
+        st.metric("TENSIÓN RIESGO", f"{ite}%")
+
+    # --- 3. VERDICTO Y ACCIÓN ---
     if idt_total >= 100 and ite <= 5: verdict, col = "🔥 COMPRA OBLIGATORIA", "#00ffcc"
-    elif idt_total >= 85 and ite <= 8: verdict, col = "🟡 COMPRA TÁCTICA", "#ffcc00"
-    else: verdict, col = "🚫 ARMA BLOQUEADA", "#ff4b4b"
-
-    st.markdown(f"<h2 style='text-align:center; color:{col};'>{verdict}</h2>", unsafe_allow_html=True)
-
-    if st.button("💾 GUARDAR EN RANKING CUANTITATIVO"):
-        nuevo = {
-            "Ticker": ticker_input, "Tier": tier_label, "EV Total": ev_total,
-            "IDT Puntos": idt_total, "WR Gatillo": f"{base_wr}%", "ITE %": ite,
-            "Veredicto": verdict
-        }
-        st.session_state.analisis = pd.concat([st.session_state.analisis, pd.DataFrame([nuevo])]).drop_duplicates('Ticker', keep='last')
-        st.success(f"{ticker_input} guardado correctamente.")
-
-    # --- 6. RANKING ORDENADO POR EV /
+    elif
