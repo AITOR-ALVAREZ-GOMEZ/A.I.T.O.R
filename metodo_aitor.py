@@ -5,10 +5,9 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 import datetime
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 23.0 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 23.1 QUANT", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -91,7 +90,7 @@ st.markdown("""
     @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
     
     /* TARJETAS QUANT */
-    .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); }
+    .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 15px;}
     .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; }
     .quant-desc { font-size: 0.85rem; color: #86868b; line-height: 1.4; margin-bottom: 15px; }
 </style>
@@ -282,17 +281,14 @@ with tab3:
                     
                     if hist_largo.empty: hist_largo = stock_cartera.history(period="2y")
                     
-                    # CÁLCULOS MATEMÁTICOS PUROS
                     df_q = hist_largo.copy()
                     precio_vivo = df_q['Close'].iloc[-1]
                     
-                    # 1. Z-SCORE (Respecto a 55D)
                     df_q['MA55'] = df_q['Close'].rolling(window=55).mean()
                     df_q['STD55'] = df_q['Close'].rolling(window=55).std()
                     df_q['Z_Score'] = (df_q['Close'] - df_q['MA55']) / df_q['STD55']
                     z_actual = df_q['Z_Score'].iloc[-1]
                     
-                    # 2. HURST APROXIMADO (Último Año)
                     def hurst_approx(p):
                         try:
                             lags = range(2, 20)
@@ -303,12 +299,10 @@ with tab3:
                     
                     hurst_val = hurst_approx(df_q['Close'].dropna().values[-252:])
                     
-                    # 3. ACELERACIÓN Pura
                     df_q['ROC_10'] = df_q['Close'].pct_change(periods=10) * 100
                     df_q['Accel'] = df_q['ROC_10'].diff(periods=5)
                     accel_actual = df_q['Accel'].iloc[-1]
                     
-                    # 4. DRAWDOWN
                     df_q['CumMax'] = df_q['Close'].cummax()
                     df_q['Drawdown'] = (df_q['Close'] - df_q['CumMax']) / df_q['CumMax'] * 100
                     dd_actual = df_q['Drawdown'].iloc[-1]
@@ -340,46 +334,121 @@ with tab3:
                 col_q1, col_q2 = st.columns(2)
                 
                 with col_q1:
-                    st.markdown(f"""
+                    st.markdown("""
                     <div class="quant-card">
                         <div class="quant-title">1. Z-Score (Desviación)</div>
                         <div class="quant-desc">Mide cuántas desviaciones estándar se aleja el precio de su Media de 55 días. Valores > 2.5 indican riesgo extremo de reversión.</div>
-                    </div>
                     """, unsafe_allow_html=True)
-                    # Gauge Plotly Z-Score
+                    
+                    # GRAFICO Z-SCORE (A PRUEBA DE ERRORES SINTAXIS)
                     fig_z = go.Figure(go.Indicator(
-                        mode = "gauge+number", value = z_actual,
-                        number = {'valueformat': '.2f', 'suffix': ' Sigmas'},
-                        gauge = {'axis': {'range': [-4, 4]},
-                                 'bar': {'color': "black"},
-                                 'steps': [
-                                     {'range': [-4, -2], 'color': "lightpink"},
-                                     {'range': [-2, 2], 'color': "lightgreen"},
-                                     {'range': [2, 2.5], 'color': "orange"},
-                                     {'range': [2.5, 4], 'color': "red"}]}
+                        mode="gauge+number", 
+                        value=z_actual,
+                        number=dict(valueformat='.2f', suffix=' Sigmas'),
+                        gauge=dict(
+                            axis=dict(range=[-4, 4]),
+                            bar=dict(color="black"),
+                            steps=[
+                                dict(range=[-4, -2], color="lightpink"),
+                                dict(range=[-2, 2], color="lightgreen"),
+                                dict(range=[2, 2.5], color="orange"),
+                                dict(range=[2.5, 4], color="red")
+                            ]
+                        )
                     ))
                     fig_z.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_z, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
                     st.markdown(f"""
                     <div class="quant-card">
                         <div class="quant-title">3. Aceleración Pura</div>
                         <div class="quant-desc">Cambio en la velocidad del precio. Un pico extremo avisa de un "clímax comprador" (parábola inminente). Actual: {accel_actual:.2f}</div>
-                    </div>
                     """, unsafe_allow_html=True)
-                    # Minigráfico de Aceleración
                     fig_acc = go.Figure(go.Scatter(y=df_q['Accel'].tail(60), mode='lines', fill='tozeroy', line_color='purple'))
                     fig_acc.update_layout(height=120, margin=dict(l=0, r=0, t=0, b=0), xaxis_visible=False)
                     st.plotly_chart(fig_acc, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
                 with col_q2:
-                    st.markdown(f"""
+                    st.markdown("""
                     <div class="quant-card">
                         <div class="quant-title">2. Exponente de Hurst</div>
-                        <div class="quant-desc">Mide la "memoria" del precio en el último año de mercado (252 días). > 0.5 es tendencia sana. < 0.5 es mercado en rango errático o ruido.</div>
-                    </div>
+                        <div class="quant-desc">Mide la "memoria" del precio en el último año de mercado (252 días). > 0.5 es tendencia sana. < 0.5 es mercado en rango errático.</div>
                     """, unsafe_allow_html=True)
+                    
+                    # GRAFICO HURST (A PRUEBA DE ERRORES SINTAXIS)
                     fig_h = go.Figure(go.Indicator(
-                        mode = "gauge+number", value = hurst_val,
-                        number = {'valueformat': '.2f'},
-                        gauge = {'axis': {'range
+                        mode="gauge+number", 
+                        value=hurst_val,
+                        number=dict(valueformat='.2f'),
+                        gauge=dict(
+                            axis=dict(range=[0, 1]),
+                            bar=dict(color="darkblue"),
+                            steps=[
+                                dict(range=[0, 0.45], color="lightgray"),
+                                dict(range=[0.45, 0.55], color="yellow"),
+                                dict(range=[0.55, 1], color="lightgreen")
+                            ]
+                        )
+                    ))
+                    fig_h.update_layout(height=180, margin=dict(l=10, r=10, t=10, b=10))
+                    st.plotly_chart(fig_h, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                    st.markdown(f"""
+                    <div class="quant-card">
+                        <div class="quant-title">4. Perfil Drawdown</div>
+                        <div class="quant-desc">Caída actual respecto a su máximo. Históricamente, este valor ha llegado a caer un {dd_max:.1f}% sin perder tendencia estructural.</div>
+                    """, unsafe_allow_html=True)
+                    fig_dd = go.Figure(go.Scatter(y=df_q['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
+                    fig_dd.update_layout(height=120, margin=dict(l=0, r=0, t=0, b=0), xaxis_visible=False, yaxis=dict(range=[dd_max, 0]))
+                    st.plotly_chart(fig_dd, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                st.markdown("---")
+                
+                # --- NUEVO MOTOR DE DECISIÓN ESTADÍSTICO ---
+                st.subheader("🤖 Decisión Cuántica del Algoritmo")
+                stop_roto = precio_vivo < stop_actual
+                
+                if stop_roto:
+                    st.error(f"🚨 **¡STOP ROTO!** El precio ha cruzado el umbral. Vende matemáticamente.")
+                elif z_actual > 2.5:
+                    st.warning(f"🚀 **ANOMALÍA (Z-Score +{z_actual:.2f}):** Tensión probabilística extrema. Ajusta el Stop a corto plazo para proteger la parábola.")
+                elif hurst_val < 0.45:
+                    st.warning("⚠️ **PÉRDIDA DE TENDENCIA:** El exponente Hurst advierte que el valor ha entrado en fase de ruido aleatorio.")
+                else:
+                    st.success(f"🛡️ **VÍA LIBRE ESTADÍSTICA:** Z-Score normal ({z_actual:.2f}) y Tendencia viva (Hurst {hurst_val:.2f}). Mantén el Stop relajado en S5.")
+                    
+        except Exception as e:
+            st.error(f"Error técnico: {e}")
+
+    # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
+    with tab_add:
+        st.markdown("### ➕ Registrar Nueva Compra")
+        with st.form("form_add"):
+            c1, c2, c3 = st.columns(3)
+            with c1: t_ticker = st.text_input("Ticker").upper(); t_fecha_in = st.date_input("Fecha"); t_precio_in = st.number_input("Precio Compra", format="%.2f")
+            with c2: t_acciones = st.number_input("Acciones", format="%.2f"); t_stop = st.number_input("Stop Loss", format="%.2f"); t_fecha_s4 = st.date_input("Fecha S4")
+            with c3: t_precio_s4 = st.number_input("Precio S4", format="%.2f"); t_fecha_s5 = st.date_input("Fecha S5"); t_precio_s5 = st.number_input("Precio S5", format="%.2f")
+            if st.form_submit_button("Añadir a Cartera") and t_ticker != "":
+                df_c = conn.read(worksheet="Cartera", ttl=0)
+                n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
+                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                st.success("Añadido.")
+
+    # --- HISTORIAL ---
+    with tab_historial:
+        try:
+            df_h = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
+            if not df_h.empty:
+                df_h['Fecha_Venta'] = pd.to_datetime(df_h['Fecha_Venta']).dt.date
+                f_in = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
+                df_f = df_h[df_h['Fecha_Venta'] >= f_in]
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Beneficio Neto", f"{df_f['Beneficio_EUR'].sum():.2f} €")
+                c2.metric("Operaciones", len(df_f))
+                c3.metric("Win Rate", f"{(len(df_f[df_f['Beneficio_EUR'] > 0]) / len(df_f) * 100) if len(df_f)>0 else 0:.1f}%")
+                st.dataframe(df_f[['Ticker', 'Beneficio_EUR']], use_container_width=True)
+        except: pass
