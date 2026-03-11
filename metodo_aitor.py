@@ -100,4 +100,19 @@ with tab1:
         st.metric("TENSIÓN GOMA", f"{ite}%")
 
     # VERDICTO
-    if idt_total >= 10
+    if idt_total >= 100 and ite <= 5: v_txt, v_col = "🔥 COMPRA OBLIGATORIA", "#00ffcc"
+    elif idt_total >= 85 and ite <= 8: v_txt, v_col = "🟡 COMPRA TÁCTICA", "#ffcc00"
+    else: v_txt, v_col = "🚫 ARMA BLOQUEADA", "#ff4b4b"
+    st.markdown(f"<h2 style='text-align:center; color:{v_col};'>{v_txt}</h2>", unsafe_allow_html=True)
+
+    if st.button("💾 GUARDAR EN RANKING"):
+        nuevo = {"Ticker": ticker_input, "Tier": tier, "AITOR_Score": aitor_score,
+                 "IDT_Puntos": idt_total, "ITE_Porcentaje": ite, "Veredicto": v_txt}
+        st.session_state.analisis = pd.concat([st.session_state.analisis, pd.DataFrame([nuevo])]).drop_duplicates('Ticker', keep='last')
+        st.success("Guepardo guardado.")
+
+    st.subheader("📋 Tu Ranking de Élite (Ordenado por Esperanza)")
+    if not st.session_state.analisis.empty:
+        # Ordenamos por AITOR_Score para ver la calidad arriba
+        df_rank = st.session_state.analisis.sort_values("AITOR_Score", ascending=False)
+        st.dataframe(df_rank, use_container_width=True)
