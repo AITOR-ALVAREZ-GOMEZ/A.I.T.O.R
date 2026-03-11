@@ -6,12 +6,12 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 19.0", layout="wide")
+st.set_page_config(page_title="AITOR 20.0", layout="wide")
 
-# --- CSS ESTILO APPLE ---
+# --- CSS ESTILO APPLE AVANZADO ---
 st.markdown("""
 <style>
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
     
     .stApp {
         background-color: #f5f5f7;
@@ -28,25 +28,7 @@ st.markdown("""
         font-weight: 700 !important;
         letter-spacing: -0.5px;
     }
-    [data-testid="stMetric"] {
-        background-color: #ffffff;
-        border-radius: 18px;
-        padding: 15px 20px;
-        min-height: 140px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
-        border: 1px solid rgba(0,0,0,0.03);
-    }
-    [data-testid="stMetricValue"], [data-testid="stMetricValue"] * {
-        color: #1d1d1f !important;
-        font-weight: 700 !important;
-        font-size: 2.2rem !important;
-    }
-    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * {
-        color: #86868b !important;
-        font-weight: 600 !important;
-        text-transform: uppercase;
-        letter-spacing: 0.5px;
-    }
+    /* Estilos para ocultar el metric por defecto de Streamlit en Cartera */
     .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div {
         background-color: #ffffff !important;
         border-radius: 12px !important;
@@ -61,29 +43,32 @@ st.markdown("""
         font-weight: 600 !important;
         box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important;
     }
-    .rank-box {
-        display: flex;
-        gap: 6px;
-        margin-top: 12px;
-        flex-wrap: wrap;
+    .rank-box { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
+    .tag-on { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+    .tag-off { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; }
+    
+    /* NUEVAS TARJETAS APPLE PERSONALIZADAS (SIN CORTES) */
+    .apple-kpi-container {
+        display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap;
     }
-    .tag-on {
-        border-radius: 12px;
-        padding: 6px 10px;
-        font-size: 0.75rem;
-        font-weight: 700;
-        color: #fff;
-        box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    .apple-kpi-card {
+        background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03);
+        display: flex; flex-direction: column; justify-content: center; align-items: flex-start;
     }
-    .tag-off {
-        border-radius: 12px;
-        padding: 6px 10px;
-        font-size: 0.75rem;
-        font-weight: 600;
-        color: #8e8e93;
-        border: 1px solid #d2d2d7;
-        background: #fff;
-    }
+    .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
+    .apple-kpi-value { font-size: 2.2rem; font-weight: 800; color: #1d1d1f; line-height: 1; margin-bottom: 5px; white-space: nowrap; }
+    .apple-kpi-sub { font-size: 0.9rem; font-weight: 600; padding: 4px 8px; border-radius: 8px; }
+    .sub-green { background-color: #e5fbee; color: #188038; }
+    .sub-red { background-color: #fce8e6; color: #c5221f; }
+    .sub-gray { background-color: #f1f3f4; color: #5f6368; }
+
+    /* INDICADOR LUMINOSO DE RENTABILIDAD */
+    .led-box { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;}
+    .led-green { width: 14px; height: 14px; background-color: #34c759; border-radius: 50%; box-shadow: 0 0 10px #34c759, inset 0 0 4px #000; animation: pulse-green 2s infinite; }
+    .led-red { width: 14px; height: 14px; background-color: #ff3b30; border-radius: 50%; box-shadow: 0 0 10px #ff3b30, inset 0 0 4px #000; animation: pulse-red 2s infinite; }
+    @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(52, 199, 89, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); } }
+    @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
 </style>
 """, unsafe_allow_html=True)
 
@@ -212,117 +197,53 @@ with tab1:
             
             st.metric("EV " + str(s_val) + "D", str(ev_i))
 
-    # --- RESULTADOS FINALES ---
     ev_tot = round((sum(l_ev) / 5.0) + ev_plus, 2)
-    
-    ite = 0.0
-    if p_buy > 0:
-        ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2)
-        
+    ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
     p_estr = sum(10 for e in l_es[1:] if e == "Compra")
     p_sen = 10 if l_es[0] == "Compra" else 0
     penal = 30 if ite > 8 else 0
-    
     idt = l_wr[0] + bono + p_estr + p_sen - penal
 
     st.markdown("---")
     r_cols = st.columns(3)
-    
-    # 1. EV TOTAL
     with r_cols[0]:
         st.subheader("EV Total")
         st.metric("SCORE", str(ev_tot), f"+{ev_plus:.2f}")
-        st.caption("Esperanza: Calidad + Ventaja")
-        
-        h_ev = "<div class='rank-box'>"
-        if ev_tot >= 10:
-            h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
-        elif ev_tot >= 5:
-            h_ev += "<div class='tag-off'>TIER S</div><div class='tag-on' style='background:#2b8af7;'>TIER A</div><div class='tag-off'>DESCARTE</div>"
-        else:
-            h_ev += "<div class='tag-off'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-on' style='background:#ff3b30;'>DESCARTE</div>"
-        h_ev += "</div>"
-        st.markdown(h_ev, unsafe_allow_html=True)
-    
-    # 2. IDT PUNTOS
     with r_cols[1]:
         st.subheader("Fuerza IDT")
         st.metric("PUNTOS", str(idt) + " pts")
-        st.caption("Disparo Tactico y Estructura")
-        
-        h_idt = "<div class='rank-box'>"
-        if idt >= 100:
-            h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
-        elif idt >= 85:
-            h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-on' style='background:#ff9500;'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
-        else:
-            h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-on' style='background:#ff3b30;'>BLOQUEADA</div>"
-        h_idt += "</div>"
-        st.markdown(h_idt, unsafe_allow_html=True)
-
-    # 3. ITE %
     with r_cols[2]:
         st.subheader("Tension ITE")
         st.metric("RIESGO", str(ite) + "%")
-        st.caption("Distancia porcentual al Stop")
-        
-        h_ite = "<div class='rank-box'>"
-        if ite <= 5:
-            h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
-        elif ite <= 8:
-            h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
-        else:
-            h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-on' style='background:#ff3b30;'>NO OPERABLE</div>"
-        h_ite += "</div>"
-        st.markdown(h_ite, unsafe_allow_html=True)
 
-    # --- CALCULADORA DE RIESGO ---
     pct_riesgo = r_pct / 100.0
     p_max = CAPITAL * pct_riesgo
     dif_p = p_buy - p_sl
-    n_tit = 0
-    if dif_p > 0:
-        n_tit = int(p_max / dif_p)
+    n_tit = int(p_max / dif_p) if dif_p > 0 else 0
     inv_t = n_tit * p_buy
 
     st.markdown("---")
     st.subheader(f"Ejecución Recomendada (Capital: {CAPITAL:,.0f} EUR)")
-    
     c1, c2, c3 = st.columns(3)
     c1.metric("Riesgo Maximo", str(int(p_max)) + " EUR")
     c2.metric("Acciones", str(int(n_tit)) + " titulos")
     c3.metric("Posicion Total", str(int(inv_t)) + " EUR")
 
-    # --- VERDICTO FINAL ---
-    if ev_tot < 5 or ite > 8:
-        v_c = "#ff3b30"
-        v_t = "OPERACION NO VIABLE"
-    elif idt >= 100 and ite <= 5:
-        v_c = "#1d1d1f"
-        v_t = "COMPRA OBLIGATORIA"
-    elif idt >= 85 and ite <= 8:
-        v_c = "#ff9500"
-        v_t = "COMPRA TACTICA"
-    else:
-        v_c = "#ff3b30"
-        v_t = "ARMA BLOQUEADA"
+    if ev_tot < 5 or ite > 8: v_c, v_t = "#ff3b30", "OPERACION NO VIABLE"
+    elif idt >= 100 and ite <= 5: v_c, v_t = "#1d1d1f", "COMPRA OBLIGATORIA"
+    elif idt >= 85 and ite <= 8: v_c, v_t = "#ff9500", "COMPRA TACTICA"
+    else: v_c, v_t = "#ff3b30", "ARMA BLOQUEADA"
         
     tag_v = f"<div style='text-align:center; margin-top:20px;'><div class='tag-on' style='background:{v_c}; font-size:1.2rem; padding:15px 30px;'>{v_t}</div></div>"
     st.markdown(tag_v, unsafe_allow_html=True)
 
-    # --- GUARDAR ---
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("Guardar en Nube"):
-        d_sav = {
-            "Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, 
-            "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, 
-            "Acciones": n_tit, "Inversion": inv_t
-        }
+        d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
         for j in range(5):
             d_sav[f"S{j+1}_Dias"] = s_elegidos[j]
             d_sav[f"W{j+1}"] = l_wr[j]
             d_sav[f"R{j+1}"] = l_rt[j]
-            
         new_row = pd.DataFrame([d_sav])
         df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
         conn.update(worksheet="Sheet1", data=df_upd)
@@ -336,8 +257,6 @@ with tab2:
 # --- PESTAÑA 3: CARTERA EN VIVO ---
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
-    
-    # Sub-pestañas para organizar la cartera
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial de Rentabilidad"])
     
     with tab_vivas:
@@ -350,161 +269,174 @@ with tab3:
                 ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
                 datos_ticker = df_cartera[df_cartera['Ticker'] == ticker_sel].iloc[0]
                 
-                # Cargar tus datos de entrada
                 fecha_in = pd.to_datetime(datos_ticker['Fecha_Entrada']).date()
                 precio_in = float(datos_ticker['Precio_Entrada'])
                 acciones = float(datos_ticker['Num_Acciones'])
                 stop_actual = float(datos_ticker['Stop_Actual'])
                 
-                # MATEMÁTICA AVANZADA: CÁLCULO DE MEDIAS VIVAS (S4=34D, S5=55D)
-                with st.spinner(f"Analizando histórico y calculando medias de {ticker_sel}..."):
-                    stock = yf.Ticker(ticker_sel)
-                    # Descargamos 6 meses de datos para asegurar que podemos calcular medias de 55 días
-                    hist_largo = stock.history(period="6mo")
-                    precio_vivo = hist_largo['Close'].iloc[-1]
+                with st.spinner(f"Escaneando {ticker_sel} y descargando histórico desde {fecha_in}..."):
+                    stock_cartera = yf.Ticker(ticker_sel)
+                    # Descargamos histórico completo para el gráfico y medias
+                    hist_largo = stock_cartera.history(start=fecha_in, end=datetime.date.today() + datetime.timedelta(days=1))
                     
-                    media_s4 = hist_largo['Close'].rolling(window=34).mean().iloc[-1]
+                    if hist_largo.empty:
+                        # Fallback por si la fecha es muy reciente o hay error
+                        hist_largo = stock_cartera.history(period="6mo")
+                        
+                    precio_vivo = hist_largo['Close'].iloc[-1]
                     media_s5 = hist_largo['Close'].rolling(window=55).mean().iloc[-1]
+                    
+                    # Previsiones EPS del Ticker actual
+                    eps_t_base = stock_cartera.info.get("trailingEps", 0.0)
+                    eps_t_fwd = stock_cartera.info.get("forwardEps", 0.0)
+                    crec_eps = ((eps_t_fwd - eps_t_base) / eps_t_base * 100) if eps_t_base > 0 and eps_t_fwd > eps_t_base else 0.0
                 
                 # MATEMÁTICA DE TU POSICIÓN
                 beneficio_eur = (precio_vivo - precio_in) * acciones
                 beneficio_pct = ((precio_vivo - precio_in) / precio_in) * 100
-                
-                # ¿Cuánto tiempo llevas dentro?
                 dias_en_posicion = (datetime.date.today() - fecha_in).days
                 if dias_en_posicion <= 0: dias_en_posicion = 1
+                dist_real_s5 = ((precio_vivo - media_s5) / media_s5) * 100 if media_s5 > 0 else 0
                 
-                # Distancias REALES a las medias móviles de HOY (Aceleración estadística)
-                dist_real_s4 = ((precio_vivo - media_s4) / media_s4) * 100
-                dist_real_s5 = ((precio_vivo - media_s5) / media_s5) * 100
+                # --- NUEVO PANEL DE TARJETAS HTML/CSS (SIN CORTES) ---
+                led_class = "led-green" if beneficio_pct >= 0 else "led-red"
+                sub_class_ben = "sub-green" if beneficio_pct >= 0 else "sub-red"
                 
-                # PANEL VISUAL DE DATOS
-                col1, col2, col3, col4 = st.columns(4)
-                col1.metric("Precio Actual", f"{precio_vivo:.2f}", f"{beneficio_pct:.2f}% (Latente)")
-                col2.metric("Beneficio Neto", f"{beneficio_eur:.2f} €")
-                col3.metric("Tiempo en Pos.", f"{dias_en_posicion} días", f"Desde {fecha_in.strftime('%d/%m/%Y')}")
-                col4.metric("Dist. Media 55D (S5)", f"{dist_real_s5:.2f}%", "Distancia Real Hoy")
+                html_kpis = f"""
+                <div class="apple-kpi-container">
+                    <div class="apple-kpi-card" style="border-left: 5px solid {'#34c759' if beneficio_pct>=0 else '#ff3b30'};">
+                        <div class="led-box">
+                            <div class="{led_class}"></div>
+                            <div class="apple-kpi-title" style="margin:0;">Rentabilidad Real</div>
+                        </div>
+                        <div class="apple-kpi-value">{beneficio_pct:+.2f}%</div>
+                        <div class="apple-kpi-sub {sub_class_ben}">{beneficio_eur:+.2f} € Netos</div>
+                    </div>
+                    
+                    <div class="apple-kpi-card">
+                        <div class="apple-kpi-title">Precio Mercado</div>
+                        <div class="apple-kpi-value">{precio_vivo:.2f}</div>
+                        <div class="apple-kpi-sub sub-gray">Entrada: {precio_in:.2f}</div>
+                    </div>
+                    
+                    <div class="apple-kpi-card">
+                        <div class="apple-kpi-title">Tiempo en Tendencia</div>
+                        <div class="apple-kpi-value">{dias_en_posicion} Días</div>
+                        <div class="apple-kpi-sub sub-gray">Desde {fecha_in.strftime('%d/%m/%Y')}</div>
+                    </div>
+                    
+                    <div class="apple-kpi-card">
+                        <div class="apple-kpi-title">Distancia a S5 (55D)</div>
+                        <div class="apple-kpi-value">{dist_real_s5:.1f}%</div>
+                        <div class="apple-kpi-sub sub-gray">Aceleración</div>
+                    </div>
+                </div>
+                """
+                st.markdown(html_kpis, unsafe_allow_html=True)
+                
+                # --- CONTEXTO: SISTEMAS Y FUNDAMENTALES ---
+                st.markdown("### Contexto de la Inversión")
+                col_c1, col_c2 = st.columns(2)
+                
+                with col_c1:
+                    st.markdown("**🧠 Memoria de Sistemas (Escáner):**")
+                    if not df_datos.empty and ticker_sel in df_datos['Ticker'].values:
+                        f_sist = df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]
+                        txt_sistemas = f"S1({f_sist['S1_Dias']}d, WR:{f_sist['W1']}%) | S2({f_sist['S2_Dias']}d) | S5({f_sist['S5_Dias']}d)"
+                        st.info(f"Sistemas registrados: {txt_sistemas}")
+                    else:
+                        st.warning("No hay registros en el Escáner para este Ticker. El algoritmo usará sistemas estándar (S5=55D).")
+                
+                with col_c2:
+                    st.markdown("**📈 Previsión de Beneficios (EPS):**")
+                    if crec_eps > 0:
+                        st.success(f"Crecimiento proyectado a 1 año: **+{crec_eps:.1f}%** (Fundamentales sólidos)")
+                    else:
+                        st.info("Sin datos de crecimiento explosivo de EPS a corto plazo.")
+
+                # --- GRÁFICO DE VIAJE EN EL TIEMPO ---
+                st.markdown("### Evolución del Precio")
+                fig = go.Figure()
+                fig.add_trace(go.Scatter(x=hist_largo.index, y=hist_largo['Close'], mode='lines', name='Precio', line=dict(color='#2b8af7', width=2)))
+                # Linea de Entrada
+                fig.add_hline(y=precio_in, line_dash="dash", line_color="green", annotation_text="Entrada", annotation_position="bottom right")
+                # Linea de Stop
+                fig.add_hline(y=stop_actual, line_dash="dot", line_color="red", annotation_text="Stop Actual", annotation_position="bottom right")
+                
+                fig.update_layout(height=400, margin=dict(l=0, r=0, t=30, b=0), paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)',
+                                  xaxis=dict(showgrid=False), yaxis=dict(showgrid=True, gridcolor='rgba(0,0,0,0.05)'))
+                st.plotly_chart(fig, use_container_width=True)
                 
                 st.markdown("---")
                 
-                # --- MOTOR DE DECISIÓN CUÁNTICO (ESTADÍSTICA PURA) ---
+                # --- MOTOR DE DECISIÓN CUÁNTICO ---
                 st.subheader("🤖 Decisión del Algoritmo Matemático")
-                
-                # Variables del modelo
                 stop_roto = precio_vivo < stop_actual
-                colchon_masivo = beneficio_pct > 30.0 # Si ganas más de un 30%, tienes inmunidad
-                parabola_estadistica = dist_real_s5 > 25.0 # Solo es parabólico si se aleja un 25% de su media viva de 55 días
+                colchon_masivo = beneficio_pct > 30.0
+                parabola_estadistica = dist_real_s5 > 25.0 
                 
                 if stop_roto:
-                    alarma_html = """
-                    <style>
-                    @keyframes parpadeo_rojo { 0% { background-color: #ff0000; color: white; transform: scale(1); } 50% { background-color: #8b0000; color: yellow; transform: scale(1.02); } 100% { background-color: #ff0000; color: white; transform: scale(1); } }
-                    .caja-alarma { animation: parpadeo_rojo 0.8s infinite; padding: 30px; border-radius: 15px; text-align: center; border: 5px solid black; }
-                    .texto-alarma { font-size: 40px; font-weight: 900; margin: 0; font-family: 'Arial Black', sans-serif;}
-                    </style>
-                    <div class="caja-alarma"><p class="texto-alarma">🚨 ¡STOP ROTO! CERRAR POSICIÓN 🚨</p></div>
-                    """
-                    st.markdown(alarma_html, unsafe_allow_html=True)
-                    st.error(f"Matemática de salida: El precio actual ({precio_vivo:.2f}) ha cruzado tu nivel crítico de riesgo ({stop_actual:.2f}).")
-                
+                    st.error(f"🚨 **¡STOP ROTO!** El precio actual ({precio_vivo:.2f}) ha cruzado tu nivel crítico. Cierra posición y registra en Historial.")
                 elif colchon_masivo and not parabola_estadistica:
-                    st.success(f"🛡️ **COLCHÓN ESTADÍSTICO DETECTADO (+{beneficio_pct:.1f}%):** Tienes ventaja matemática absoluta. El valor orbita un {dist_real_s5:.1f}% sobre su S5. Mantén el Stop relajado en la Media de 55 Días para absorber la volatilidad y exprimir la tendencia.")
-                
+                    st.success(f"🛡️ **COLCHÓN ESTADÍSTICO:** Tienes ventaja matemática. El valor orbita sano sobre su S5. Mantén el Stop relajado (S5 o S4) para absorber ruido y exprimir la tendencia.")
                 elif parabola_estadistica:
-                    st.warning(f"🚀 **ANOMALÍA ESTADÍSTICA:** El precio está un {dist_real_s5:.1f}% por encima de su media de 55 días. La goma está demasiado tensa. Ajusta el Stop a S2 o S3 preventivamente.")
-                
+                    st.warning(f"🚀 **ANOMALÍA ESTADÍSTICA:** El precio está un {dist_real_s5:.1f}% por encima de su media 55D. Goma muy tensa. Sube el Stop a S2 o S3 preventivamente.")
                 else:
-                    st.info("🟢 **TENDENCIA EN DESARROLLO:** Mantén el Stop en tu sistema planificado según ATR.")
+                    st.info("🟢 **TENDENCIA SANA:** Mantén el Stop en tu sistema planificado.")
                     
         except Exception as e:
-            st.error(f"Error al leer Cartera. Comprueba que las columnas de la pestaña 'Cartera' están bien escritas. Detalles técnicos: {e}")
+            st.error(f"Error al leer Cartera. Detalles técnicos: {e}")
 
     # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
     with tab_add:
         st.markdown("### ➕ Registrar Nueva Compra")
-        st.caption("Rellena los datos de tu nueva posición. Se guardarán automáticamente en tu base de datos de Google Sheets.")
-        
         with st.form("form_add_cartera"):
             col_f1, col_f2, col_f3 = st.columns(3)
-            
             with col_f1:
                 t_ticker = st.text_input("Ticker (Ej: MSFT, SCYR.MC)").upper()
                 t_fecha_in = st.date_input("Fecha de Entrada")
-                t_precio_in = st.number_input("Precio de Compra $", min_value=0.0, format="%.2f")
-                
+                t_precio_in = st.number_input("Precio Compra $", min_value=0.0, format="%.2f")
             with col_f2:
-                t_acciones = st.number_input("Nº de Acciones", min_value=0.0, format="%.2f")
+                t_acciones = st.number_input("Nº Acciones", min_value=0.0, format="%.2f")
                 t_stop = st.number_input("Stop Loss Inicial $", min_value=0.0, format="%.2f")
                 t_fecha_s4 = st.date_input("Fecha Ruptura S4")
-                
             with col_f3:
                 t_precio_s4 = st.number_input("Precio Ruptura S4 $", min_value=0.0, format="%.2f")
                 t_fecha_s5 = st.date_input("Fecha Ruptura S5")
                 t_precio_s5 = st.number_input("Precio Ruptura S5 $", min_value=0.0, format="%.2f")
                 
-            st.markdown("<br>", unsafe_allow_html=True)
             btn_add = st.form_submit_button("🚀 Añadir a Cartera")
-            
             if btn_add:
-                if t_ticker.strip() == "":
-                    st.error("⚠️ El campo Ticker es obligatorio.")
-                elif t_acciones <= 0 or t_precio_in <= 0:
-                    st.error("⚠️ El Precio de Compra y el Nº de Acciones deben ser mayores que cero.")
+                if t_ticker.strip() == "": st.error("⚠️ Ticker obligatorio.")
+                elif t_acciones <= 0 or t_precio_in <= 0: st.error("⚠️ Precio y Acciones > 0.")
                 else:
                     try:
-                        # Leer los datos actuales de la cartera
                         df_cartera = conn.read(worksheet="Cartera", ttl=0)
-                        
-                        # Crear la nueva fila
-                        nueva_posicion = {
-                            "Ticker": t_ticker,
-                            "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"),
-                            "Precio_Entrada": t_precio_in,
-                            "Num_Acciones": t_acciones,
-                            "Stop_Actual": t_stop,
-                            "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"),
-                            "Precio_Ruptura_S4": t_precio_s4,
-                            "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"),
-                            "Precio_Ruptura_S5": t_precio_s5
-                        }
-                        
-                        # Añadir la fila y actualizar el Excel
+                        nueva_posicion = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
                         df_upd = pd.concat([df_cartera, pd.DataFrame([nueva_posicion])], ignore_index=True)
                         conn.update(worksheet="Cartera", data=df_upd)
-                        st.success(f"¡Genial! {t_ticker} se ha añadido a tu Cartera en Vivo. Ve a la pestaña 'Posiciones Vivas' para ver la magia.")
-                        
+                        st.success(f"¡{t_ticker} añadido! Ve a 'Posiciones Vivas'.")
                     except Exception as e:
-                        st.error(f"Error al guardar. Asegúrate de que la pestaña 'Cartera' de tu Excel tiene las 9 columnas correctas. Detalles: {e}")
+                        st.error(f"Error al guardar: {e}")
 
     with tab_historial:
         st.markdown("### Contador de Rentabilidad Global")
         try:
             df_historial = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
-            if df_historial.empty:
-                st.info("Aún no tienes operaciones cerradas en el Historial. Cuando vendas algo, apúntalo en el Excel.")
+            if df_historial.empty: st.info("Sin operaciones cerradas.")
             else:
-                # Convertir fechas para poder filtrar
                 df_historial['Fecha_Venta'] = pd.to_datetime(df_historial['Fecha_Venta']).dt.date
-                
-                # FILTRO DE FECHAS
-                fecha_inicio = st.date_input("Analizar rentabilidad desde:", value=pd.to_datetime("2024-01-01").date())
-                
-                # Filtrar el dataframe
+                fecha_inicio = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
                 df_filtrado = df_historial[df_historial['Fecha_Venta'] >= fecha_inicio]
                 
-                # Calcular Totales
                 total_eur = df_filtrado['Beneficio_EUR'].sum()
-                ops_ganadoras = len(df_filtrado[df_filtrado['Beneficio_EUR'] > 0])
                 ops_totales = len(df_filtrado)
-                win_rate_global = (ops_ganadoras / ops_totales * 100) if ops_totales > 0 else 0
+                win_rate_global = (len(df_filtrado[df_filtrado['Beneficio_EUR'] > 0]) / ops_totales * 100) if ops_totales > 0 else 0
                 
-                # Mostrar el Dashboard de Resultados
                 c1, c2, c3 = st.columns(3)
-                c1.metric("Beneficio Neto (Periodo)", f"{total_eur:.2f} €")
+                c1.metric("Beneficio Neto", f"{total_eur:.2f} €")
                 c2.metric("Operaciones Cerradas", ops_totales)
-                c3.metric("Win Rate de Cartera", f"{win_rate_global:.1f}%")
-                
+                c3.metric("Win Rate", f"{win_rate_global:.1f}%")
                 st.dataframe(df_filtrado[['Ticker', 'Fecha_Venta', 'Beneficio_EUR', 'Rentabilidad_Pct']], use_container_width=True)
-                
         except Exception as e:
-            st.error(f"Falta la pestaña 'Historial' en el Excel o tiene un error. Detalles: {e}")
+            st.error(f"Error en Historial: {e}")
