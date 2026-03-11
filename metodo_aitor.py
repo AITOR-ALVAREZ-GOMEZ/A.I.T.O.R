@@ -7,28 +7,23 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 27.0 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 28.0 QUANT", layout="wide")
 
-# --- CSS ESTILO APPLE RESTAURADO ---
+# --- CSS ESTILO APPLE ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
-    
     .stApp { background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: rgba(255, 255, 255, 0.7) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0,0,0,0.05) !important; }
     h1, h2, h3, h1 *, h2 *, h3 * { color: #1d1d1f !important; font-weight: 700 !important; letter-spacing: -0.5px; }
-    
     [data-testid="stMetric"] { background-color: #ffffff; border-radius: 18px; padding: 15px 20px; min-height: 140px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); }
     [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #1d1d1f !important; font-weight: 700 !important; font-size: 2.2rem !important; }
     [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: #86868b !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.5px; }
-    
     .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div { background-color: #ffffff !important; border-radius: 12px !important; border: 1px solid rgba(0,0,0,0.1) !important; }
     .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; }
-    
     .rank-box { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
     .tag-on { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
     .tag-off { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; }
-    
     .apple-kpi-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
     .apple-kpi-card { background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
     .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
@@ -37,13 +32,11 @@ st.markdown("""
     .sub-green { background-color: #e5fbee; color: #188038; }
     .sub-red { background-color: #fce8e6; color: #c5221f; }
     .sub-gray { background-color: #f1f3f4; color: #5f6368; }
-
     .led-box { display: flex; align-items: center; gap: 10px; margin-bottom: 10px;}
     .led-green { width: 14px; height: 14px; background-color: #34c759; border-radius: 50%; box-shadow: 0 0 10px #34c759, inset 0 0 4px #000; animation: pulse-green 2s infinite; }
     .led-red { width: 14px; height: 14px; background-color: #ff3b30; border-radius: 50%; box-shadow: 0 0 10px #ff3b30, inset 0 0 4px #000; animation: pulse-red 2s infinite; }
     @keyframes pulse-green { 0% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(52, 199, 89, 0); } 100% { box-shadow: 0 0 0 0 rgba(52, 199, 89, 0); } }
     @keyframes pulse-red { 0% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0.7); } 70% { box-shadow: 0 0 0 10px rgba(255, 59, 48, 0); } 100% { box-shadow: 0 0 0 0 rgba(255, 59, 48, 0); } }
-    
     .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 15px;}
     .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; }
     .quant-desc { font-size: 0.85rem; color: #86868b; line-height: 1.4; margin-bottom: 15px; }
@@ -79,7 +72,6 @@ if ticker != "":
 
 st.sidebar.subheader("Empresa: " + nom_emp)
 st.sidebar.markdown("---")
-
 st.sidebar.header("Calidad (Libro Blanco)")
 if prev_1y > 0 and eps_base > 0:
     st.sidebar.markdown("### Proyeccion Beneficios (3Y)")
@@ -119,9 +111,9 @@ if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
 # =====================================================================
 tab1, tab2, tab3 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría", "💼 Cartera en Vivo"])
 
-# --- PESTAÑA 1: ESCÁNER ---
+# --- PESTAÑA 1: ESCÁNER (CON ORÁCULO RENAISSANCE) ---
 with tab1:
-    st.title("Análisis: " + ticker)
+    st.title("Análisis de Entrada: " + ticker)
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
     cols = st.columns(5)
     for i in range(5):
@@ -146,7 +138,6 @@ with tab1:
 
     st.markdown("---")
     c1, c2, c3 = st.columns(3)
-    
     with c1:
         st.metric("SCORE EV", str(ev_tot))
         h_ev = "<div class='rank-box'>"
@@ -155,7 +146,6 @@ with tab1:
         else: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-on' style='background:#ff3b30;'>DESCARTE</div>"
         h_ev += "</div>"
         st.markdown(h_ev, unsafe_allow_html=True)
-        
     with c2:
         st.metric("PUNTOS IDT", str(idt))
         h_idt = "<div class='rank-box'>"
@@ -164,7 +154,6 @@ with tab1:
         else: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-on' style='background:#ff3b30;'>BLOQUEADA</div>"
         h_idt += "</div>"
         st.markdown(h_idt, unsafe_allow_html=True)
-        
     with c3:
         st.metric("RIESGO ITE", str(ite) + "%")
         h_ite = "<div class='rank-box'>"
@@ -179,6 +168,82 @@ with tab1:
     dif_p = p_buy - p_sl
     n_tit = int(p_max / dif_p) if dif_p > 0 else 0
     inv_t = n_tit * p_buy
+
+    st.markdown("---")
+    
+    # =====================================================================
+    # NUEVO: ORÁCULO CUANTITATIVO DE ENTRADA (ESTILO RENAISSANCE)
+    # =====================================================================
+    st.subheader("🔮 Oráculo de Entrada (Modelo Cuantitativo)")
+    if ticker != "":
+        with st.spinner("Descargando data algorítmica para entrada..."):
+            try:
+                stock_esc = yf.Ticker(ticker)
+                df_esc = stock_esc.history(period="2y")
+                
+                if not df_esc.empty:
+                    # Matemáticas
+                    df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
+                    df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
+                    df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
+                    z_in = df_esc['Z_Score'].iloc[-1] if not pd.isna(df_esc['Z_Score'].iloc[-1]) else 0
+                    
+                    def hurst_approx_in(p):
+                        try:
+                            lags = range(2, 20)
+                            tau = [np.sqrt(np.std(np.subtract(p[lag:], p[:-lag]))) for lag in lags]
+                            poly = np.polyfit(np.log(lags), np.log(tau), 1)
+                            return poly[0] * 2.0
+                        except: return 0.5
+                    hurst_in = hurst_approx_in(df_esc['Close'].dropna().values[-252:])
+                    
+                    df_esc['ROC_10'] = df_esc['Close'].pct_change(periods=10) * 100
+                    df_esc['Accel'] = df_esc['ROC_10'].diff(periods=5)
+                    acc_in = df_esc['Accel'].iloc[-1] if not pd.isna(df_esc['Accel'].iloc[-1]) else 0
+                    
+                    df_esc['CumMax'] = df_esc['Close'].cummax()
+                    df_esc['Drawdown'] = (df_esc['Close'] - df_esc['CumMax']) / df_esc['CumMax'] * 100
+                    dd_in = df_esc['Drawdown'].iloc[-1]
+                    dd_min_in = df_esc['Drawdown'].min()
+
+                    col_eq1, col_eq2 = st.columns(2)
+                    with col_eq1:
+                        st.markdown("""<div class="quant-card"><div class="quant-title">Z-Score (Desviación)</div><div class="quant-desc">Filtro Renaissance: Comprar solo si está entre +0.5 y +2.0 (Fuerza controlada).</div>""", unsafe_allow_html=True)
+                        fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, number=dict(valueformat='.2f', suffix=' Z'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, 0.5], color="lightgray"), dict(range=[0.5, 2.0], color="lightgreen"), dict(range=[2.0, 4], color="red")])))
+                        fig_ze.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
+                        st.plotly_chart(fig_ze, use_container_width=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        st.markdown("""<div class="quant-card"><div class="quant-title">Aceleración (Momentum)</div><div class="quant-desc">Filtro: Debe ser positiva (> 0). Indica que el dinero entra cada vez más rápido.</div>""", unsafe_allow_html=True)
+                        fig_ae = go.Figure(go.Scatter(x=df_esc.index[-60:], y=df_esc['Accel'].tail(60), mode='lines', fill='tozeroy', line_color='purple'))
+                        fig_ae.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False), yaxis=dict(showgrid=False))
+                        st.plotly_chart(fig_ae, use_container_width=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                    with col_eq2:
+                        st.markdown("""<div class="quant-card"><div class="quant-title">Exponente Hurst (Memoria)</div><div class="quant-desc">Filtro Renaissance: Solo comprar si es > 0.55 (Probabilidad matemática de que haya tendencia).</div>""", unsafe_allow_html=True)
+                        fig_he = go.Figure(go.Indicator(mode="gauge+number", value=hurst_in, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[0, 1]), bar=dict(color="darkblue"), steps=[dict(range=[0, 0.55], color="lightgray"), dict(range=[0.55, 1], color="lightgreen")])))
+                        fig_he.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
+                        st.plotly_chart(fig_he, use_container_width=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
+                        
+                        st.markdown(f"""<div class="quant-card"><div class="quant-title">Drawdown (Riesgo Histórico)</div><div class="quant-desc">El valor ha llegado a caer un {dd_min_in:.1f}%. Tenlo en cuenta para tu Stop Loss.</div>""", unsafe_allow_html=True)
+                        fig_dde = go.Figure(go.Scatter(x=df_esc.index[-150:], y=df_esc['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
+                        fig_dde.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False), yaxis=dict(range=[dd_min_in*1.1, 0]))
+                        st.plotly_chart(fig_dde, use_container_width=True)
+                        st.markdown("</div>", unsafe_allow_html=True)
+
+                    # VEREDICTO DE ENTRADA RENAISSANCE
+                    if hurst_in > 0.55 and (0.5 <= z_in <= 2.0) and acc_in > 0:
+                        st.success("🟢 **SEÑAL CUANTITATIVA APROBADA (Modo Renaissance):** El activo cumple los 3 requisitos estadísticos. Tiene memoria tendencial, aceleración positiva y no está parabólico. ¡Buena oportunidad de compra!")
+                    elif z_in > 2.0:
+                        st.error(f"🔴 **RECHAZO CUANTITATIVO (Riesgo de Colapso):** El Z-Score ({z_in:.2f}) está en modo burbuja. La matemática dicta que entrar ahora es comprar en el techo. Espera a que descanse.")
+                    elif hurst_in <= 0.55:
+                        st.warning(f"🟡 **RECHAZO CUANTITATIVO (Ruido):** El Exponente de Hurst ({hurst_in:.2f}) indica que no hay tendencia real probada. El precio es aleatorio. Mejor buscar otro valor.")
+                    else:
+                        st.info("⚪ **NEUTRAL:** El activo no cumple los criterios estrictos de momentum cuantitativo. Depende de tu criterio estructural (IDT/EV).")
+            except:
+                st.error("No se pudo calcular el modelo para este ticker.")
 
     st.markdown("---")
     st.subheader(f"Ejecución Recomendada (Capital: {CAPITAL:,.0f} EUR)")
@@ -227,6 +292,7 @@ with tab3:
                 fecha_in = pd.to_datetime(datos_ticker['Fecha_Entrada']).date()
                 precio_in = float(datos_ticker['Precio_Entrada'])
                 acciones = float(datos_ticker['Num_Acciones'])
+                stop_actual = float(datos_ticker['Stop_Actual'])
                 
                 with st.spinner(f"Analizando data científica de {ticker_sel}..."):
                     stock_cartera = yf.Ticker(ticker_sel)
@@ -236,13 +302,11 @@ with tab3:
                     df_q = hist_largo.copy()
                     precio_vivo = df_q['Close'].iloc[-1]
                     
-                    # Rescatar sistemas (Por defecto 1, 3, 34, 55 si no existen en BD)
                     s1_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S1_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 1
                     s2_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S2_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 3
                     s4_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S4_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 34
                     s5_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S5_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 55
 
-                    # CALCULO DE MEDIAS VIVAS
                     media_s1 = df_q['Close'].rolling(window=s1_d, min_periods=1).mean().iloc[-1]
                     media_s2 = df_q['Close'].rolling(window=s2_d, min_periods=1).mean().iloc[-1]
                     media_s4 = df_q['Close'].rolling(window=s4_d, min_periods=1).mean().iloc[-1]
@@ -270,7 +334,6 @@ with tab3:
                     df_q['Drawdown'] = (df_q['Close'] - df_q['CumMax']) / df_q['CumMax'] * 100
                     dd_max = df_q['Drawdown'].min()
 
-                # --- PANEL KPI APPLE ---
                 beneficio_eur = (precio_vivo - precio_in) * acciones
                 beneficio_pct = ((precio_vivo - precio_in) / precio_in) * 100
                 dias_pos = (datetime.date.today() - fecha_in).days
@@ -290,8 +353,7 @@ with tab3:
                 )
                 st.markdown(html_kpis, unsafe_allow_html=True)
 
-                # --- ANÁLISIS CUANTITATIVO INSTITUCIONAL ---
-                st.markdown("### 🧠 Análisis Cuantitativo (Datos del Algoritmo)")
+                st.markdown("### 🧠 Análisis Cuantitativo (Datos de Mantenimiento)")
                 col_q1, col_q2 = st.columns(2)
                 
                 with col_q1:
@@ -322,11 +384,13 @@ with tab3:
 
                 st.markdown("---")
                 
-                # --- NUEVO MOTOR DE DECISIÓN ESTADÍSTICO SINTETIZADO ---
                 st.subheader("⚖️ Veredicto del Algoritmo y Gestión de Stop")
+                stop_roto = precio_vivo < stop_actual
                 
-                # LÓGICA DE DECISIÓN: Qué stop usar según la fase de mercado
-                if z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
+                if stop_roto:
+                    st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio actual ({precio_vivo:.2f}) ha cruzado tu umbral rojo. Ejecuta la venta matemáticamente.")
+                    stop_sugerido = stop_actual
+                elif z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
                     st.warning(f"🚀 **CLÍMAX COMPRADOR:** Tensión probabilística extrema (Z-Score +{z_actual:.2f}). \n\n**VEREDICTO:** Sube agresivamente tu Stop al sistema **S1 ({s1_d} Días) en {media_s1:.2f} €** o **S2 ({s2_d} Días) en {media_s2:.2f} €**.")
                     stop_sugerido = media_s2
                 elif hurst_val < 0.45:
@@ -336,14 +400,12 @@ with tab3:
                     st.success(f"🛡️ **TENDENCIA SANA:** La matemática está de tu lado (Hurst {hurst_val:.2f}). \n\n**VEREDICTO:** Deja correr los beneficios usando tu Stop en **S4 ({s4_d} Días) en {media_s4:.2f} €** o **S5 ({s5_d} Días) en {media_s5:.2f} €**.")
                     stop_sugerido = media_s4
 
-                # --- EL TERMÓMETRO DE RIESGO CORREGIDO ---
-                # Ahora usa el "stop_sugerido" matemático, no el del Excel
                 st.markdown("<br>", unsafe_allow_html=True)
                 col_term, col_vacia = st.columns([2, 1])
                 with col_term:
-                    rango_min = stop_sugerido * 0.90  # El gráfico empieza un 10% por debajo del stop
-                    rango_max = max(precio_vivo * 1.05, stop_sugerido * 1.10) # El gráfico termina un 5% por encima del precio actual
-                    limite_naranja = stop_sugerido * 1.03 # Aviso de peligro al acercarse a un 3% del stop
+                    rango_min = stop_sugerido * 0.90 
+                    rango_max = max(precio_vivo * 1.05, stop_sugerido * 1.10) 
+                    limite_naranja = stop_sugerido * 1.03 
                     
                     fig_riesgo = go.Figure(go.Indicator(
                         mode="gauge+number",
@@ -352,11 +414,11 @@ with tab3:
                         number=dict(suffix=" €", valueformat=".2f"),
                         gauge=dict(
                             axis=dict(range=[rango_min, rango_max]),
-                            bar=dict(color="#1d1d1f"), # Aguja negra
+                            bar=dict(color="#1d1d1f"),
                             steps=[
-                                dict(range=[rango_min, stop_sugerido], color="#ff3b30"), # Zona Roja
-                                dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"), # Zona Naranja (Alerta)
-                                dict(range=[limite_naranja, rango_max], color="#34c759") # Zona Verde (Seguro)
+                                dict(range=[rango_min, stop_sugerido], color="#ff3b30"),
+                                dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"),
+                                dict(range=[limite_naranja, rango_max], color="#34c759")
                             ],
                             threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido)
                         )
