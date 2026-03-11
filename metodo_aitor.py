@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 25.0 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 26.0 QUANT", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -237,10 +237,22 @@ with tab3:
                     df_q = hist_largo.copy()
                     precio_vivo = df_q['Close'].iloc[-1]
                     
-                    df_q['MA55'] = df_q['Close'].rolling(window=55).mean()
-                    df_q['STD55'] = df_q['Close'].rolling(window=55).std()
+                    # Rescatar sistemas (Por defecto 1, 3, 34, 55 si no existen en BD)
+                    s1_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S1_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 1
+                    s2_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S2_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 3
+                    s4_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S4_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 34
+                    s5_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S5_Dias']) if not df_datos.empty and ticker_sel in df_datos['Ticker'].values else 55
+
+                    # CALCULO DE MEDIAS VIVAS (PRECIOS EXACTOS DE STOP)
+                    media_s1 = df_q['Close'].rolling(window=s1_d, min_periods=1).mean().iloc[-1]
+                    media_s2 = df_q['Close'].rolling(window=s2_d, min_periods=1).mean().iloc[-1]
+                    media_s4 = df_q['Close'].rolling(window=s4_d, min_periods=1).mean().iloc[-1]
+                    media_s5 = df_q['Close'].rolling(window=s5_d, min_periods=1).mean().iloc[-1]
+                    
+                    df_q['MA55'] = df_q['Close'].rolling(window=55, min_periods=1).mean()
+                    df_q['STD55'] = df_q['Close'].rolling(window=55, min_periods=1).std()
                     df_q['Z_Score'] = (df_q['Close'] - df_q['MA55']) / df_q['STD55']
-                    z_actual = df_q['Z_Score'].iloc[-1]
+                    z_actual = df_q['Z_Score'].iloc[-1] if not pd.isna(df_q['Z_Score'].iloc[-1]) else 0
                     
                     def hurst_approx(p):
                         try:
@@ -253,11 +265,10 @@ with tab3:
                     hurst_val = hurst_approx(df_q['Close'].dropna().values[-252:])
                     df_q['ROC_10'] = df_q['Close'].pct_change(periods=10) * 100
                     df_q['Accel'] = df_q['ROC_10'].diff(periods=5)
-                    accel_actual = df_q['Accel'].iloc[-1]
+                    accel_actual = df_q['Accel'].iloc[-1] if not pd.isna(df_q['Accel'].iloc[-1]) else 0
                     
                     df_q['CumMax'] = df_q['Close'].cummax()
                     df_q['Drawdown'] = (df_q['Close'] - df_q['CumMax']) / df_q['CumMax'] * 100
-                    dd_actual = df_q['Drawdown'].iloc[-1]
                     dd_max = df_q['Drawdown'].min()
 
                 # --- PANEL KPI APPLE ---
@@ -315,26 +326,47 @@ with tab3:
                 # --- NUEVO MOTOR DE DECISIÓN ESTADÍSTICO SINTETIZADO ---
                 st.subheader("⚖️ Veredicto del Algoritmo y Gestión de Stop")
                 
-                # Rescatar sistemas usados de la Base de Datos (o usar los por defecto)
-                s1_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S1_Dias']) if not df_datos[df_datos['Ticker'] == ticker_sel].empty else 1
-                s2_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S2_Dias']) if not df_datos[df_datos['Ticker'] == ticker_sel].empty else 3
-                s4_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S4_Dias']) if not df_datos[df_datos['Ticker'] == ticker_sel].empty else 34
-                s5_d = int(df_datos[df_datos['Ticker'] == ticker_sel].iloc[-1]['S5_Dias']) if not df_datos[df_datos['Ticker'] == ticker_sel].empty else 55
-
-                # Cálculo del nivel de Stop basado en Drawdown Histórico (dejando un 10% extra de margen sobre la peor caída)
-                precio_max = df_q['CumMax'].iloc[-1]
-                stop_por_dd = precio_max * (1 + (dd_max * 1.1) / 100)
-                
                 stop_roto = precio_vivo < stop_actual
                 
+                # LÓGICA DE DECISIÓN CORREGIDA (Límites en precios reales)
                 if stop_roto:
-                    st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio actual ({precio_vivo:.2f}) ha cruzado tu umbral rojo. Ejecuta la venta matemáticamente para proteger tu capital y no dejes que el sesgo cognitivo te atrape.")
+                    st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio actual ({precio_vivo:.2f}) ha cruzado tu umbral rojo. Ejecuta la venta matemáticamente.")
+                    stop_sugerido = stop_actual
                 elif z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
-                    st.warning(f"🚀 **CLÍMAX Y RIESGO DE COLAPSO:** Los indicadores gritan alerta por sobre-extensión (Z-Score +{z_actual:.2f} y aceleración fuerte). \n\n**VEREDICTO:** Sube agresivamente tu Stop al sistema **S1 ({s1_d} Días)** o **S2 ({s2_d} Días)**. Asegura ganancias antes de que el precio vuelva violentamente a su media.")
+                    st.warning(f"🚀 **CLÍMAX COMPRADOR:** Tensión probabilística extrema (Z-Score +{z_actual:.2f}). \n\n**VEREDICTO:** Sube agresivamente tu Stop al sistema **S1 ({s1_d} Días) en {media_s1:.2f} €** o **S2 ({s2_d} Días) en {media_s2:.2f} €**.")
+                    stop_sugerido = media_s2
                 elif hurst_val < 0.45:
-                    st.warning(f"⚠️ **PÉRDIDA DE TENDENCIA (RUIDO):** El exponente Hurst ({hurst_val:.2f}) indica que el valor ha entrado en rango y se mueve por ruido aleatorio. \n\n**VEREDICTO:** Para no salirte por una falsa alarma, usa el histórico de Drawdown. Fija tu Stop en **{stop_por_dd:.2f} €** (que es un margen del {abs(dd_max*1.1):.1f}% desde máximos) o cíñete exclusivamente a tu sistema más lento **S5 ({s5_d} Días)**.")
+                    st.warning(f"⚠️ **RUIDO LATERAL:** El exponente Hurst ({hurst_val:.2f}) indica fase de descanso. \n\n**VEREDICTO:** Para no salirte por una sacudida tonta, mantén el Stop en tu media lenta **S5 ({s5_d} Días) ubicada en {media_s5:.2f} €**.")
+                    stop_sugerido = media_s5
                 else:
-                    st.success(f"🛡️ **TENDENCIA SANA Y ESTABLE:** Exponente Hurst fuerte ({hurst_val:.2f}) confirmando tendencia, y Z-Score controlado ({z_actual:.2f}). \n\n**VEREDICTO:** Deja correr los beneficios. Mantén tu Stop en el sistema **S4 ({s4_d} Días)** o **S5 ({s5_d} Días)** para darle espacio al precio.")
+                    st.success(f"🛡️ **TENDENCIA SANA:** La matemática está de tu lado (Hurst {hurst_val:.2f}). \n\n**VEREDICTO:** Deja correr los beneficios usando tu Stop en **S4 ({s4_d} Días) en {media_s4:.2f} €** o **S5 ({s5_d} Días) en {media_s5:.2f} €**.")
+                    stop_sugerido = media_s4
+
+                # --- EL TERMÓMETRO DE RIESGO ---
+                st.markdown("<br>", unsafe_allow_html=True)
+                col_term, col_vacia = st.columns([2, 1])
+                with col_term:
+                    rango_min = stop_actual * 0.85
+                    rango_max = max(precio_vivo * 1.05, stop_actual * 1.1)
+                    
+                    fig_riesgo = go.Figure(go.Indicator(
+                        mode="gauge+number",
+                        value=precio_vivo,
+                        title=dict(text="Radar de Peligro (Precio vs Stop Loss)", font=dict(size=14)),
+                        number=dict(suffix=" €", valueformat=".2f"),
+                        gauge=dict(
+                            axis=dict(range=[rango_min, rango_max]),
+                            bar=dict(color="black"),
+                            steps=[
+                                dict(range=[rango_min, stop_actual], color="#ff3b30"), # Zona Roja (Venta)
+                                dict(range=[stop_actual, stop_actual * 1.05], color="#ff9500"), # Zona Naranja (Alerta)
+                                dict(range=[stop_actual * 1.05, rango_max], color="#34c759") # Zona Verde (Seguro)
+                            ],
+                            threshold=dict(line=dict(color="red", width=4), thickness=0.75, value=stop_actual)
+                        )
+                    ))
+                    fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
+                    st.plotly_chart(fig_riesgo, use_container_width=True)
                     
         except Exception as e:
             st.error(f"Error técnico: {e}")
