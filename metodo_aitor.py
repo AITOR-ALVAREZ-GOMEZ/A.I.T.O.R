@@ -4,57 +4,57 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 import datetime
 
-# --- 1. CONFIGURACION Y ESTILO CYBERPUNK ---
-st.set_page_config(page_title="TERMINAL AITOR 12.0", layout="wide")
+# --- 1. CONFIGURACION Y ESTILO CYBERPUNK V2 ---
+st.set_page_config(page_title="TERMINAL AITOR 12.1", layout="wide")
 
-# INYECCION CSS PARA APARIENCIA DE CONSOLA FLUOR
 st.markdown("""
 <style>
-    /* Fondo principal negro profundo */
-    .stApp {
-        background-color: #050505;
-        color: #00ffcc;
-        font-family: 'Courier New', Courier, monospace;
+    /* Fondo principal */
+    .stApp { background-color: #050505; }
+    [data-testid="stSidebar"] { background-color: #0a0a0a; border-right: 1px solid #00ffcc; }
+    
+    /* Forzar textos pequeños, etiquetas y radio buttons a Cyan claro para que destaquen */
+    .stApp p, .stApp label, .stApp span, .stApp div[data-testid="stMarkdownContainer"] { 
+        color: #b8fff4 !important; 
+        font-family: 'Courier New', Courier, monospace; 
     }
-    /* Panel lateral oscuro con borde neon */
-    [data-testid="stSidebar"] {
-        background-color: #0a0a0a;
-        border-right: 1px solid #39ff14;
-    }
-    /* Titulos brillantes */
-    h1, h2, h3 {
-        color: #00ffcc !important;
-        text-shadow: 0 0 5px #00ffcc;
+    
+    /* Titulos principales */
+    h1, h2, h3, h1 *, h2 *, h3 * { 
+        color: #00ffcc !important; 
+        text-shadow: 0 0 5px #00ffcc; 
         font-family: 'Courier New', Courier, monospace !important;
     }
-    /* Numeros grandes en verde matrix */
-    [data-testid="stMetricValue"] {
+    
+    /* Metricas gigantes */
+    [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { 
+        color: #39ff14 !important; 
+        text-shadow: 0 0 8px #39ff14; 
+        font-weight: bold; 
+    }
+    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { 
+        color: #00ffcc !important; 
+    }
+    
+    /* Cajas de entrada de datos (Inputs) */
+    .stTextInput input, .stNumberInput input {
+        background-color: #111111 !important;
         color: #39ff14 !important;
-        text-shadow: 0 0 8px #39ff14;
+        border: 1px solid #00ffcc !important;
         font-weight: bold;
     }
-    /* Etiquetas de las metricas en cyan */
-    [data-testid="stMetricLabel"] {
-        color: #00ffcc !important;
-    }
-    /* Botones estilo terminal */
-    .stButton>button {
-        background-color: #000000;
-        color: #39ff14;
-        border: 1px solid #39ff14;
-        border-radius: 0px;
-        font-family: 'Courier New', Courier, monospace;
-    }
-    .stButton>button:hover {
-        background-color: #39ff14;
-        color: #000000;
-        box-shadow: 0 0 10px #39ff14;
-    }
-    /* Cajas de informacion */
-    .stAlert {
-        background-color: #0a0a0a !important;
-        color: #00ffcc !important;
+    
+    /* Desplegables (Selectbox) */
+    [data-baseweb="select"] > div {
+        background-color: #111111 !important;
+        color: #39ff14 !important;
         border: 1px solid #00ffcc !important;
+    }
+    
+    /* Botones de + y - de los inputs numéricos */
+    button[kind="stepUp"], button[kind="stepDown"] {
+        background-color: #00ffcc !important;
+        color: #000000 !important;
     }
 </style>
 """, unsafe_allow_html=True)
