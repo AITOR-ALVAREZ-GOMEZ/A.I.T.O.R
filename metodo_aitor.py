@@ -2,7 +2,8 @@ import streamlit as st
 import pandas as pd
 import yfinance as yf
 
-st.set_page_config(page_title="A.I.T.O.R. 3.8 - Esperanza Integral", layout="wide")
+# Configuración de página
+st.set_page_config(page_title="A.I.T.O.R. 3.9 - Pro Terminal", layout="wide")
 
 # Inicializar Base de Datos
 if 'analisis' not in st.session_state:
@@ -10,7 +11,7 @@ if 'analisis' not in st.session_state:
         "Ticker", "Tier", "Esperanza Final", "IDT Puntos", "ITE %", "Veredicto"
     ])
 
-# --- 1. BARRA LATERAL (FILTROS QUE AHORA SÍ SUMAN) ---
+# --- 1. BARRA LATERAL (BUSCADOR Y CALIDAD) ---
 st.sidebar.header("🔍 Buscador")
 ticker_input = st.sidebar.text_input("TICKER", "CRDO").upper()
 
@@ -20,24 +21,24 @@ try:
     stock_data = yf.Ticker(ticker_input)
     nombre_empresa = stock_data.info.get('longName', 'Ticker no detectado')
     precio_mercado = stock_data.info.get('regularMarketPrice', stock_data.info.get('previousClose', 0.0))
-except: pass
+except:
+    pass
 
 st.sidebar.subheader(f"🏢 {nombre_empresa}")
 st.sidebar.markdown("---")
 
 st.sidebar.header("📚 Calidad (Libro Blanco)")
-# Los puntos del libro blanco ahora se dividen por 5 para sumarse al EV
+# Los puntos del libro blanco ahora modifican la Esperanza Final
 eps_choice = st.sidebar.selectbox("Crecimiento EPS", 
                                  ["Bajo (<10%)", "Medio (>10%)", "Alto (>15%)", "Explosivo (>25%)"], index=3)
-puntos_eps = {"Bajo (<10%)": 0, "Medio (>10%)": 5, "Alto (>15%)": 10, "Explosivo (>25%)": 15}[eps_choice]
+# Escala: Explosivo suma 1.5 a la EV, Alto 1.0, Medio 0.5
+bonus_ev_eps = {"Bajo (<10%)": 0.0, "Medio (>10%)": 0.5, "Alto (>15%)": 1.0, "Explosivo (>25%)": 1.5}[eps_choice]
 
 c_inst = st.sidebar.checkbox("Institucional (Smart Money)", value=True)
 c_sector = st.sidebar.checkbox("Líder Sector (RS > 90)", value=True)
 
-# Puntos totales de calidad (Máximo 35)
-puntos_libro = puntos_eps + (10 if c_inst else 0) + (10 if c_sector else 0)
-# Multiplicador de Esperanza: Cada 5 puntos de calidad suman 1 punto a la Esperanza Final
-plus_esperanza = puntos_libro / 5
+# Plus de Esperanza por Calidad
+plus_calidad = bonus_ev_eps + (1.0 if c_inst else 0) + (1.0 if c_sector else 0)
 
 st.sidebar.header("🎯 Control de Entrada")
 p_gatillo = st.sidebar.number_input("Precio Señal $", value=float(precio_mercado))
@@ -67,35 +68,9 @@ with tab_esc:
             ev_list.append(ev_ind); wr_list.append(wr); estados.append(estado)
             st.metric("EV Matemático", f"{ev_ind}")
 
-    # --- CÁLCULO DE ESPERANZA FINAL (EL CORAZÓN DEL MÉTODO) ---
+    # --- CÁLCULO DE ESPERANZA FINAL ---
     ev_matematico = sum(ev_list) / 5
-    # La Esperanza Final es la Matemática + el Plus por Calidad del Libro Blanco
-    esperanza_final = round(ev_matematico + plus_esperanza, 2)
+    # Aquí es donde ocurre la magia: Sumamos el plus de calidad
+    esperanza_final = round(ev_matematico + plus_calidad, 2)
     
-    # Clasificación Tier basada en la Esperanza FINAL (Ajustada por calidad)
-    tier_label = "👑 TIER S" if esperanza_final >= 10.0 else "🟢 TIER A" if esperanza_final >= 5.0 else "🔴 DESCARTE"
-
-    # Puntos IDT
-    dist_gat = ((p_entrada - p_gatillo) / p_gatillo) * 100 if p_gatillo > 0 else 0
-    penalizacion = 30 if dist_gat > 5.0 else 10 if dist_gat >= 2.0 else 0
-    p_estruc = sum(1 for e in estados[1:] if "🔵" in e) * 10
-    p_senal = 10 if "🔵" in estados[0] else 0
-    
-    # El IDT ahora premia la calidad a través del Tier S
-    idt_total = wr_list[0] + (15 if "TIER S" in tier_label else 0) + p_estruc + p_senal - penalizacion
-
-    st.markdown("---")
-    m1, m2, m3 = st.columns(3)
-    
-    with m1:
-        st.subheader("🧪 Esperanza Final")
-        st.metric("A.I.T.O.R. SCORE", f"{esperanza_final}", f"+{plus_esperanza} por Calidad")
-        st.caption(f"EV Matemático: {ev_matematico:.2f}")
-    
-    with m2:
-        st.subheader("🎯 Potencial IDT")
-        st.metric("PUNTUACIÓN", f"{idt_total} pts", f"-{penalizacion} Distancia" if penalizacion > 0 else None)
-        
-    with m3:
-        st.subheader("🛡️ Riesgo")
-        p_stop = st.
+    tier_label = "👑 TIER S" if esperanza_final >= 8.0 else "🟢 TIER A" if esperanza_final >= 4
