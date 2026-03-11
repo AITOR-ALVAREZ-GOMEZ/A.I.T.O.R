@@ -4,12 +4,12 @@ import yfinance as yf
 from streamlit_gsheets import GSheetsConnection
 import datetime
 
-# --- 1. CONFIGURACIÓN ---
-st.set_page_config(page_title="A.I.T.O.R. 10.0 - Curva Dinámica", layout="wide")
+# --- 1. CONFIGURACION ---
+st.set_page_config(page_title="AITOR 11.0", layout="wide")
 
 CAPITAL = 277000.0
 DIAS = [1, 2, 3, 5, 6, 7, 8, 11, 14, 17, 21, 26, 34, 55]
-AÑO_ACTUAL = datetime.datetime.now().year
+A_ACTUAL = datetime.datetime.now().year
 
 COL_DB = ["Ticker", "Tier", "EV_Total", "IDT_Puntos", "ITE_Porc", "Veredicto", "Acciones", "Inversion"]
 for i in range(1, 6):
@@ -21,8 +21,8 @@ try:
 except:
     df_datos = pd.DataFrame(columns=COL_DB)
 
-# --- 2. BUSCADOR Y MOTOR DE PREVISIONES ---
-st.sidebar.header("🔍 Buscador")
+# --- 2. BUSCADOR ---
+st.sidebar.header("Buscador")
 ticker = st.sidebar.text_input("TICKER", "MSFT").upper()
 
 nom_emp = "Buscando..."
@@ -35,7 +35,6 @@ if ticker != "":
         stock = yf.Ticker(ticker)
         nom_emp = stock.info.get('longName', 'Desconocido')
         p_merc = stock.info.get('regularMarketPrice', 0.0)
-        
         eps_base = stock.info.get('trailingEps', 0)
         f_eps = stock.info.get('forwardEps', 0)
         
@@ -43,31 +42,27 @@ if ticker != "":
             prev_1y = (f_eps - eps_base) / eps_base
         else:
             prev_1y = stock.info.get('revenueGrowth', 0)
-            
     except:
         pass
 
-st.sidebar.subheader("🏢 " + nom_emp)
+st.sidebar.subheader("Empresa: " + nom_emp)
 st.sidebar.markdown("---")
 
-# --- 3. CALIDAD Y PROYECCIÓN A 3 AÑOS ---
-st.sidebar.header("📚 Calidad (Libro Blanco)")
+# --- 3. CALIDAD ---
+st.sidebar.header("Calidad (Libro Blanco)")
 
-# Proyección Matemática Dinámica
 if prev_1y > 0 and eps_base > 0:
-    st.sidebar.markdown("### 📈 Proyección de Beneficios (EPS)")
-    eps_y1 = eps_base * (1 + prev_1y)
-    eps_y2 = eps_y1 * (1 + prev_1y)
-    eps_y3 = eps_y2 * (1 + prev_1y)
-    
+    st.sidebar.markdown("### Proyeccion EPS")
+    e1 = eps_base * (1 + prev_1y)
+    e2 = e1 * (1 + prev_1y)
+    e3 = e2 * (1 + prev_1y)
     st.sidebar.info(
-        f"**{AÑO_ACTUAL}:** {eps_y1:.2f} $\n\n"
-        f"**{AÑO_ACTUAL + 1}:** {eps_y2:.2f} $\n\n"
-        f"**{AÑO_ACTUAL + 2}:** {eps_y3:.2f} $"
+        str(A_ACTUAL) + ": " + str(round(e1, 2)) + " $\n\n" +
+        str(A_ACTUAL + 1) + ": " + str(round(e2, 2)) + " $\n\n" +
+        str(A_ACTUAL + 2) + ": " + str(round(e3, 2)) + " $"
     )
-    st.sidebar.caption(f"Crecimiento proyectado: {prev_1y*100:.1f}% anual")
 elif prev_1y > 0:
-    st.sidebar.success(f"🎯 Crecimiento proyectado: {prev_1y*100:.1f}%")
+    st.sidebar.success("Prev: " + str(round(prev_1y*100, 1)) + "%")
 
 ops = ["Bajo (<10%)", "Medio (>10%)", "Alto (>15%)", "Explosivo (>25%)"]
 
@@ -81,23 +76,23 @@ dict_eps = {"Bajo (<10%)": 0, "Medio (>10%)": 5, "Alto (>15%)": 10, "Explosivo (
 pts_eps = dict_eps[v_eps]
 
 c_inst = st.sidebar.checkbox("Manos Fuertes", value=True)
-c_sect = st.sidebar.checkbox("Líder Sector", value=True)
+c_sect = st.sidebar.checkbox("Lider Sector", value=True)
 
 bono = pts_eps + (10 if c_inst else 0) + (10 if c_sect else 0)
 ev_plus = bono / 7.0
 
 # --- 4. RIESGO ---
-st.sidebar.header("💰 Gestión Capital")
+st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
 
 # --- 5. DASHBOARD ---
-tab1, tab2 = st.tabs(["🔍 Escáner", "📊 Auditoría"])
+tab1, tab2 = st.tabs(["Escaner", "Auditoria"])
 
 with tab1:
-    st.title("🚀 Análisis: " + ticker)
-    st.sidebar.header("🧬 Sistemas")
+    st.title("Analisis: " + ticker)
+    st.sidebar.header("Sistemas")
     
     d_defs = [1, 3, 8, 14, 21]
     s_elegidos = []
@@ -115,7 +110,7 @@ with tab1:
             st.markdown("### " + str(dia) + " D")
             wr = st.number_input("WR% " + str(dia) + "D", 0, 100, 50, key="w"+str(i))
             rt = st.number_input("Ratio " + str(dia) + "D", 0.0, 50.0, 2.0, key="r"+str(i))
-            es = st.radio("Est.", ["🔴", "🔵"], key="e"+str(i), horizontal=True)
+            es = st.radio("Est.", ["Venta", "Compra"], key="e"+str(i), horizontal=True)
             
             wr_d = wr / 100.0
             ev_i = round((wr_d * rt) - ((1.0 - wr_d) * 1.0), 2)
@@ -133,8 +128,8 @@ with tab1:
     if p_buy > 0:
         ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2)
         
-    p_estr = sum(10 for e in l_es[1:] if e == "🔵")
-    p_sen = 10 if l_es[0] == "🔵" else 0
+    p_estr = sum(10 for e in l_es[1:] if e == "Compra")
+    p_sen = 10 if l_es[0] == "Compra" else 0
     penal = 30 if ite > 8 else 0
     
     idt = l_wr[0] + bono + p_estr + p_sen - penal
@@ -142,13 +137,13 @@ with tab1:
     st.markdown("---")
     r1, r2, r3 = st.columns(3)
     with r1:
-        st.metric("EV TOTAL", str(ev_tot), "+" + str(round(ev_plus, 2)) + " Calidad")
+        st.metric("EV TOTAL", str(ev_tot), "+" + str(round(ev_plus, 2)) + " Cal")
     with r2:
         st.metric("IDT PUNTOS", str(idt) + " pts")
     with r3:
         st.metric("RIESGO ITE", str(ite) + "%")
 
-    # --- CALCULADORA 277k (CORREGIDA) ---
+    # --- CALCULADORA 277k ---
     p_max = CAPITAL * (r_pct / 100.0)
     dif_p = p_buy - p_sl
     
@@ -159,9 +154,45 @@ with tab1:
     inv_t = n_tit * p_buy
 
     st.markdown("---")
-    st.subheader(f"🧮 Ejecución (Capital: {CAPITAL:,.0f} €)")
+    st.subheader("Ejecucion (Capital: 277000 EUR)")
     
-    # Se usa 'with' para evitar el fallo del DeltaGenerator
     c1, c2, c3 = st.columns(3)
     with c1:
-        st.metric("Riesgo Má
+        st.metric("Riesgo Max", str(int(p_max)) + " EUR")
+    with c2:
+        st.metric("Acciones", str(int(n_tit)) + " uds")
+    with c3:
+        st.metric("Inversion", str(int(inv_t)) + " EUR")
+
+    # --- VERDICTO ---
+    if ev_tot < 5 or ite > 8:
+        v_txt, v_col = "NO OPERABLE", "#ff4b4b"
+    elif idt >= 100 and ite <= 5:
+        v_txt, v_col = "COMPRA OBLIGATORIA", "#00ffcc"
+    elif idt >= 85 and ite <= 8:
+        v_txt, v_col = "COMPRA TACTICA", "#ffcc00"
+    else:
+        v_txt, v_col = "ARMA BLOQUEADA", "#ff4b4b"
+        
+    st.markdown("<h2 style='text-align:center; color:" + v_col + ";'>" + v_txt + "</h2>", unsafe_allow_html=True)
+
+    # --- GUARDAR ---
+    if st.button("GUARDAR AUDITORIA"):
+        tier = "TIER S" if ev_tot >= 10 else "TIER A" if ev_tot >= 5 else "DESC"
+        d_sav = {
+            "Ticker": ticker, "Tier": tier, "EV_Total": ev_tot, 
+            "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_txt, 
+            "Acciones": n_tit, "Inversion": inv_t
+        }
+        for j in range(5):
+            d_sav["S" + str(j+1) + "_Dias"] = s_elegidos[j]
+            d_sav["W" + str(j+1)] = l_wr[j]
+            d_sav["R" + str(j+1)] = l_rt[j]
+            
+        new_row = pd.DataFrame([d_sav])
+        df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates('Ticker', keep='last')
+        conn.update(worksheet="Sheet1", data=df_upd)
+        st.success("Guardado.")
+
+with tab2:
+    st.dataframe(df_datos.sort_values("EV_Total", ascending=False), use_container_width=True)
