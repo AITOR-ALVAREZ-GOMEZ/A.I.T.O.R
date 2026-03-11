@@ -5,7 +5,7 @@ from streamlit_gsheets import GSheetsConnection
 import datetime
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 14.5", layout="wide")
+st.set_page_config(page_title="AITOR 15.0", layout="wide")
 
 # --- CSS ESTILO APPLE ---
 st.markdown("""
@@ -60,7 +60,6 @@ st.markdown("""
         font-weight: 600 !important;
         box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important;
     }
-    /* Estilos para las etiquetas de Apple */
     .rank-box {
         display: flex;
         gap: 6px;
@@ -161,6 +160,24 @@ r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
 
+# --- MEMORIA HISTORICA A.I.T.O.R. ---
+d_defs = [1, 3, 8, 14, 21]
+w_defs = [50, 50, 50, 50, 50]
+r_defs = [2.0, 2.0, 2.0, 2.0, 2.0]
+
+if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
+    df_filtro = df_datos[df_datos["Ticker"] == ticker]
+    if len(df_filtro) > 0:
+        fila = df_filtro.iloc[-1]
+        try:
+            for idx in range(5):
+                val_s = int(fila[f"S{idx+1}_Dias"])
+                if val_s in DIAS: d_defs[idx] = val_s
+                w_defs[idx] = int(fila[f"W{idx+1}"])
+                r_defs[idx] = float(fila[f"R{idx+1}"])
+        except:
+            pass
+
 # --- DASHBOARD ---
 tab1, tab2 = st.tabs(["Escaner Cuantico", "Auditoria"])
 
@@ -171,13 +188,13 @@ with tab1:
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
     cols = st.columns(5)
     
-    d_defs = [1, 3, 8, 14, 21]
     for i in range(5):
         with cols[i]:
-            st.markdown("### " + str(d_defs[i]) + " D")
-            s_val = st.selectbox("S", DIAS, index=DIAS.index(d_defs[i]), key=f"d{i}", label_visibility="collapsed")
-            wr = st.number_input("WR %", 0, 100, 50, key=f"w{i}")
-            rt = st.number_input("R/R", 0.0, 50.0, 2.0, key=f"r{i}")
+            st.markdown(f"### {d_defs[i]} D")
+            idx_d = DIAS.index(d_defs[i])
+            s_val = st.selectbox("S", DIAS, index=idx_d, key=f"d{i}", label_visibility="collapsed")
+            wr = st.number_input("WR %", 0, 100, w_defs[i], key=f"w{i}")
+            rt = st.number_input("R/R", 0.0, 50.0, r_defs[i], key=f"r{i}")
             es = st.radio("Señal", ["Venta", "Compra"], key=f"e{i}")
             
             wr_dec = wr / 100.0
