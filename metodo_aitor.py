@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 29.0 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 29.1 QUANT", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -69,7 +69,6 @@ opciones_bd = df_datos['Ticker'].dropna().unique().tolist() if not df_datos.empt
 ticker_manual = st.sidebar.text_input("Nuevo Ticker (Ej: MSFT):", "").upper()
 ticker_lista = st.sidebar.selectbox("O cargar de Auditoría:", [""] + opciones_bd)
 
-# Lógica de prioridad: Si escribes uno nuevo, manda el nuevo. Si no, manda el de la lista.
 ticker = ticker_manual if ticker_manual != "" else ticker_lista
 if ticker == "": ticker = "MSFT"
 
@@ -195,7 +194,7 @@ with tab1:
     c6.metric("Posicion Total", str(int(inv_t)) + " EUR")
 
     # =====================================================================
-    # NUEVO: TERMÓMETRO DE TOMA DE DECISIÓN EN EL ESCÁNER
+    # TERMÓMETRO DE TOMA DE DECISIÓN EN EL ESCÁNER
     # =====================================================================
     st.markdown("<br>", unsafe_allow_html=True)
     st.subheader("🎯 Controlador de Decisión Pre-Compra (Riesgo del Trade)")
@@ -205,7 +204,7 @@ with tab1:
         if p_buy > 0 and p_sl > 0 and p_buy > p_sl:
             rango_min_esc = p_sl * 0.95
             rango_max_esc = p_buy * 1.05
-            lim_peligro_esc = p_sl + (p_buy - p_sl) * 0.20 # 20% inferior del riesgo
+            lim_peligro_esc = p_sl + (p_buy - p_sl) * 0.20
             
             fig_radar_esc = go.Figure(go.Indicator(
                 mode="gauge+number",
@@ -231,11 +230,11 @@ with tab1:
     with col_txt_esc:
         st.markdown("<br><br>", unsafe_allow_html=True)
         if ite <= 5:
-            st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento sin disparar tu riesgo máximo de ruina.")
+            st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento sin disparar tu riesgo máximo.")
         elif ite <= 8:
-            st.warning(f"**🟠 Riesgo Límite ({ite}%):** El Stop empieza a estar lejos. Tienes que reducir drásticamente el número de acciones para mantenerte bajo tu riesgo del {r_pct}%.")
+            st.warning(f"**🟠 Riesgo Límite ({ite}%):** El Stop empieza a estar lejos. Tienes que reducir drásticamente el número de acciones para mantener tu riesgo del {r_pct}%.")
         else:
-            st.error(f"**🔴 Riesgo Excesivo ({ite}%):** El Stop está demasiado lejos de tu entrada. Operación matemáticamente suicida. Ajusta la entrada o descarta el valor.")
+            st.error(f"**🔴 Riesgo Excesivo ({ite}%):** El Stop está demasiado lejos. Operación matemáticamente suicida. Ajusta la entrada o descarta el valor.")
 
     st.markdown("---")
     
@@ -301,13 +300,13 @@ with tab1:
                         st.markdown("</div>", unsafe_allow_html=True)
 
                     if hurst_in > 0.55 and (0.5 <= z_in <= 2.0) and acc_in > 0:
-                        st.success("🟢 **SEÑAL CUANTITATIVA APROBADA (Modo Renaissance):** El activo cumple los 3 requisitos estadísticos. Tiene memoria tendencial, aceleración positiva y no está parabólico. ¡Buena oportunidad de compra!")
+                        st.success("🟢 **SEÑAL CUANTITATIVA APROBADA:** El activo cumple los requisitos estadísticos. Tiene memoria tendencial, aceleración positiva y no está parabólico. ¡Buena compra!")
                     elif z_in > 2.0:
-                        st.error(f"🔴 **RECHAZO CUANTITATIVO (Riesgo de Colapso):** El Z-Score ({z_in:.2f}) está en modo burbuja. La matemática dicta que entrar ahora es comprar en el techo. Espera a que descanse.")
+                        st.error(f"🔴 **RECHAZO CUANTITATIVO:** Z-Score ({z_in:.2f}) en modo burbuja. Entrar ahora es comprar en el techo. Espera a que descanse.")
                     elif hurst_in <= 0.55:
-                        st.warning(f"🟡 **RECHAZO CUANTITATIVO (Ruido):** El Exponente de Hurst ({hurst_in:.2f}) indica que no hay tendencia real probada. El precio es aleatorio. Mejor buscar otro valor.")
+                        st.warning(f"🟡 **RECHAZO CUANTITATIVO:** El Exponente de Hurst ({hurst_in:.2f}) indica que no hay tendencia probada. El precio es aleatorio.")
                     else:
-                        st.info("⚪ **NEUTRAL:** El activo no cumple los criterios estrictos de momentum cuantitativo. Depende de tu criterio estructural (IDT/EV).")
+                        st.info("⚪ **NEUTRAL:** El activo no cumple los criterios estrictos de momentum cuantitativo. Depende de tu criterio estructural.")
             except:
                 st.error("No se pudo calcular el modelo para este ticker.")
 
@@ -445,10 +444,94 @@ with tab3:
                     st.markdown("</div>", unsafe_allow_html=True)
 
                 st.markdown("---")
-                
                 st.subheader("⚖️ Veredicto del Algoritmo y Gestión de Stop")
+                
                 stop_roto = precio_vivo < stop_actual
                 
+                # Asignación segura en líneas cortas para evitar errores de sintaxis al copiar
                 if stop_roto:
-                    st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio actual ({precio_vivo:.2f}) ha cruzado tu umbral rojo. Ejecuta la venta matemáticamente.")
-                    stop_sugerido =
+                    stop_sugerido = stop_actual
+                    msg = f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio ha cruzado tu umbral. Vende matemáticamente."
+                    st.error(msg)
+                elif z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
+                    stop_sugerido = media_s2
+                    msg = f"🚀 **CLÍMAX COMPRADOR:** Tensión extrema. Sube el Stop al sistema S2 en {media_s2:.2f} €."
+                    st.warning(msg)
+                elif hurst_val < 0.45:
+                    stop_sugerido = media_s5
+                    msg = f"⚠️ **RUIDO LATERAL:** Fase de descanso. Mantén el Stop en S5 ubicado en {media_s5:.2f} €."
+                    st.warning(msg)
+                else:
+                    stop_sugerido = media_s4
+                    msg = f"🛡️ **TENDENCIA SANA:** Matemática a tu favor. Usa tu Stop en S4 ({media_s4:.2f} €) o S5 ({media_s5:.2f} €)."
+                    st.success(msg)
+
+                st.markdown("<br>", unsafe_allow_html=True)
+                col_term, col_vacia = st.columns([2, 1])
+                with col_term:
+                    rango_min = stop_sugerido * 0.90 
+                    rango_max = max(precio_vivo * 1.05, stop_sugerido * 1.10) 
+                    limite_naranja = stop_sugerido * 1.03 
+                    
+                    fig_riesgo = go.Figure(go.Indicator(
+                        mode="gauge+number",
+                        value=precio_vivo,
+                        title=dict(text="Radar Cuántico (Precio vs Stop Matemático)", font=dict(size=14)),
+                        number=dict(suffix=" €", valueformat=".2f"),
+                        gauge=dict(
+                            axis=dict(range=[rango_min, rango_max]),
+                            bar=dict(color="#1d1d1f"),
+                            steps=[
+                                dict(range=[rango_min, stop_sugerido], color="#ff3b30"),
+                                dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"),
+                                dict(range=[limite_naranja, rango_max], color="#34c759")
+                            ],
+                            threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido)
+                        )
+                    ))
+                    fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
+                    st.plotly_chart(fig_riesgo, use_container_width=True)
+                    
+        except Exception as e:
+            st.error(f"Error técnico: {e}")
+
+    # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
+    with tab_add:
+        st.markdown("### ➕ Registrar Nueva Compra")
+        with st.form("form_add"):
+            c1, c2, c3 = st.columns(3)
+            with c1: t_ticker = st.text_input("Ticker").upper(); t_fecha_in = st.date_input("Fecha"); t_precio_in = st.number_input("Precio Compra", format="%.2f")
+            with c2: t_acciones = st.number_input("Acciones", format="%.2f"); t_stop = st.number_input("Stop Loss", format="%.2f"); t_fecha_s4 = st.date_input("Fecha S4")
+            with c3: t_precio_s4 = st.number_input("Precio S4", format="%.2f"); t_fecha_s5 = st.date_input("Fecha S5"); t_precio_s5 = st.number_input("Precio S5", format="%.2f")
+            
+            btn_submit = st.form_submit_button("Añadir a Cartera")
+            if btn_submit and t_ticker != "":
+                df_c = conn.read(worksheet="Cartera", ttl=0)
+                n_pos = {
+                    "Ticker": t_ticker, 
+                    "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), 
+                    "Precio_Entrada": t_precio_in, 
+                    "Num_Acciones": t_acciones, 
+                    "Stop_Actual": t_stop, 
+                    "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), 
+                    "Precio_Ruptura_S4": t_precio_s4, 
+                    "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), 
+                    "Precio_Ruptura_S5": t_precio_s5
+                }
+                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                st.success("Añadido exitosamente.")
+
+    # --- HISTORIAL ---
+    with tab_historial:
+        try:
+            df_h = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
+            if not df_h.empty:
+                df_h['Fecha_Venta'] = pd.to_datetime(df_h['Fecha_Venta']).dt.date
+                f_in = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
+                df_f = df_h[df_h['Fecha_Venta'] >= f_in]
+                c1, c2, c3 = st.columns(3)
+                c1.metric("Beneficio Neto", f"{df_f['Beneficio_EUR'].sum():.2f} €")
+                c2.metric("Operaciones", len(df_f))
+                c3.metric("Win Rate", f"{(len(df_f[df_f['Beneficio_EUR'] > 0]) / len(df_f) * 100) if len(df_f)>0 else 0:.1f}%")
+                st.dataframe(df_f[['Ticker', 'Beneficio_EUR']], use_container_width=True)
+        except: pass
