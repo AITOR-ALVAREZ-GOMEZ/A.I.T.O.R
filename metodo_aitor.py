@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 29.1 QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 29.2", layout="wide")
 
 # --- CSS ESTILO APPLE RESTAURADO ---
 st.markdown("""
@@ -61,7 +61,7 @@ try: df_datos = conn.read(worksheet="Sheet1", ttl=5)
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 # =====================================================================
-# BUSCADOR LATERAL CON MEMORIA DE AUDITORÍA
+# BUSCADOR LATERAL REPARADO (PRECIO ROBUSTO)
 # =====================================================================
 st.sidebar.header("Buscador de Activos")
 opciones_bd = df_datos['Ticker'].dropna().unique().tolist() if not df_datos.empty else []
@@ -78,14 +78,34 @@ if ticker != "":
     try:
         stock = yf.Ticker(ticker)
         nom_emp = stock.info.get("longName", "Desconocido")
-        p_merc = stock.info.get("regularMarketPrice", 0.0)
+        
+        # EXTRACCIÓN ROBUSTA DE PRECIO DE MERCADO (VELAS REALES)
+        hist_temp = stock.history(period="5d")
+        if not hist_temp.empty:
+            p_merc = hist_temp['Close'].iloc[-1]
+        else:
+            p_merc = stock.info.get("currentPrice", stock.info.get("regularMarketPrice", 0.0))
+            
         eps_base = stock.info.get("trailingEps", 0.0)
         f_eps = stock.info.get("forwardEps", 0.0)
-        if eps_base > 0 and f_eps > eps_base: prev_1y = (f_eps - eps_base) / eps_base
-        else: prev_1y = stock.info.get("revenueGrowth", 0.0)
+        
+        # Prevenir errores por NoneType
+        if eps_base is not None and f_eps is not None and eps_base > 0 and f_eps > eps_base: 
+            prev_1y = (f_eps - eps_base) / eps_base
+        else: 
+            prev_1y = stock.info.get("revenueGrowth", 0.0)
+            if prev_1y is None: prev_1y = 0.0
+            
     except: pass
 
-st.sidebar.subheader("Empresa: " + nom_emp)
+st.sidebar.subheader(nom_emp)
+
+# MOSTRAR PRECIO REAL CONFIRMADO
+if p_merc > 0:
+    st.sidebar.markdown(f"<div style='background:#1d1d1f; color:white; padding:10px; border-radius:8px; text-align:center; font-size:1.2rem; font-weight:bold; margin-bottom:15px;'>Precio Mercado: {p_merc:.2f} $</div>", unsafe_allow_html=True)
+else:
+    st.sidebar.warning("⚠️ Sin datos de precio en directo.")
+
 st.sidebar.markdown("---")
 
 st.sidebar.header("Calidad (Libro Blanco)")
@@ -106,6 +126,8 @@ ev_plus = bono / 7.0
 
 st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
+
+# LOS CAMPOS AHORA SE RELLENAN SOLOS CON EL PRECIO CONFIRMADO
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
 
@@ -147,7 +169,9 @@ with tab1:
             st.metric("EV " + str(s_val) + "D", str(ev_i))
 
     ev_tot = round((sum(l_ev) / 5.0) + ev_plus, 2)
+    # EL CÁLCULO ESTUCTURAL (ITE) AHORA ES TOTALMENTE SEGURO
     ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
+    
     p_estr = sum(10 for e in l_es[1:] if e == "Compra")
     p_sen = 10 if l_es[0] == "Compra" else 0
     penal = 30 if ite > 8 else 0
@@ -448,7 +472,6 @@ with tab3:
                 
                 stop_roto = precio_vivo < stop_actual
                 
-                # Asignación segura en líneas cortas para evitar errores de sintaxis al copiar
                 if stop_roto:
                     stop_sugerido = stop_actual
                     msg = f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio ha cruzado tu umbral. Vende matemáticamente."
@@ -511,27 +534,4 @@ with tab3:
                     "Ticker": t_ticker, 
                     "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), 
                     "Precio_Entrada": t_precio_in, 
-                    "Num_Acciones": t_acciones, 
-                    "Stop_Actual": t_stop, 
-                    "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), 
-                    "Precio_Ruptura_S4": t_precio_s4, 
-                    "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), 
-                    "Precio_Ruptura_S5": t_precio_s5
-                }
-                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                st.success("Añadido exitosamente.")
-
-    # --- HISTORIAL ---
-    with tab_historial:
-        try:
-            df_h = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
-            if not df_h.empty:
-                df_h['Fecha_Venta'] = pd.to_datetime(df_h['Fecha_Venta']).dt.date
-                f_in = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
-                df_f = df_h[df_h['Fecha_Venta'] >= f_in]
-                c1, c2, c3 = st.columns(3)
-                c1.metric("Beneficio Neto", f"{df_f['Beneficio_EUR'].sum():.2f} €")
-                c2.metric("Operaciones", len(df_f))
-                c3.metric("Win Rate", f"{(len(df_f[df_f['Beneficio_EUR'] > 0]) / len(df_f) * 100) if len(df_f)>0 else 0:.1f}%")
-                st.dataframe(df_f[['Ticker', 'Beneficio_EUR']], use_container_width=True)
-        except: pass
+                    "Num_Acciones":
