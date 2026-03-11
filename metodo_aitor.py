@@ -6,7 +6,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 18.0", layout="wide")
+st.set_page_config(page_title="AITOR 19.0", layout="wide")
 
 # --- CSS ESTILO APPLE ---
 st.markdown("""
@@ -356,14 +356,15 @@ with tab3:
                 acciones = float(datos_ticker['Num_Acciones'])
                 stop_actual = float(datos_ticker['Stop_Actual'])
                 
-                # Múltiples niveles de ruptura largos
-                p_ruptura_s4 = float(datos_ticker['Precio_Ruptura_S4'])
-                p_ruptura_s5 = float(datos_ticker['Precio_Ruptura_S5'])
-                
-                with st.spinner(f"Escaneando {ticker_sel} en tiempo real..."):
+                # MATEMÁTICA AVANZADA: CÁLCULO DE MEDIAS VIVAS (S4=34D, S5=55D)
+                with st.spinner(f"Analizando histórico y calculando medias de {ticker_sel}..."):
                     stock = yf.Ticker(ticker_sel)
-                    hist = stock.history(period="1mo")
-                    precio_vivo = hist['Close'].iloc[-1]
+                    # Descargamos 6 meses de datos para asegurar que podemos calcular medias de 55 días
+                    hist_largo = stock.history(period="6mo")
+                    precio_vivo = hist_largo['Close'].iloc[-1]
+                    
+                    media_s4 = hist_largo['Close'].rolling(window=34).mean().iloc[-1]
+                    media_s5 = hist_largo['Close'].rolling(window=55).mean().iloc[-1]
                 
                 # MATEMÁTICA DE TU POSICIÓN
                 beneficio_eur = (precio_vivo - precio_in) * acciones
@@ -373,24 +374,27 @@ with tab3:
                 dias_en_posicion = (datetime.date.today() - fecha_in).days
                 if dias_en_posicion <= 0: dias_en_posicion = 1
                 
-                # Distancias a las rupturas largas
-                dist_s4 = ((precio_vivo - p_ruptura_s4) / p_ruptura_s4) * 100 if p_ruptura_s4 > 0 else 0
-                dist_s5 = ((precio_vivo - p_ruptura_s5) / p_ruptura_s5) * 100 if p_ruptura_s5 > 0 else 0
+                # Distancias REALES a las medias móviles de HOY (Aceleración estadística)
+                dist_real_s4 = ((precio_vivo - media_s4) / media_s4) * 100
+                dist_real_s5 = ((precio_vivo - media_s5) / media_s5) * 100
                 
                 # PANEL VISUAL DE DATOS
                 col1, col2, col3, col4 = st.columns(4)
                 col1.metric("Precio Actual", f"{precio_vivo:.2f}", f"{beneficio_pct:.2f}% (Latente)")
                 col2.metric("Beneficio Neto", f"{beneficio_eur:.2f} €")
                 col3.metric("Tiempo en Pos.", f"{dias_en_posicion} días", f"Desde {fecha_in.strftime('%d/%m/%Y')}")
-                col4.metric("Aceleración S5", f"{dist_s5:.2f}%", "Distancia al origen S5")
+                col4.metric("Dist. Media 55D (S5)", f"{dist_real_s5:.2f}%", "Distancia Real Hoy")
                 
                 st.markdown("---")
                 
-                # MOTOR DE DECISIÓN Y ALARMA ROJA
-                fase_explosiva = dist_s5 >= 20.0 or dist_s4 >= 15.0
-                stop_roto = precio_vivo < stop_actual
+                # --- MOTOR DE DECISIÓN CUÁNTICO (ESTADÍSTICA PURA) ---
+                st.subheader("🤖 Decisión del Algoritmo Matemático")
                 
-                st.subheader("🤖 Decisión del Algoritmo")
+                # Variables del modelo
+                stop_roto = precio_vivo < stop_actual
+                colchon_masivo = beneficio_pct > 30.0 # Si ganas más de un 30%, tienes inmunidad
+                parabola_estadistica = dist_real_s5 > 25.0 # Solo es parabólico si se aleja un 25% de su media viva de 55 días
+                
                 if stop_roto:
                     alarma_html = """
                     <style>
@@ -401,11 +405,16 @@ with tab3:
                     <div class="caja-alarma"><p class="texto-alarma">🚨 ¡STOP ROTO! CERRAR POSICIÓN 🚨</p></div>
                     """
                     st.markdown(alarma_html, unsafe_allow_html=True)
-                    st.error(f"El precio actual ({precio_vivo:.2f}) ha perforado tu Stop ({stop_actual:.2f}). Vende y registra el resultado en 'Historial'.")
-                elif fase_explosiva:
-                    st.success(f"🚀 **ACELERACIÓN EXTREMA:** El precio está un {dist_s5:.1f}% por encima de S5. Ajusta el Stop agresivamente (S1 o S2) para no devolver la ganancia.")
+                    st.error(f"Matemática de salida: El precio actual ({precio_vivo:.2f}) ha cruzado tu nivel crítico de riesgo ({stop_actual:.2f}).")
+                
+                elif colchon_masivo and not parabola_estadistica:
+                    st.success(f"🛡️ **COLCHÓN ESTADÍSTICO DETECTADO (+{beneficio_pct:.1f}%):** Tienes ventaja matemática absoluta. El valor orbita un {dist_real_s5:.1f}% sobre su S5. Mantén el Stop relajado en la Media de 55 Días para absorber la volatilidad y exprimir la tendencia.")
+                
+                elif parabola_estadistica:
+                    st.warning(f"🚀 **ANOMALÍA ESTADÍSTICA:** El precio está un {dist_real_s5:.1f}% por encima de su media de 55 días. La goma está demasiado tensa. Ajusta el Stop a S2 o S3 preventivamente.")
+                
                 else:
-                    st.info("🟢 **TENDENCIA EN DESARROLLO:** Mantén el Stop en sistemas lentos (S3/S4) para darle aire al precio.")
+                    st.info("🟢 **TENDENCIA EN DESARROLLO:** Mantén el Stop en tu sistema planificado según ATR.")
                     
         except Exception as e:
             st.error(f"Error al leer Cartera. Comprueba que las columnas de la pestaña 'Cartera' están bien escritas. Detalles técnicos: {e}")
@@ -419,7 +428,7 @@ with tab3:
             col_f1, col_f2, col_f3 = st.columns(3)
             
             with col_f1:
-                t_ticker = st.text_input("Ticker (Ej: MSFT, TEMN.SW)").upper()
+                t_ticker = st.text_input("Ticker (Ej: MSFT, SCYR.MC)").upper()
                 t_fecha_in = st.date_input("Fecha de Entrada")
                 t_precio_in = st.number_input("Precio de Compra $", min_value=0.0, format="%.2f")
                 
