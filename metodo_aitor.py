@@ -10,7 +10,7 @@ st.set_page_config(page_title="AITOR 13.0 Pro", layout="wide")
 st.markdown("""
 <style>
     /* Tipografia de Apple y fondo gris suave */
-    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
     
     .stApp { 
         background-color: #f5f5f7; 
@@ -18,46 +18,46 @@ st.markdown("""
         color: #1d1d1f;
     }
     
-    /* Panel lateral efecto cristal */
+    /* Panel lateral efecto cristal (Glassmorphism) */
     [data-testid="stSidebar"] { 
-        background-color: rgba(255, 255, 255, 0.6); 
-        backdrop-filter: blur(20px);
-        border-right: 1px solid rgba(0,0,0,0.05);
+        background-color: rgba(255, 255, 255, 0.7) !important; 
+        backdrop-filter: blur(20px) !important;
+        border-right: 1px solid rgba(0,0,0,0.05) !important;
     }
     
     /* Titulos limpios y redondeados */
-    h1, h2, h3 { 
+    h1, h2, h3, h1 *, h2 *, h3 * { 
         color: #1d1d1f !important; 
         font-weight: 700 !important;
         letter-spacing: -0.5px;
     }
     
-    /* EFECTO GLOBO: Cajas de metricas que flotan y rebotan */
-    [data-testid="metric-container"] {
+    /* EFECTO GLOBO: Cajas que flotan al pasar el raton */
+    [data-testid="stMetric"] {
         background-color: #ffffff;
-        border-radius: 20px;
-        padding: 20px;
-        box-shadow: 0 4px 15px rgba(0,0,0,0.03);
-        border: 1px solid rgba(0,0,0,0.04);
-        /* La transicion cubic-bezier hace el rebote tipo globo */
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        border-radius: 18px;
+        padding: 15px 20px;
+        box-shadow: 0 4px 15px rgba(0,0,0,0.04);
+        border: 1px solid rgba(0,0,0,0.03);
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
     }
     
-    [data-testid="metric-container"]:hover {
-        transform: translateY(-8px) scale(1.03);
-        box-shadow: 0 15px 30px rgba(0,0,0,0.08);
+    [data-testid="stMetric"]:hover {
+        transform: translateY(-5px) scale(1.02);
+        box-shadow: 0 12px 24px rgba(0,0,0,0.08);
     }
     
-    /* Numeros grandes */
-    [data-testid="stMetricValue"] { 
+    /* Numeros grandes de los resultados */
+    [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { 
         color: #1d1d1f !important; 
-        font-weight: 700; 
+        font-weight: 700 !important; 
+        font-size: 2.2rem !important;
     }
     
-    /* Textos descriptivos pequeños */
-    [data-testid="stMetricLabel"] { 
+    /* Textos descriptivos pequeños debajo de los numeros */
+    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { 
         color: #86868b !important; 
-        font-weight: 600;
+        font-weight: 600 !important;
         text-transform: uppercase;
         letter-spacing: 0.5px;
     }
@@ -66,13 +66,13 @@ st.markdown("""
     .stTextInput input, .stNumberInput input {
         background-color: #ffffff !important;
         color: #1d1d1f !important;
-        border-radius: 14px !important;
+        border-radius: 12px !important;
         border: 1px solid rgba(0,0,0,0.1) !important;
-        transition: all 0.3s;
-        box-shadow: inset 0 1px 3px rgba(0,0,0,0.02);
+        transition: all 0.2s;
+        box-shadow: inset 0 1px 2px rgba(0,0,0,0.02);
     }
     
-    /* Efecto al hacer clic en una caja de texto (anillo azul) */
+    /* Efecto al hacer clic en una caja de texto (anillo azul Apple) */
     .stTextInput input:focus, .stNumberInput input:focus {
         border-color: #0071e3 !important;
         box-shadow: 0 0 0 3px rgba(0, 113, 227, 0.2) !important;
@@ -81,31 +81,37 @@ st.markdown("""
     /* Desplegables redondeados */
     [data-baseweb="select"] > div {
         background-color: #ffffff !important;
-        border-radius: 14px !important;
+        border-radius: 12px !important;
         border: 1px solid rgba(0,0,0,0.1) !important;
     }
     
-    /* BOTONES TECNOLOGICOS APPLE */
+    /* BOTONES TECNOLOGICOS APPLE (Azul brillante y redondeado) */
     .stButton>button {
-        background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%);
+        background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important;
         color: white !important;
-        border: none;
-        border-radius: 20px;
-        padding: 10px 24px;
-        font-weight: 600;
-        letter-spacing: 0.3px;
-        box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3);
-        transition: all 0.3s ease;
+        border: none !important;
+        border-radius: 20px !important;
+        padding: 10px 24px !important;
+        font-weight: 600 !important;
+        box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important;
+        transition: all 0.3s ease !important;
     }
     
     .stButton>button:hover {
-        transform: translateY(-2px) scale(1.02);
-        box-shadow: 0 6px 20px rgba(0, 113, 227, 0.5);
+        transform: translateY(-2px) scale(1.02) !important;
+        box-shadow: 0 6px 20px rgba(0, 113, 227, 0.5) !important;
     }
     
-    /* Ajuste color de los textos base */
-    .stApp p, .stApp label, .stApp span {
-        color: #1d1d1f;
+    /* Ajuste color de los textos base para que sean grises oscuros, no negros puros */
+    .stApp p, .stApp label, .stApp span, .stApp div[data-testid="stMarkdownContainer"] {
+        color: #1d1d1f !important;
+    }
+    
+    /* Cajas de informacion (Alertas) */
+    .stAlert {
+        border-radius: 16px !important;
+        border: none !important;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.05) !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -241,15 +247,12 @@ with tab1:
     r1, r2, r3 = st.columns(3)
     with r1:
         st.subheader("Puntuacion EV")
-        st.caption("Esperanza total combinada.")
         st.metric("SCORE TOTAL", str(ev_tot), "+" + str(round(ev_plus, 2)) + " Bonus Calidad")
     with r2:
         st.subheader("Fuerza IDT")
-        st.caption("Potencia tactica de entrada.")
-        st.metric("PUNTOS", str(idt) + " pts")
+        st.metric("PUNTOS TACTICOS", str(idt) + " pts")
     with r3:
         st.subheader("Tension ITE")
-        st.caption("Distancia porcentual al Stop.")
         st.metric("RIESGO", str(ite) + "%")
 
     # --- CALCULADORA 277k ---
@@ -275,11 +278,11 @@ with tab1:
 
     # --- VERDICTO ---
     if ev_tot < 5 or ite > 8:
-        v_txt, v_col = "Operacion No Viable", "#ff3b30" # Apple Red
+        v_txt, v_col = "Operacion No Viable", "#ff3b30" # Rojo Apple
     elif idt >= 100 and ite <= 5:
-        v_txt, v_col = "Compra Obligatoria", "#34c759" # Apple Green
+        v_txt, v_col = "Compra Obligatoria", "#34c759" # Verde Apple
     elif idt >= 85 and ite <= 8:
-        v_txt, v_col = "Compra Tactica", "#ff9500" # Apple Orange
+        v_txt, v_col = "Compra Tactica", "#ff9500" # Naranja Apple
     else:
         v_txt, v_col = "Arma Bloqueada", "#ff3b30"
         
