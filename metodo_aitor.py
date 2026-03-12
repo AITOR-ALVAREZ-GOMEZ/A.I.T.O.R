@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 36.1 RADAR FIX", layout="wide")
+st.set_page_config(page_title="AITOR 36.2 GESTION RIESGO", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -42,12 +42,7 @@ st.markdown("""
     .tdah-blue { background: #eff6ff; border-color: #3b82f6; }
     .tdah-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; color: #111827;}
     .tdah-text { font-size: 0.95rem; color: #374151; line-height: 1.4;}
-    
-    @keyframes flash-red {
-        0% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); }
-        50% { background-color: #ffe5e5; color: #ff3b30; box-shadow: 0 0 0px rgba(255, 59, 48, 0); }
-        100% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); }
-    }
+    @keyframes flash-red { 0% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); } 50% { background-color: #ffe5e5; color: #ff3b30; box-shadow: 0 0 0px rgba(255, 59, 48, 0); } 100% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); } }
     .flashing-alert { animation: flash-red 1s infinite; padding: 15px; border-radius: 12px; text-align: center; font-weight: 800; font-size: 1.3rem; margin-top: 15px; margin-bottom: 15px; border: 2px solid #ff3b30; text-transform: uppercase; letter-spacing: 1px; }
 </style>
 """, unsafe_allow_html=True)
@@ -191,9 +186,12 @@ with tab1:
     net_ev = ev_compra - ev_venta
     ev_tot = round((sum(l_ev) / 5.0) + ev_plus, 2)
     ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
+    
+    # RECALIBRACIÓN PENALIZADOR DE ITE (Para acomodar la Volatilidad ATR sin bloquear)
+    penal = 30 if ite > 15 else 0 
+    
     p_estr = sum(10 for e in l_es[1:] if e == "Compra")
     p_sen = 10 if l_es[0] == "Compra" else 0
-    penal = 30 if ite > 8 else 0
     idt = l_wr[0] + bono + p_estr + p_sen - penal
 
     st.markdown("---")
@@ -217,9 +215,9 @@ with tab1:
     with c3:
         st.metric("RIESGO ITE", str(ite) + "%")
         h_ite = "<div class='rank-box'>"
-        if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
-        elif ite <= 8: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>LIMITE</div><div class='tag-off'>NO OPERABLE</div>"
-        else: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>LIMITE</div><div class='tag-on' style='background:#ff3b30;'>NO OPERABLE</div>"
+        if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-off'>REDUCIR POSICION</div>"
+        elif ite <= 10: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>MANEJABLE</div><div class='tag-off'>REDUCIR POSICION</div>"
+        else: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-on' style='background:#ff3b30;'>REDUCIR POSICION</div>"
         h_ite += "</div>"
         st.markdown(h_ite, unsafe_allow_html=True)
 
@@ -250,15 +248,15 @@ with tab1:
     c6.metric("Posicion Total", str(int(inv_t)) + " EUR")
 
     st.markdown("<br>", unsafe_allow_html=True)
-    st.subheader("🎯 Controlador de Decisión Pre-Compra (Riesgo del Trade)")
+    st.subheader("🎯 Controlador de Riesgo / Gestión de Capital")
     col_radar_esc, col_txt_esc = st.columns([2, 1])
     with col_radar_esc:
         if p_buy > 0 and p_sl > 0 and p_buy > p_sl:
-            rango_min_esc = p_sl * 0.95
+            rango_min_esc = p_sl * 0.90
             rango_max_esc = p_buy * 1.05
-            lim_peligro_esc = p_sl + (p_buy - p_sl) * 0.20
+            lim_peligro_esc = p_sl + (p_buy - p_sl) * 0.30
             fig_radar_esc = go.Figure(go.Indicator(
-                mode="gauge+number", value=p_buy, title=dict(text="Radar: Precio Actual vs Stop Loss", font=dict(size=14)), number=dict(valueformat=".2f"),
+                mode="gauge+number", value=p_buy, title=dict(text="Distancia: Precio Compra vs Stop", font=dict(size=14)), number=dict(valueformat=".2f"),
                 gauge=dict(axis=dict(range=[rango_min_esc, rango_max_esc]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min_esc, p_sl], color="#ff3b30"), dict(range=[p_sl, lim_peligro_esc], color="#ffcc00"), dict(range=[lim_peligro_esc, rango_max_esc], color="#34c759")], threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=p_sl))
             ))
             fig_radar_esc.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
@@ -266,9 +264,12 @@ with tab1:
         else: st.info("⚠️ Configura el Precio de Compra y el Stop Loss correctamente.")
     with col_txt_esc:
         st.markdown("<br><br>", unsafe_allow_html=True)
-        if ite <= 5: st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido.")
-        elif ite <= 8: st.warning(f"**🟡 Llegas un poco tarde ({ite}%):** El precio se ha alejado de la media.")
-        else: st.error(f"**🔴 Llegas MUY TARDE ({ite}%):** El precio ha escapado. Considera usar el Paracaídas ATR.")
+        if ite <= 5: 
+            st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está cerca. Tienes margen para usar tu 100% de posición asignada.")
+        elif ite <= 10: 
+            st.warning(f"**🟡 Stop Espacioso ({ite}%):** El Stop exige más espacio (por volatilidad ATR o estiramiento). Reduce tus acciones.")
+        else: 
+            st.error(f"**🔴 Riesgo Estructural Alto ({ite}%):** Tienes que darle muchísimo oxígeno al precio para que no te barra el ruido. Usa un tamaño de posición muy reducido.")
 
     st.markdown("---")
     st.subheader("🔮 Oráculo Quant (Solo Timing)")
@@ -319,10 +320,11 @@ with tab1:
 
     st.markdown("<br>", unsafe_allow_html=True)
     if st.button("Guardar Escaneo en Base de Datos"):
-        if ev_tot < 5 or ite > 8: v_t = "OPERACION NO VIABLE"
-        elif idt >= 100 and ite <= 5: v_t = "COMPRA OBLIGATORIA"
-        elif idt >= 85 and ite <= 8: v_t = "COMPRA TACTICA"
-        else: v_t = "ARMA BLOQUEADA"
+        v_t = "REVISION REQUERIDA"
+        if idt >= 100: v_t = "COMPRA OBLIGATORIA"
+        elif idt >= 85: v_t = "COMPRA TACTICA"
+        elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
+        
         d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
         for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
         new_row = pd.DataFrame([d_sav])
@@ -354,7 +356,7 @@ with tab2:
             }, hide_index=True, use_container_width=True
         )
 
-# --- PESTAÑA 3: CARTERA EN VIVO (CON AUDITORÍA DE SALIDA Y ZOOM FIX) ---
+# --- PESTAÑA 3: CARTERA EN VIVO ---
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
@@ -364,7 +366,7 @@ with tab3:
             if df_cartera.empty: st.warning("Tu cartera está vacía.")
             else:
                 ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
-                st.info(f"📌 **Estás analizando la salida de {ticker_sel}.** (El buscador de la izquierda no afecta a esta pantalla).")
+                st.info(f"📌 **Estás analizando la salida de {ticker_sel}.**")
                 
                 datos_ticker = df_cartera[df_cartera['Ticker'] == ticker_sel].iloc[0]
                 fecha_in = pd.to_datetime(datos_ticker['Fecha_Entrada']).date()
@@ -402,7 +404,6 @@ with tab3:
                     accel_actual = df_q['Accel'].iloc[-1] if not pd.isna(df_q['Accel'].iloc[-1]) else 0
                     df_q['CumMax'] = df_q['Close'].cummax()
                     df_q['Drawdown'] = (df_q['Close'] - df_q['CumMax']) / df_q['CumMax'] * 100
-                    
                     dd_min_recent = df_q['Drawdown'].tail(150).min()
                     if pd.isna(dd_min_recent) or dd_min_recent == 0: dd_min_recent = -5.0
                     
@@ -471,9 +472,6 @@ with tab3:
                 else:
                     st.success(f"🛡️ **RECOMENDACIÓN:** Usa tu Stop en S4 ({media_s4:.2f}) o S5 ({media_s5:.2f}).")
 
-                # =====================================================================
-                # FIX DEL RADAR: AHORA USA EL STOP REAL GUARDADO (stop_actual)
-                # =====================================================================
                 col_term, col_vacia = st.columns([2, 1])
                 with col_term:
                     rango_min = stop_actual * 0.90 
