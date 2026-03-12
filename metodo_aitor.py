@@ -7,9 +7,9 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 35.0 CARTERA", layout="wide")
+st.set_page_config(page_title="AITOR 36.0 GRAFICOS FIX", layout="wide")
 
-# --- CSS ESTILO APPLE, TDAH FRIENDLY & ALARMA PARPADEANTE ---
+# --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
@@ -103,7 +103,7 @@ if ticker != "":
         if nom_emp == "Buscando...": nom_emp = ticker
 
 st.sidebar.subheader(nom_emp)
-if p_merc > 0: st.sidebar.markdown(f"<div style='background:#1d1d1f; color:white; padding:10px; border-radius:8px; text-align:center; font-size:1.2rem; font-weight:bold; margin-bottom:5px;'>Precio Mercado: {p_merc:.2f}</div>", unsafe_allow_html=True)
+if p_merc > 0: st.sidebar.markdown(f"<div style='background:#1d1d1f; color:white; padding:10px; border-radius:8px; text-align:center; font-size:1.2rem; font-weight:bold; margin-bottom:5px;'>Precio Mercado: {p_merc:.2f} $</div>", unsafe_allow_html=True)
 else: st.sidebar.warning("⚠️ Sin datos de precio en directo.")
 
 st.sidebar.markdown("---")
@@ -258,7 +258,7 @@ with tab1:
             rango_max_esc = p_buy * 1.05
             lim_peligro_esc = p_sl + (p_buy - p_sl) * 0.20
             fig_radar_esc = go.Figure(go.Indicator(
-                mode="gauge+number", value=p_buy, title=dict(text="Distancia Estructural al Stop Loss", font=dict(size=14)), number=dict(valueformat=".2f"),
+                mode="gauge+number", value=p_buy, title=dict(text="Radar: Precio Actual vs Stop Loss", font=dict(size=14)), number=dict(valueformat=".2f"),
                 gauge=dict(axis=dict(range=[rango_min_esc, rango_max_esc]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min_esc, p_sl], color="#ff3b30"), dict(range=[p_sl, lim_peligro_esc], color="#ffcc00"), dict(range=[lim_peligro_esc, rango_max_esc], color="#34c759")], threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=p_sl))
             ))
             fig_radar_esc.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
@@ -287,13 +287,17 @@ with tab1:
 
                 col_eq1, col_eq2 = st.columns(2)
                 with col_eq1:
-                    fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, title={'text': "Z-Score (Tensión)"}, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, 0.5], color="lightgray"), dict(range=[0.5, 2.0], color="lightgreen"), dict(range=[2.0, 4], color="red")])))
-                    fig_ze.update_layout(height=200, margin=dict(l=10, r=10, t=30, b=10))
+                    st.markdown("""<div class="quant-card"><div class="quant-title">Z-Score (Desviación)</div><div class="quant-desc">Filtro: Comprar solo si está entre +0.5 y +2.0 (Fuerza controlada).</div>""", unsafe_allow_html=True)
+                    fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, number=dict(valueformat='.2f', suffix=' Sigmas'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, 0.5], color="lightgray"), dict(range=[0.5, 2.0], color="lightgreen"), dict(range=[2.0, 4], color="red")])))
+                    fig_ze.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ze, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
                 with col_eq2:
-                    fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, title={'text': "Aceleración (Gas)"}, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, 0], color="lightpink"), dict(range=[0, 10], color="lightgreen")])))
-                    fig_ae.update_layout(height=200, margin=dict(l=10, r=10, t=30, b=10))
+                    st.markdown("""<div class="quant-card"><div class="quant-title">Aceleración (Momentum)</div><div class="quant-desc">Filtro: Debe ser positiva (> 0). Indica entrada de dinero rápido.</div>""", unsafe_allow_html=True)
+                    fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, 0], color="lightpink"), dict(range=[0, 10], color="lightgreen")])))
+                    fig_ae.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ae, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
         except: pass
 
     st.markdown("---")
@@ -350,7 +354,7 @@ with tab2:
             }, hide_index=True, use_container_width=True
         )
 
-# --- PESTAÑA 3: CARTERA EN VIVO (CON AUDITORÍA DE SALIDA) ---
+# --- PESTAÑA 3: CARTERA EN VIVO (CON AUDITORÍA DE SALIDA Y ZOOM FIX) ---
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
@@ -398,7 +402,10 @@ with tab3:
                     accel_actual = df_q['Accel'].iloc[-1] if not pd.isna(df_q['Accel'].iloc[-1]) else 0
                     df_q['CumMax'] = df_q['Close'].cummax()
                     df_q['Drawdown'] = (df_q['Close'] - df_q['CumMax']) / df_q['CumMax'] * 100
-                    dd_max = df_q['Drawdown'].min()
+                    
+                    # ZOOM FIX: Calcular el mínimo Drawdown solo de los últimos 150 días para que el gráfico no se aplane.
+                    dd_min_recent = df_q['Drawdown'].tail(150).min()
+                    if pd.isna(dd_min_recent) or dd_min_recent == 0: dd_min_recent = -5.0
                     
                 beneficio_eur = (precio_vivo - precio_in) * acciones
                 beneficio_pct = ((precio_vivo - precio_in) / precio_in) * 100
@@ -411,19 +418,37 @@ with tab3:
                 st.markdown("### 🧠 Análisis Cuantitativo (Datos de Mantenimiento)")
                 col_q1, col_q2 = st.columns(2)
                 with col_q1:
-                    fig_z = go.Figure(go.Indicator(mode="gauge+number", value=z_actual, title={'text': "1. Z-Score (Tensión)"}, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2], color="lightpink"), dict(range=[-2, 2], color="lightgreen"), dict(range=[2, 2.5], color="orange"), dict(range=[2.5, 4], color="red")])))
-                    fig_z.update_layout(height=180, margin=dict(l=10, r=10, t=30, b=10))
+                    st.markdown("""<div class="quant-card"><div class="quant-title">1. Z-Score (Desviación)</div><div class="quant-desc">Mide la tensión. Valores > +2.5 indican riesgo de reversión. Si llega a rojo, ciñe el Stop.</div>""", unsafe_allow_html=True)
+                    fig_z = go.Figure(go.Indicator(mode="gauge+number", value=z_actual, number=dict(valueformat='.2f', suffix=' Sigmas'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2], color="lightpink"), dict(range=[-2, 2], color="lightgreen"), dict(range=[2, 2.5], color="orange"), dict(range=[2.5, 4], color="red")])))
+                    fig_z.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_z, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                    st.markdown(f"""<div class="quant-card"><div class="quant-title">3. Aceleración Pura</div><div class="quant-desc">Mide la fuerza. Si cae a negativo, la tendencia pierde gas. Actual: {accel_actual:.2f}</div>""", unsafe_allow_html=True)
+                    fig_acc = go.Figure(go.Scatter(x=df_q.index[-60:], y=df_q['Accel'].tail(60), mode='lines', fill='tozeroy', line_color='purple'))
+                    fig_acc.update_yaxes(autorange=True) # FIX para que no se vea plano
+                    fig_acc.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"))
+                    st.plotly_chart(fig_acc, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+
                 with col_q2:
-                    fig_h = go.Figure(go.Indicator(mode="gauge+number", value=hurst_val, title={'text': "2. Exponente de Hurst"}, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[0, 1]), bar=dict(color="darkblue"), steps=[dict(range=[0, 0.45], color="lightgray"), dict(range=[0.45, 0.55], color="yellow"), dict(range=[0.55, 1], color="lightgreen")])))
-                    fig_h.update_layout(height=180, margin=dict(l=10, r=10, t=30, b=10))
+                    st.markdown("""<div class="quant-card"><div class="quant-title">2. Exponente de Hurst</div><div class="quant-desc">Mide el ruido. Si es < 0.50 el precio dará bandazos. Usa Stops lejanos o te barrerán.</div>""", unsafe_allow_html=True)
+                    fig_h = go.Figure(go.Indicator(mode="gauge+number", value=hurst_val, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[0, 1]), bar=dict(color="darkblue"), steps=[dict(range=[0, 0.45], color="lightgray"), dict(range=[0.45, 0.55], color="yellow"), dict(range=[0.55, 1], color="lightgreen")])))
+                    fig_h.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_h, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
+
+                    st.markdown(f"""<div class="quant-card"><div class="quant-title">4. Perfil Drawdown</div><div class="quant-desc">En los últimos meses, {ticker_sel} ha hecho caídas del {dd_min_recent:.1f}% de forma normal.</div>""", unsafe_allow_html=True)
+                    fig_dd = go.Figure(go.Scatter(x=df_q.index[-150:], y=df_q['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
+                    fig_dd.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"), yaxis=dict(range=[dd_min_recent*1.1, 0])) # ZOOM FIX APLICADO AQUÍ
+                    st.plotly_chart(fig_dd, use_container_width=True)
+                    st.markdown("</div>", unsafe_allow_html=True)
 
                 # =====================================================================
-                # NUEVO: AUDITORÍA CLÍNICA DE SALIDA (TDAH FRIENDLY)
+                # AUDITORÍA CLÍNICA DE SALIDA (TDAH FRIENDLY)
                 # =====================================================================
                 st.markdown("---")
-                st.subheader(f"📋 Diagnóstico Clínico de la Posición ({ticker_sel})")
+                st.subheader(f"📋 Diagnóstico Clínico de Mantenimiento ({ticker_sel})")
 
                 if z_actual > 2.5: txt_z_out, col_z_out = f"Tensión EXTREMA. Hay una burbuja a corto plazo. Obligatorio ceñir el Stop al sistema S2 ({media_s2:.2f}) para no devolver ganancias.", "tdah-red"
                 elif z_actual > 2.0: txt_z_out, col_z_out = f"Tensión Alta. El precio ha corrido mucho. Atento para subir el Stop pronto.", "tdah-yellow"
@@ -459,7 +484,7 @@ with tab3:
                     rango_min = stop_sugerido * 0.90 
                     rango_max = max(precio_vivo * 1.05, stop_sugerido * 1.10) 
                     limite_naranja = stop_sugerido * 1.03 
-                    fig_riesgo = go.Figure(go.Indicator(mode="gauge+number", value=precio_vivo, title=dict(text="Radar Cuántico (Distancia al Stop)", font=dict(size=14)), number=dict(valueformat=".2f"), gauge=dict(axis=dict(range=[rango_min, rango_max]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min, stop_sugerido], color="#ff3b30"), dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"), dict(range=[limite_naranja, rango_max], color="#34c759")], threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido))))
+                    fig_riesgo = go.Figure(go.Indicator(mode="gauge+number", value=precio_vivo, title=dict(text="Radar: Precio Actual vs Stop Loss", font=dict(size=14)), number=dict(valueformat=".2f"), gauge=dict(axis=dict(range=[rango_min, rango_max]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min, stop_sugerido], color="#ff3b30"), dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"), dict(range=[limite_naranja, rango_max], color="#34c759")], threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido))))
                     fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig_riesgo, use_container_width=True)
                 
