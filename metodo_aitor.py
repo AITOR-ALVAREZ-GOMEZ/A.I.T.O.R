@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 36.2 GESTION RIESGO", layout="wide")
+st.set_page_config(page_title="AITOR 36.3 VEREDICTO FIX", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -187,7 +187,6 @@ with tab1:
     ev_tot = round((sum(l_ev) / 5.0) + ev_plus, 2)
     ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
     
-    # RECALIBRACIÓN PENALIZADOR DE ITE (Para acomodar la Volatilidad ATR sin bloquear)
     penal = 30 if ite > 15 else 0 
     
     p_estr = sum(10 for e in l_es[1:] if e == "Compra")
@@ -319,6 +318,24 @@ with tab1:
     st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Momentum:</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+    
+    # =====================================================================
+    # RESTAURACIÓN DEL VEREDICTO FINAL DE LA MÁQUINA (INTEGRANDO EL ACELERADOR)
+    # =====================================================================
+    if net_ev < 0: 
+        ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
+    elif z_in > 2.5: 
+        ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
+    elif net_ev > 1.5 and z_in <= 2.0 and acc_in > 0: 
+        ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Estructura fuerte, precio sin tensión y con el acelerador pisado. Adelante.", "tdah-green"
+    elif acc_in <= 0:
+        ver_txt, ver_col = "⚠️ PRECAUCIÓN. La estructura es alcista pero el Momentum está en rojo (Pérdida de gas). Entra si quieres, pero reduce tu capital.", "tdah-yellow"
+    else: 
+        ver_txt, ver_col = "⚠️ PRECAUCIÓN. La operación es viable, pero hay dudas en la estructura o el precio. Opera solo con media posición.", "tdah-yellow"
+        
+    st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
     if st.button("Guardar Escaneo en Base de Datos"):
         v_t = "REVISION REQUERIDA"
         if idt >= 100: v_t = "COMPRA OBLIGATORIA"
