@@ -7,9 +7,9 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 40.0 STABLE", layout="wide")
+st.set_page_config(page_title="AITOR 43.0 BANNER INTELIGENTE", layout="wide")
 
-# --- CSS ESTILO APPLE, TDAH FRIENDLY & TARJETAS DESGLOSE ---
+# --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
@@ -23,21 +23,17 @@ st.markdown("""
     .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; transition: all 0.2s ease;}
     .stButton>button:active { transform: scale(0.98); }
     
-    /* TARJETAS PERSONALIZADAS */
     .apple-kpi-card { background-color: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; }
     .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
     .apple-kpi-value { font-size: 2.4rem; font-weight: 800; color: #1d1d1f; line-height: 1; }
     
-    /* CAJA GRIS DE DESGLOSE INTERIOR */
     .kpi-breakdown { font-size: 0.75rem; color: #5f6368; margin-top: 12px; margin-bottom: 12px; line-height: 1.6; background: #f8f9fa; padding: 12px; border-radius: 10px; width: 100%; border: 1px solid #e8eaed; }
     .kpi-breakdown b { color: #1d1d1f; }
     
-    /* ETIQUETAS RANKING */
     .rank-box { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
     .tag-on { border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-transform: uppercase; letter-spacing: 0.5px;}
     .tag-off { border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; text-transform: uppercase; letter-spacing: 0.5px;}
     
-    /* OTROS */
     .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 15px;}
     .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; }
     .quant-desc { font-size: 0.85rem; color: #86868b; line-height: 1.4; margin-bottom: 15px; }
@@ -49,8 +45,15 @@ st.markdown("""
     .tdah-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; color: #111827;}
     .tdah-text { font-size: 0.95rem; color: #374151; line-height: 1.4;}
     
-    @keyframes flash-red { 0% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); } 50% { background-color: #ffe5e5; color: #ff3b30; box-shadow: 0 0 0px rgba(255, 59, 48, 0); } 100% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); } }
-    .flashing-alert { animation: flash-red 1s infinite; padding: 15px; border-radius: 12px; text-align: center; font-weight: 800; font-size: 1.3rem; margin-top: 15px; margin-bottom: 15px; border: 2px solid #ff3b30; text-transform: uppercase; letter-spacing: 1px; }
+    /* ANIMACIONES DEL LETRERO INTELIGENTE */
+    @keyframes flash-red { 0% { background-color: #ff3b30; color: white; } 50% { background-color: #ffe5e5; color: #ff3b30; } 100% { background-color: #ff3b30; color: white; } }
+    @keyframes pulse-green { 0% { background-color: #34c759; color: white; } 50% { background-color: #e5fbee; color: #188038; } 100% { background-color: #34c759; color: white; } }
+    @keyframes pulse-yellow { 0% { background-color: #ffcc00; color: #1d1d1f; } 50% { background-color: #fff9e6; color: #b38f00; } 100% { background-color: #ffcc00; color: #1d1d1f; } }
+    
+    .main-banner { padding: 16px; border-radius: 12px; text-align: center; font-weight: 800; font-size: 1.25rem; margin-top: 15px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+    .banner-red { animation: flash-red 1.5s infinite; border: 2px solid #ff3b30; }
+    .banner-green { animation: pulse-green 2s infinite; border: 2px solid #34c759; }
+    .banner-yellow { animation: pulse-yellow 2s infinite; border: 2px solid #ffcc00; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -61,7 +64,6 @@ A_ACTUAL = datetime.datetime.now().year
 COL_DB = ["Ticker", "Tier", "EV_Total", "IDT_Puntos", "ITE_Porc", "Veredicto", "Acciones", "Inversion"]
 for i in range(1, 6): COL_DB.extend([f"S{i}_Dias", f"W{i}", f"R{i}"])
 
-# FIX CACHE: ttl=0 en la conexión inicial para que lea siempre en directo
 conn = st.connection("gsheets", type=GSheetsConnection)
 try: df_datos = conn.read(worksheet="Sheet1", ttl=0) 
 except: df_datos = pd.DataFrame(columns=COL_DB)
@@ -189,19 +191,30 @@ with tab1:
             
             st.markdown(f"<div style='text-align:center; padding:10px; background:#fff; border-radius:10px; border:1px solid #e5e5ea; margin-top:5px;'><div style='color:#86868b; font-size:0.75rem; font-weight:bold;'>EV {s_val}D</div><div style='font-size:1.4rem; font-weight:800; color:#1d1d1f;'>{ev_i:.2f}</div></div>", unsafe_allow_html=True)
 
-    if l_es.count("Venta") >= 3:
-        st.markdown("<div class='flashing-alert'>🚨 ¡ALERTA CRÍTICA! 3 o más Sistemas en Venta. Peligro de colapso. 🚨</div>", unsafe_allow_html=True)
-
+    # -------------------------------------------------------------
+    # EL MOTOR MATEMÁTICO 
+    # -------------------------------------------------------------
     ev_compra = sum([l_ev[i] for i in range(5) if l_es[i] == "Compra"])
     ev_venta = sum([l_ev[i] for i in range(5) if l_es[i] == "Venta"])
-    net_ev = ev_compra - ev_venta
-    ev_tot = round((sum(l_ev) / 5.0) + ev_plus, 2)
-    ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
     
+    net_ev = ev_compra - ev_venta 
+    ev_tot = round(net_ev + ev_plus, 2) 
+    
+    ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
     penal = 30 if ite > 15 else 0 
     p_estr = sum(10 for e in l_es[1:] if e == "Compra")
     p_sen = 10 if l_es[0] == "Compra" else 0
     idt = l_wr[0] + bono + p_estr + p_sen - penal
+
+    # -------------------------------------------------------------
+    # EL NUEVO LETRERO INTELIGENTE (BASADO EN MATEMÁTICA PURA)
+    # -------------------------------------------------------------
+    if net_ev >= 1.5:
+        st.markdown("<div class='main-banner banner-green'>✅ LUZ VERDE ESTRUCTURAL: Ventaja Matemática Confirmada. APTO PARA COMPRAR.</div>", unsafe_allow_html=True)
+    elif net_ev >= 0:
+        st.markdown("<div class='main-banner banner-yellow'>⚠️ PRECAUCIÓN: Fuerza Neta Débil. Apto solo con POSICIÓN REDUCIDA.</div>", unsafe_allow_html=True)
+    else:
+        st.markdown("<div class='main-banner banner-red'>🚨 SISTEMA BLOQUEADO: Esperanza Matemática Negativa. PROHIBIDO COMPRAR.</div>", unsafe_allow_html=True)
 
     st.markdown("---")
     st.markdown("### 🏛️ Auditoría Matemática Central")
@@ -214,11 +227,13 @@ with tab1:
         else: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-on' style='background:#ff3b30;'>DESCARTE</div>"
         h_ev += "</div>"
         
+        net_color = "#16a34a" if net_ev > 0 else "#dc2626"
+        
         breakdown_ev = f"""
         <div class='kpi-breakdown'>
-            • Medias Base: <b>{(sum(l_ev)/5.0):.2f}</b><br>
-            • Bonus Calidad: <b>+{ev_plus:.2f}</b><br>
-            • Tira y Afloja (Neto): <b style='color:#16a34a;'>+{ev_compra:.2f}</b> / <b style='color:#dc2626;'>-{ev_venta:.2f}</b>
+            • Fuerza Sistemas (Neto): <b style='color:{net_color};'>{net_ev:+.2f}</b><br>
+            • Bonus Calidad: <b style='color:#16a34a;'>+{ev_plus:.2f}</b><br>
+            • Desglose: <span style='color:#16a34a;'>+{ev_compra:.2f} (C)</span> / <span style='color:#dc2626;'>-{ev_venta:.2f} (V)</span>
         </div>
         """
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>SCORE EV (Esperanza)</div><div class='apple-kpi-value'>{ev_tot:.2f}</div>{breakdown_ev}{h_ev}</div>", unsafe_allow_html=True)
@@ -353,18 +368,16 @@ with tab1:
     st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    
     if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
-    elif net_ev > 1.5 and z_in <= 2.0 and acc_in > 0: ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Estructura fuerte, precio sin tensión y con el acelerador pisado. Adelante.", "tdah-green"
+    elif net_ev >= 1.5 and z_in <= 2.0 and acc_in > 0: ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Estructura fuerte, precio sin tensión y con el acelerador pisado. Adelante.", "tdah-green"
     elif acc_in <= 0: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La estructura es alcista pero el Momentum está en rojo (Pérdida de gas). Entra si quieres, pero reduce tu capital.", "tdah-yellow"
     else: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La operación es viable, pero hay dudas en la estructura o el precio. Opera solo con media posición.", "tdah-yellow"
-        
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
     # =====================================================================
-    # BOTONES DE ACCIÓN (ANTI-SALTOS DE PANTALLA)
+    # BOTONES DE ACCIÓN 
     # =====================================================================
     st.markdown("---")
     st.subheader("⚙️ Panel de Ejecución Cuantitativa")
