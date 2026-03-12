@@ -7,9 +7,9 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 32.0 DASHBOARD", layout="wide")
+st.set_page_config(page_title="AITOR 34.0 ALARMA", layout="wide")
 
-# --- CSS ESTILO APPLE & TDAH FRIENDLY ---
+# --- CSS ESTILO APPLE, TDAH FRIENDLY & ALARMA PARPADEANTE ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
@@ -42,6 +42,26 @@ st.markdown("""
     .tdah-blue { background: #eff6ff; border-color: #3b82f6; }
     .tdah-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; color: #111827;}
     .tdah-text { font-size: 0.95rem; color: #374151; line-height: 1.4;}
+    
+    /* ANIMACIÓN DE ALARMA ROJA PARPADEANTE */
+    @keyframes flash-red {
+        0% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); }
+        50% { background-color: #ffe5e5; color: #ff3b30; box-shadow: 0 0 0px rgba(255, 59, 48, 0); }
+        100% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); }
+    }
+    .flashing-alert {
+        animation: flash-red 1s infinite;
+        padding: 15px;
+        border-radius: 12px;
+        text-align: center;
+        font-weight: 800;
+        font-size: 1.3rem;
+        margin-top: 15px;
+        margin-bottom: 15px;
+        border: 2px solid #ff3b30;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+    }
 </style>
 """, unsafe_allow_html=True)
 
@@ -77,7 +97,6 @@ if ticker != "":
         df_global = stock.history(period="1y")
         if not df_global.empty: 
             p_merc = float(df_global['Close'].iloc[-1])
-            # Cálculo de la Volatilidad Real (ATR) para Auto-Stop
             high_low = df_global['High'] - df_global['Low']
             high_close = np.abs(df_global['High'] - df_global['Close'].shift())
             low_close = np.abs(df_global['Low'] - df_global['Close'].shift())
@@ -121,16 +140,14 @@ ev_plus = bono / 7.0
 
 st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
-p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
+p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc), key=f"buy_{ticker}")
 
-# AUTO-STOP: La máquina calcula un stop lógico usando 2 veces la volatilidad (ATR)
-stop_sugerido_auto = p_buy * 0.95 # Fallback por si falla el ATR
+stop_sugerido_auto = p_buy * 0.95
 if atr_val > 0:
     stop_sugerido_auto = p_buy - (2 * atr_val)
     st.sidebar.markdown(f"<div style='font-size: 0.8rem; color: #166534; font-weight: 600; margin-bottom: 5px;'>🤖 Auto-Stop Calculado (2x ATR)</div>", unsafe_allow_html=True)
 
-# La casilla del Stop ya viene rellenada con el Stop Matemático
-p_sl = st.sidebar.number_input("Stop Loss $", value=float(stop_sugerido_auto))
+p_sl = st.sidebar.number_input("Stop Loss $", value=float(stop_sugerido_auto), key=f"sl_{ticker}")
 
 d_defs, w_defs, r_defs = [1, 3, 8, 14, 21], [50]*5, [2.0]*5
 if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
@@ -182,6 +199,11 @@ with tab1:
             ev_i = round((wr_dec * rt) - ((1.0 - wr_dec) * 1.0), 2)
             s_elegidos.append(s_val); l_ev.append(ev_i); l_wr.append(wr); l_rt.append(rt); l_es.append(es)
             st.metric("EV " + str(s_val) + "D", str(ev_i))
+
+    # --- EL INTERRUPTOR DE EMERGENCIA (CIRCUIT BREAKER) ---
+    ventas_count = l_es.count("Venta")
+    if ventas_count >= 3:
+        st.markdown("<div class='flashing-alert'>🚨 ¡ALERTA CRÍTICA! 3 o más Sistemas en Venta. Peligro de colapso. 🚨</div>", unsafe_allow_html=True)
 
     ev_compra = sum([l_ev[i] for i in range(5) if l_es[i] == "Compra"])
     ev_venta = sum([l_ev[i] for i in range(5) if l_es[i] == "Venta"])
@@ -344,13 +366,8 @@ with tab2:
         df_display['EV_Total'] = pd.to_numeric(df_display['EV_Total'], errors='coerce').fillna(0)
         df_display['IDT_Puntos'] = pd.to_numeric(df_display['IDT_Puntos'], errors='coerce').fillna(0)
         df_display['ITE_Porc'] = pd.to_numeric(df_display['ITE_Porc'], errors='coerce').fillna(0)
-        
-        # NUEVO: CREACIÓN DE LA BARRA DE SALUD GLOBAL (0-100) BASADA EN EL IDT
-        # Normalizamos asumiendo que 140 pts de IDT es el máximo lógico (100%)
         df_display['Score_Global'] = (df_display['IDT_Puntos'] / 140) * 100
         df_display['Score_Global'] = df_display['Score_Global'].clip(upper=100, lower=0)
-        
-        # Reordenar las columnas para mostrar la barra pegada al veredicto
         df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
         
         st.dataframe(
@@ -454,16 +471,16 @@ with tab3:
                 stop_roto = precio_vivo < stop_actual
                 if stop_roto:
                     stop_sugerido = stop_actual
-                    st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} €)** El precio ha cruzado tu umbral. Vende matemáticamente.")
+                    st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f} $)** El precio ha cruzado tu umbral. Vende matemáticamente.")
                 elif z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
                     stop_sugerido = media_s2
-                    st.warning(f"🚀 **CLÍMAX COMPRADOR:** Tensión extrema. Sube el Stop al sistema S2 en {media_s2:.2f} €.")
+                    st.warning(f"🚀 **CLÍMAX COMPRADOR:** Tensión extrema. Sube el Stop al sistema S2 en {media_s2:.2f} $.")
                 elif hurst_val < 0.45:
                     stop_sugerido = media_s5
-                    st.warning(f"⚠️ **RUIDO LATERAL:** Fase de descanso. Mantén el Stop en S5 ubicado en {media_s5:.2f} €.")
+                    st.warning(f"⚠️ **RUIDO LATERAL:** Fase de descanso. Mantén el Stop en S5 ubicado en {media_s5:.2f} $.")
                 else:
                     stop_sugerido = media_s4
-                    st.success(f"🛡️ **TENDENCIA SANA:** Matemática a tu favor. Usa tu Stop en S4 ({media_s4:.2f} €) o S5 ({media_s5:.2f} €).")
+                    st.success(f"🛡️ **TENDENCIA SANA:** Matemática a tu favor. Usa tu Stop en S4 ({media_s4:.2f} $) o S5 ({media_s5:.2f} $).")
 
                 st.markdown("<br>", unsafe_allow_html=True)
                 col_term, col_vacia = st.columns([2, 1])
@@ -474,6 +491,29 @@ with tab3:
                     fig_riesgo = go.Figure(go.Indicator(mode="gauge+number", value=precio_vivo, title=dict(text="Radar Cuántico (Precio vs Stop Matemático)", font=dict(size=14)), number=dict(suffix=" $", valueformat=".2f"), gauge=dict(axis=dict(range=[rango_min, rango_max]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min, stop_sugerido], color="#ff3b30"), dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"), dict(range=[limite_naranja, rango_max], color="#34c759")], threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido))))
                     fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig_riesgo, use_container_width=True)
+                
+                # =====================================================================
+                # NUEVO: PANEL PARA GUARDAR EL TRAILING STOP
+                # =====================================================================
+                st.markdown("---")
+                st.subheader("💾 Guardar Ajuste de Stop Loss (Trailing Stop)")
+                st.info("Si has decidido mover tu red de seguridad basándote en la recomendación de arriba, guárdalo aquí.")
+                with st.form("form_update_stop"):
+                    c_u1, c_u2 = st.columns([1, 2])
+                    with c_u1:
+                        nuevo_stop = st.number_input("Fijar Nuevo Stop Loss", value=float(stop_sugerido))
+                    with c_u2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        submit_update = st.form_submit_button("Actualizar Stop en Base de Datos")
+                        
+                    if submit_update:
+                        df_c_update = conn.read(worksheet="Cartera", ttl=0)
+                        idx_to_update = df_c_update[df_c_update['Ticker'] == ticker_sel].index
+                        if not idx_to_update.empty:
+                            df_c_update.loc[idx_to_update[-1], 'Stop_Actual'] = nuevo_stop
+                            conn.update(worksheet="Cartera", data=df_c_update)
+                            st.success(f"✅ ¡Hecho! El Stop de {ticker_sel} se ha actualizado correctamente a {nuevo_stop:.2f} $.")
+                            
         except Exception as e: st.error(f"Error técnico: {e}")
 
     # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
