@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 36.0 GRAFICOS FIX", layout="wide")
+st.set_page_config(page_title="AITOR 36.1 RADAR FIX", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -403,7 +403,6 @@ with tab3:
                     df_q['CumMax'] = df_q['Close'].cummax()
                     df_q['Drawdown'] = (df_q['Close'] - df_q['CumMax']) / df_q['CumMax'] * 100
                     
-                    # ZOOM FIX: Calcular el mínimo Drawdown solo de los últimos 150 días para que el gráfico no se aplane.
                     dd_min_recent = df_q['Drawdown'].tail(150).min()
                     if pd.isna(dd_min_recent) or dd_min_recent == 0: dd_min_recent = -5.0
                     
@@ -426,7 +425,7 @@ with tab3:
 
                     st.markdown(f"""<div class="quant-card"><div class="quant-title">3. Aceleración Pura</div><div class="quant-desc">Mide la fuerza. Si cae a negativo, la tendencia pierde gas. Actual: {accel_actual:.2f}</div>""", unsafe_allow_html=True)
                     fig_acc = go.Figure(go.Scatter(x=df_q.index[-60:], y=df_q['Accel'].tail(60), mode='lines', fill='tozeroy', line_color='purple'))
-                    fig_acc.update_yaxes(autorange=True) # FIX para que no se vea plano
+                    fig_acc.update_yaxes(autorange=True)
                     fig_acc.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"))
                     st.plotly_chart(fig_acc, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
@@ -440,13 +439,10 @@ with tab3:
 
                     st.markdown(f"""<div class="quant-card"><div class="quant-title">4. Perfil Drawdown</div><div class="quant-desc">En los últimos meses, {ticker_sel} ha hecho caídas del {dd_min_recent:.1f}% de forma normal.</div>""", unsafe_allow_html=True)
                     fig_dd = go.Figure(go.Scatter(x=df_q.index[-150:], y=df_q['Drawdown'].tail(150), mode='lines', fill='tozeroy', line_color='red'))
-                    fig_dd.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"), yaxis=dict(range=[dd_min_recent*1.1, 0])) # ZOOM FIX APLICADO AQUÍ
+                    fig_dd.update_layout(height=140, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showgrid=False, title="Fecha"), yaxis=dict(range=[dd_min_recent*1.1, 0])) 
                     st.plotly_chart(fig_dd, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                # =====================================================================
-                # AUDITORÍA CLÍNICA DE SALIDA (TDAH FRIENDLY)
-                # =====================================================================
                 st.markdown("---")
                 st.subheader(f"📋 Diagnóstico Clínico de Mantenimiento ({ticker_sel})")
 
@@ -467,24 +463,23 @@ with tab3:
                 st.markdown("---")
                 stop_roto = precio_vivo < stop_actual
                 if stop_roto:
-                    stop_sugerido = stop_actual
                     st.error(f"🚨 **¡STOP ROTO! ({stop_actual:.2f})** El precio ha cruzado tu umbral. Vende matemáticamente.")
                 elif z_actual > 2.5 or (z_actual > 2.0 and accel_actual > 5.0):
-                    stop_sugerido = media_s2
                     st.warning(f"🚀 **RECOMENDACIÓN:** Sube el Stop al sistema S2 ({media_s2:.2f}).")
                 elif hurst_val < 0.45:
-                    stop_sugerido = media_s5
                     st.warning(f"⚠️ **RECOMENDACIÓN:** Mantén el Stop lejos, en S5 ({media_s5:.2f}).")
                 else:
-                    stop_sugerido = media_s4
                     st.success(f"🛡️ **RECOMENDACIÓN:** Usa tu Stop en S4 ({media_s4:.2f}) o S5 ({media_s5:.2f}).")
 
+                # =====================================================================
+                # FIX DEL RADAR: AHORA USA EL STOP REAL GUARDADO (stop_actual)
+                # =====================================================================
                 col_term, col_vacia = st.columns([2, 1])
                 with col_term:
-                    rango_min = stop_sugerido * 0.90 
-                    rango_max = max(precio_vivo * 1.05, stop_sugerido * 1.10) 
-                    limite_naranja = stop_sugerido * 1.03 
-                    fig_riesgo = go.Figure(go.Indicator(mode="gauge+number", value=precio_vivo, title=dict(text="Radar: Precio Actual vs Stop Loss", font=dict(size=14)), number=dict(valueformat=".2f"), gauge=dict(axis=dict(range=[rango_min, rango_max]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min, stop_sugerido], color="#ff3b30"), dict(range=[stop_sugerido, limite_naranja], color="#ffcc00"), dict(range=[limite_naranja, rango_max], color="#34c759")], threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_sugerido))))
+                    rango_min = stop_actual * 0.90 
+                    rango_max = max(precio_vivo * 1.05, stop_actual * 1.10) 
+                    limite_naranja = stop_actual * 1.03 
+                    fig_riesgo = go.Figure(go.Indicator(mode="gauge+number", value=precio_vivo, title=dict(text=f"Radar: Precio Actual vs Tu Stop Guardado ({stop_actual:.2f})", font=dict(size=14)), number=dict(valueformat=".2f"), gauge=dict(axis=dict(range=[rango_min, rango_max]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min, stop_actual], color="#ff3b30"), dict(range=[stop_actual, limite_naranja], color="#ffcc00"), dict(range=[limite_naranja, rango_max], color="#34c759")], threshold=dict(line=dict(color="black", width=5), thickness=0.75, value=stop_actual))))
                     fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
                     st.plotly_chart(fig_riesgo, use_container_width=True)
                 
@@ -494,7 +489,7 @@ with tab3:
                 with st.form("form_update_stop"):
                     c_u1, c_u2 = st.columns([1, 2])
                     with c_u1:
-                        nuevo_stop = st.number_input("Fijar Nuevo Stop Loss", value=float(stop_sugerido))
+                        nuevo_stop = st.number_input("Fijar Nuevo Stop Loss", value=float(stop_actual))
                     with c_u2:
                         st.markdown("<br>", unsafe_allow_html=True)
                         submit_update = st.form_submit_button("Actualizar Stop en Base de Datos")
@@ -505,7 +500,7 @@ with tab3:
                         if not idx_to_update.empty:
                             df_c_update.loc[idx_to_update[-1], 'Stop_Actual'] = nuevo_stop
                             conn.update(worksheet="Cartera", data=df_c_update)
-                            st.success(f"✅ ¡Hecho! El Stop de {ticker_sel} se ha actualizado correctamente a {nuevo_stop:.2f}.")
+                            st.success(f"✅ ¡Hecho! El Stop de {ticker_sel} se ha actualizado correctamente a {nuevo_stop:.2f}. Actualiza la página para ver el cambio en el Radar.")
                             
         except Exception as e: st.error(f"Error técnico: {e}")
 
