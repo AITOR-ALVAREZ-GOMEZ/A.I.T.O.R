@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 39.0 TRANSPARENCIA", layout="wide")
+st.set_page_config(page_title="AITOR 40.0 STABLE", layout="wide")
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY & TARJETAS DESGLOSE ---
 st.markdown("""
@@ -16,8 +16,12 @@ st.markdown("""
     .stApp { background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: rgba(255, 255, 255, 0.7) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0,0,0,0.05) !important; }
     h1, h2, h3, h1 *, h2 *, h3 * { color: #1d1d1f !important; font-weight: 700 !important; letter-spacing: -0.5px; }
+    [data-testid="stMetric"] { background-color: #ffffff; border-radius: 18px; padding: 15px 20px; min-height: 140px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); }
+    [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #1d1d1f !important; font-weight: 700 !important; font-size: 2.2rem !important; }
+    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: #86868b !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.5px; }
     .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div { background-color: #ffffff !important; border-radius: 12px !important; border: 1px solid rgba(0,0,0,0.1) !important; }
-    .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; }
+    .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; transition: all 0.2s ease;}
+    .stButton>button:active { transform: scale(0.98); }
     
     /* TARJETAS PERSONALIZADAS */
     .apple-kpi-card { background-color: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; }
@@ -57,8 +61,9 @@ A_ACTUAL = datetime.datetime.now().year
 COL_DB = ["Ticker", "Tier", "EV_Total", "IDT_Puntos", "ITE_Porc", "Veredicto", "Acciones", "Inversion"]
 for i in range(1, 6): COL_DB.extend([f"S{i}_Dias", f"W{i}", f"R{i}"])
 
+# FIX CACHE: ttl=0 en la conexión inicial para que lea siempre en directo
 conn = st.connection("gsheets", type=GSheetsConnection)
-try: df_datos = conn.read(worksheet="Sheet1", ttl=5)
+try: df_datos = conn.read(worksheet="Sheet1", ttl=0) 
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 # =====================================================================
@@ -182,7 +187,6 @@ with tab1:
             ev_i = round((wr_dec * rt) - ((1.0 - wr_dec) * 1.0), 2)
             s_elegidos.append(s_val); l_ev.append(ev_i); l_wr.append(wr); l_rt.append(rt); l_es.append(es)
             
-            # Formato de métrica sencilla
             st.markdown(f"<div style='text-align:center; padding:10px; background:#fff; border-radius:10px; border:1px solid #e5e5ea; margin-top:5px;'><div style='color:#86868b; font-size:0.75rem; font-weight:bold;'>EV {s_val}D</div><div style='font-size:1.4rem; font-weight:800; color:#1d1d1f;'>{ev_i:.2f}</div></div>", unsafe_allow_html=True)
 
     if l_es.count("Venta") >= 3:
@@ -199,15 +203,11 @@ with tab1:
     p_sen = 10 if l_es[0] == "Compra" else 0
     idt = l_wr[0] + bono + p_estr + p_sen - penal
 
-    # =====================================================================
-    # NUEVO BLOQUE: TARJETAS DE MÉTRICAS CON DESGLOSE INTERIOR TRANSPARENTE
-    # =====================================================================
     st.markdown("---")
     st.markdown("### 🏛️ Auditoría Matemática Central")
     c1, c2, c3 = st.columns(3)
     
     with c1:
-        # TARJETA 1: SCORE EV
         h_ev = "<div class='rank-box'>"
         if ev_tot >= 10: h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
         elif ev_tot >= 5: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-on' style='background:#2b8af7;'>TIER A</div><div class='tag-off'>DESCARTE</div>"
@@ -224,7 +224,6 @@ with tab1:
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>SCORE EV (Esperanza)</div><div class='apple-kpi-value'>{ev_tot:.2f}</div>{breakdown_ev}{h_ev}</div>", unsafe_allow_html=True)
 
     with c2:
-        # TARJETA 2: PUNTOS IDT
         h_idt = "<div class='rank-box'>"
         if idt >= 100: h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
         elif idt >= 85: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-on' style='background:#ff9500;'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
@@ -241,7 +240,6 @@ with tab1:
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>PUNTOS IDT (Estructura)</div><div class='apple-kpi-value'>{idt}</div>{breakdown_idt}{h_idt}</div>", unsafe_allow_html=True)
 
     with c3:
-        # TARJETA 3: RIESGO ITE
         h_ite = "<div class='rank-box'>"
         if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
         elif ite <= 10: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
@@ -326,6 +324,35 @@ with tab1:
         except: pass
 
     st.markdown("---")
+    st.subheader("📋 Auditoría Clínica de Entrada")
+    
+    if ev_tot >= 10: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
+    elif ev_tot >= 5: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
+    else: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
+    st.markdown(f"<div class='tdah-box {col_ev}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad del Sistema):</div><div class='tdah-text'>{txt_ev}</div></div>", unsafe_allow_html=True)
+
+    if net_ev > 1.5: col_f = "tdah-green"
+    elif net_ev > 0: col_f = "tdah-yellow"
+    else: col_f = "tdah-red"
+    txt_desglose = f"Las medias a favor (Compras) suman <b>+{ev_compra:.2f}</b>. Las medias en contra (Ventas) restan <b>-{ev_venta:.2f}</b>.<br>👉 <b>Fuerza Neta Resultante: {net_ev:+.2f}</b>"
+    tot_abs = abs(ev_compra) + abs(ev_venta)
+    if tot_abs == 0: tot_abs = 1
+    pct_c = (abs(ev_compra) / tot_abs) * 100
+    pct_v = (abs(ev_venta) / tot_abs) * 100
+    html_barra_audit = f"""<div style="display:flex; height: 30px; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #e5e5ea; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);"><div style="width: {pct_c}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">+{ev_compra:.2f}</div><div style="width: {pct_v}%; background: linear-gradient(90deg, #f87171, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">-{ev_venta:.2f}</div></div>"""
+    st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>⚖️ Desglose de Medias (Suma vs Resta):</div><div class='tdah-text'>{txt_desglose}{html_barra_audit}</div></div>", unsafe_allow_html=True)
+
+    if z_in > 2.5: txt_z, col_z = "PELIGRO. Precio disparado por euforia. Entrar hoy es comprar el techo.", "tdah-red"
+    elif z_in > 2.0: txt_z, col_z = "Goma muy tensa. Si entras, reduce tu posición a la mitad.", "tdah-yellow"
+    elif z_in < -1.0: txt_z, col_z = "Goma estirada hacia abajo. Podría haber un rebote pronto.", "tdah-blue"
+    else: txt_z, col_z = "Tensión NORMAL. El precio está cerca de su media. Zona segura para comprar.", "tdah-green"
+    st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Tensión del Precio (Z-Score):</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
+
+    if acc_in > 0: txt_a, col_a = "Sigue entrando dinero nuevo. El tren está acelerando.", "tdah-green"
+    else: txt_a, col_a = "Han levantado el pie del acelerador. El movimiento está perdiendo gas.", "tdah-yellow"
+    st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
     
     if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
@@ -337,7 +364,7 @@ with tab1:
     st.markdown("<br>", unsafe_allow_html=True)
 
     # =====================================================================
-    # BOTONES DE ACCIÓN (NUEVA ZONA DE GUARDADO Y COMPRA DIRECTA)
+    # BOTONES DE ACCIÓN (ANTI-SALTOS DE PANTALLA)
     # =====================================================================
     st.markdown("---")
     st.subheader("⚙️ Panel de Ejecución Cuantitativa")
@@ -345,45 +372,57 @@ with tab1:
     col_btn_save, col_btn_buy = st.columns(2)
     
     with col_btn_save:
-        if st.button("💾 Solo Guardar Escaneo (Añadir a Radar de Vigilancia)"):
-            v_t = "REVISION REQUERIDA"
-            if idt >= 100: v_t = "COMPRA OBLIGATORIA"
-            elif idt >= 85: v_t = "COMPRA TACTICA"
-            elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
-            
-            d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
-            for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-            new_row = pd.DataFrame([d_sav])
-            df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
-            conn.update(worksheet="Sheet1", data=df_upd)
-            st.success("✅ Guardado correctamente en tu Base de Datos de Vigilancia.")
+        if st.button("💾 Solo Guardar Escaneo (Añadir a Radar)", use_container_width=True):
+            with st.spinner("📡 Sincronizando con Base de Datos..."):
+                try:
+                    v_t = "REVISION REQUERIDA"
+                    if idt >= 100: v_t = "COMPRA OBLIGATORIA"
+                    elif idt >= 85: v_t = "COMPRA TACTICA"
+                    elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
+                    
+                    d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
+                    for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
+                    
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
+                    if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
+                    
+                    df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
+                    conn.update(worksheet="Sheet1", data=df_upd)
+                    st.cache_data.clear()
+                    st.toast("✅ Escaneo guardado correctamente en tu Auditoría.", icon="💾")
+                except Exception as e:
+                    st.error(f"Error al guardar: {e}")
 
     with col_btn_buy:
-        if st.button("🚀 COMPRAR AHORA: Añadir directamente a Cartera en Vivo"):
-            v_t = "COMPRADO"
-            d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
-            for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-            df_upd = pd.concat([df_datos, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
-            conn.update(worksheet="Sheet1", data=df_upd)
-            
-            try:
-                df_c = conn.read(worksheet="Cartera", ttl=0)
-                n_pos = {
-                    "Ticker": ticker, 
-                    "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), 
-                    "Precio_Entrada": p_buy, 
-                    "Num_Acciones": n_tit, 
-                    "Stop_Actual": p_sl, 
-                    "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), 
-                    "Precio_Ruptura_S4": p_buy,
-                    "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), 
-                    "Precio_Ruptura_S5": p_buy
-                }
-                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                st.success(f"🎉 ¡OPERACIÓN REGISTRADA! Se han añadido {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.")
-                st.balloons()
-            except Exception as e:
-                st.error(f"Error al enviar a cartera: {e}")
+        if st.button("🚀 COMPRAR AHORA: Enviar a Cartera en Vivo", use_container_width=True):
+            with st.spinner("📡 Ejecutando operación y guardando..."):
+                try:
+                    v_t = "COMPRADO"
+                    d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
+                    for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
+                    
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
+                    if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
+                    df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
+                    conn.update(worksheet="Sheet1", data=df_upd)
+                    
+                    df_c = conn.read(worksheet="Cartera", ttl=0)
+                    n_pos = {
+                        "Ticker": ticker, 
+                        "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), 
+                        "Precio_Entrada": p_buy, 
+                        "Num_Acciones": n_tit, 
+                        "Stop_Actual": p_sl, 
+                        "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), 
+                        "Precio_Ruptura_S4": p_buy,
+                        "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), 
+                        "Precio_Ruptura_S5": p_buy
+                    }
+                    conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                    st.cache_data.clear()
+                    st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.", icon="🚀")
+                except Exception as e:
+                    st.error(f"Error al enviar a cartera: {e}")
 
 # --- PESTAÑA 2: AUDITORÍA GLOBAL (EL CENTRO DE MANDO) ---
 with tab2: 
@@ -546,12 +585,14 @@ with tab3:
                         submit_update = st.form_submit_button("Actualizar Stop en Base de Datos")
                         
                     if submit_update:
-                        df_c_update = conn.read(worksheet="Cartera", ttl=0)
-                        idx_to_update = df_c_update[df_c_update['Ticker'] == ticker_sel].index
-                        if not idx_to_update.empty:
-                            df_c_update.loc[idx_to_update[-1], 'Stop_Actual'] = nuevo_stop
-                            conn.update(worksheet="Cartera", data=df_c_update)
-                            st.success(f"✅ ¡Hecho! El Stop de {ticker_sel} se ha actualizado correctamente a {nuevo_stop:.2f}. Actualiza la página para ver el cambio en el Radar.")
+                        with st.spinner("Actualizando..."):
+                            df_c_update = conn.read(worksheet="Cartera", ttl=0)
+                            idx_to_update = df_c_update[df_c_update['Ticker'] == ticker_sel].index
+                            if not idx_to_update.empty:
+                                df_c_update.loc[idx_to_update[-1], 'Stop_Actual'] = nuevo_stop
+                                conn.update(worksheet="Cartera", data=df_c_update)
+                                st.cache_data.clear()
+                                st.toast(f"✅ ¡Hecho! El Stop de {ticker_sel} se ha actualizado a {nuevo_stop:.2f}.", icon="💾")
                             
         except Exception as e: st.error(f"Error técnico: {e}")
 
@@ -574,10 +615,12 @@ with tab3:
                 t_precio_s5 = st.number_input("Precio S5", format="%.2f")
             
             if st.form_submit_button("Añadir a Cartera") and t_ticker != "":
-                df_c = conn.read(worksheet="Cartera", ttl=0)
-                n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
-                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                st.success("Añadido exitosamente.")
+                with st.spinner("Añadiendo..."):
+                    df_c = conn.read(worksheet="Cartera", ttl=0)
+                    n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
+                    conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                    st.cache_data.clear()
+                    st.toast("Añadido exitosamente.", icon="✅")
 
     # --- HISTORIAL ---
     with tab_historial:
