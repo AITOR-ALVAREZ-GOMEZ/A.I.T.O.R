@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 36.3 VEREDICTO FIX", layout="wide")
+st.set_page_config(page_title="AITOR 36.4 ALTA CONVICCION", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -117,8 +117,13 @@ c_sect = st.sidebar.checkbox("Lider Sector", value=True)
 bono = pts_eps + (10 if c_inst else 0) + (10 if c_sect else 0)
 ev_plus = bono / 7.0
 
+# =====================================================================
+# LA MODIFICACIÓN DE ALTA CONVICCIÓN (RIESGO HASTA 10%)
+# =====================================================================
 st.sidebar.header("Gestion Capital")
-r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
+r_pct = st.sidebar.slider("Riesgo (%)", min_value=0.5, max_value=10.0, value=3.3, step=0.1)
+st.sidebar.caption("💡 Para tu estrategia de Alta Convicción (3 acciones), el riesgo matemático ideal ronda el **3.3%** por operación para no dejar dinero improductivo.")
+
 p_buy = st.sidebar.number_input("Precio Compra", value=float(p_merc), key=f"buy_{ticker}")
 
 stop_sugerido_auto = p_buy * 0.95
@@ -319,9 +324,6 @@ with tab1:
 
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # =====================================================================
-    # RESTAURACIÓN DEL VEREDICTO FINAL DE LA MÁQUINA (INTEGRANDO EL ACELERADOR)
-    # =====================================================================
     if net_ev < 0: 
         ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: 
