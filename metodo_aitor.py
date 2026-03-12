@@ -7,31 +7,33 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 38.0 EJECUCION", layout="wide")
+st.set_page_config(page_title="AITOR 39.0 TRANSPARENCIA", layout="wide")
 
-# --- CSS ESTILO APPLE & TDAH FRIENDLY ---
+# --- CSS ESTILO APPLE, TDAH FRIENDLY & TARJETAS DESGLOSE ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
     .stApp { background-color: #f5f5f7; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; color: #1d1d1f; }
     [data-testid="stSidebar"] { background-color: rgba(255, 255, 255, 0.7) !important; backdrop-filter: blur(20px) !important; border-right: 1px solid rgba(0,0,0,0.05) !important; }
     h1, h2, h3, h1 *, h2 *, h3 * { color: #1d1d1f !important; font-weight: 700 !important; letter-spacing: -0.5px; }
-    [data-testid="stMetric"] { background-color: #ffffff; border-radius: 18px; padding: 15px 20px; min-height: 140px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); }
-    [data-testid="stMetricValue"], [data-testid="stMetricValue"] * { color: #1d1d1f !important; font-weight: 700 !important; font-size: 2.2rem !important; }
-    [data-testid="stMetricLabel"], [data-testid="stMetricLabel"] * { color: #86868b !important; font-weight: 600 !important; text-transform: uppercase; letter-spacing: 0.5px; }
     .stTextInput input, .stNumberInput input, [data-baseweb="select"] > div { background-color: #ffffff !important; border-radius: 12px !important; border: 1px solid rgba(0,0,0,0.1) !important; }
     .stButton>button { background: linear-gradient(180deg, #2b8af7 0%, #0071e3 100%) !important; color: white !important; border: none !important; border-radius: 20px !important; padding: 10px 24px !important; font-weight: 600 !important; box-shadow: 0 4px 14px rgba(0, 113, 227, 0.3) !important; }
-    .rank-box { display: flex; gap: 6px; margin-top: 12px; flex-wrap: wrap; }
-    .tag-on { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-    .tag-off { border-radius: 12px; padding: 6px 10px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; }
-    .apple-kpi-container { display: flex; justify-content: space-between; gap: 15px; margin-bottom: 20px; flex-wrap: wrap; }
-    .apple-kpi-card { background-color: #ffffff; border-radius: 20px; padding: 20px; flex: 1; min-width: 150px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); display: flex; flex-direction: column; justify-content: center; align-items: flex-start; }
-    .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px; }
-    .apple-kpi-value { font-size: 2.2rem; font-weight: 800; color: #1d1d1f; line-height: 1; margin-bottom: 5px; white-space: nowrap; }
-    .apple-kpi-sub { font-size: 0.9rem; font-weight: 600; padding: 4px 8px; border-radius: 8px; }
-    .sub-green { background-color: #e5fbee; color: #188038; }
-    .sub-red { background-color: #fce8e6; color: #c5221f; }
-    .sub-gray { background-color: #f1f3f4; color: #5f6368; }
+    
+    /* TARJETAS PERSONALIZADAS */
+    .apple-kpi-card { background-color: #ffffff; border-radius: 18px; padding: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.04); border: 1px solid rgba(0,0,0,0.03); width: 100%; height: 100%; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; }
+    .apple-kpi-title { font-size: 0.8rem; color: #86868b; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 5px; }
+    .apple-kpi-value { font-size: 2.4rem; font-weight: 800; color: #1d1d1f; line-height: 1; }
+    
+    /* CAJA GRIS DE DESGLOSE INTERIOR */
+    .kpi-breakdown { font-size: 0.75rem; color: #5f6368; margin-top: 12px; margin-bottom: 12px; line-height: 1.6; background: #f8f9fa; padding: 12px; border-radius: 10px; width: 100%; border: 1px solid #e8eaed; }
+    .kpi-breakdown b { color: #1d1d1f; }
+    
+    /* ETIQUETAS RANKING */
+    .rank-box { display: flex; gap: 6px; flex-wrap: wrap; margin-top: auto; }
+    .tag-on { border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 700; color: #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.1); text-transform: uppercase; letter-spacing: 0.5px;}
+    .tag-off { border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; text-transform: uppercase; letter-spacing: 0.5px;}
+    
+    /* OTROS */
     .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 15px;}
     .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; }
     .quant-desc { font-size: 0.85rem; color: #86868b; line-height: 1.4; margin-bottom: 15px; }
@@ -42,6 +44,7 @@ st.markdown("""
     .tdah-blue { background: #eff6ff; border-color: #3b82f6; }
     .tdah-title { font-weight: 800; font-size: 1.05rem; margin-bottom: 4px; color: #111827;}
     .tdah-text { font-size: 0.95rem; color: #374151; line-height: 1.4;}
+    
     @keyframes flash-red { 0% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); } 50% { background-color: #ffe5e5; color: #ff3b30; box-shadow: 0 0 0px rgba(255, 59, 48, 0); } 100% { background-color: #ff3b30; color: white; box-shadow: 0 0 15px rgba(255, 59, 48, 0.8); } }
     .flashing-alert { animation: flash-red 1s infinite; padding: 15px; border-radius: 12px; text-align: center; font-weight: 800; font-size: 1.3rem; margin-top: 15px; margin-bottom: 15px; border: 2px solid #ff3b30; text-transform: uppercase; letter-spacing: 1px; }
 </style>
@@ -178,7 +181,9 @@ with tab1:
             wr_dec = wr / 100.0
             ev_i = round((wr_dec * rt) - ((1.0 - wr_dec) * 1.0), 2)
             s_elegidos.append(s_val); l_ev.append(ev_i); l_wr.append(wr); l_rt.append(rt); l_es.append(es)
-            st.metric("EV " + str(s_val) + "D", str(ev_i))
+            
+            # Formato de métrica sencilla
+            st.markdown(f"<div style='text-align:center; padding:10px; background:#fff; border-radius:10px; border:1px solid #e5e5ea; margin-top:5px;'><div style='color:#86868b; font-size:0.75rem; font-weight:bold;'>EV {s_val}D</div><div style='font-size:1.4rem; font-weight:800; color:#1d1d1f;'>{ev_i:.2f}</div></div>", unsafe_allow_html=True)
 
     if l_es.count("Venta") >= 3:
         st.markdown("<div class='flashing-alert'>🚨 ¡ALERTA CRÍTICA! 3 o más Sistemas en Venta. Peligro de colapso. 🚨</div>", unsafe_allow_html=True)
@@ -190,37 +195,68 @@ with tab1:
     ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
     
     penal = 30 if ite > 15 else 0 
-    
     p_estr = sum(10 for e in l_es[1:] if e == "Compra")
     p_sen = 10 if l_es[0] == "Compra" else 0
     idt = l_wr[0] + bono + p_estr + p_sen - penal
 
+    # =====================================================================
+    # NUEVO BLOQUE: TARJETAS DE MÉTRICAS CON DESGLOSE INTERIOR TRANSPARENTE
+    # =====================================================================
     st.markdown("---")
+    st.markdown("### 🏛️ Auditoría Matemática Central")
     c1, c2, c3 = st.columns(3)
+    
     with c1:
-        st.metric("SCORE EV", str(ev_tot))
+        # TARJETA 1: SCORE EV
         h_ev = "<div class='rank-box'>"
         if ev_tot >= 10: h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
         elif ev_tot >= 5: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-on' style='background:#2b8af7;'>TIER A</div><div class='tag-off'>DESCARTE</div>"
         else: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-on' style='background:#ff3b30;'>DESCARTE</div>"
         h_ev += "</div>"
-        st.markdown(h_ev, unsafe_allow_html=True)
+        
+        breakdown_ev = f"""
+        <div class='kpi-breakdown'>
+            • Medias Base: <b>{(sum(l_ev)/5.0):.2f}</b><br>
+            • Bonus Calidad: <b>+{ev_plus:.2f}</b><br>
+            • Tira y Afloja (Neto): <b style='color:#16a34a;'>+{ev_compra:.2f}</b> / <b style='color:#dc2626;'>-{ev_venta:.2f}</b>
+        </div>
+        """
+        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>SCORE EV (Esperanza)</div><div class='apple-kpi-value'>{ev_tot:.2f}</div>{breakdown_ev}{h_ev}</div>", unsafe_allow_html=True)
+
     with c2:
-        st.metric("PUNTOS IDT", str(idt))
+        # TARJETA 2: PUNTOS IDT
         h_idt = "<div class='rank-box'>"
         if idt >= 100: h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
         elif idt >= 85: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-on' style='background:#ff9500;'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
         else: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-on' style='background:#ff3b30;'>BLOQUEADA</div>"
         h_idt += "</div>"
-        st.markdown(h_idt, unsafe_allow_html=True)
+        
+        breakdown_idt = f"""
+        <div class='kpi-breakdown'>
+            • WinRate Principal: <b>+{l_wr[0]}</b><br>
+            • Calidad + Sistemas: <b>+{(bono + p_estr + p_sen)}</b><br>
+            • Penalización por Stop: <b style='color:#dc2626;'>-{penal}</b>
+        </div>
+        """
+        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>PUNTOS IDT (Estructura)</div><div class='apple-kpi-value'>{idt}</div>{breakdown_idt}{h_idt}</div>", unsafe_allow_html=True)
+
     with c3:
-        st.metric("RIESGO ITE", str(ite) + "%")
+        # TARJETA 3: RIESGO ITE
         h_ite = "<div class='rank-box'>"
-        if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-off'>REDUCIR POSICION</div>"
-        elif ite <= 10: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>MANEJABLE</div><div class='tag-off'>REDUCIR POSICION</div>"
-        else: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-on' style='background:#ff3b30;'>REDUCIR POSICION</div>"
+        if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
+        elif ite <= 10: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
+        else: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-on' style='background:#ff3b30;'>PELIGROSO</div>"
         h_ite += "</div>"
-        st.markdown(h_ite, unsafe_allow_html=True)
+        
+        distancia = p_buy - p_sl
+        breakdown_ite = f"""
+        <div class='kpi-breakdown'>
+            • Precio Compra: <b>{p_buy:.2f} $</b><br>
+            • Stop Loss: <b>{p_sl:.2f} $</b><br>
+            • Distancia de caída: <b>{distancia:.2f} $</b>
+        </div>
+        """
+        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
     pct_riesgo = r_pct / 100.0
     p_max = CAPITAL * pct_riesgo
@@ -290,40 +326,13 @@ with tab1:
         except: pass
 
     st.markdown("---")
-    st.subheader("📋 Auditoría Clínica de Entrada")
     
-    if ev_tot >= 10: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
-    elif ev_tot >= 5: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
-    else: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_ev}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad del Sistema):</div><div class='tdah-text'>{txt_ev}</div></div>", unsafe_allow_html=True)
-
-    if net_ev > 1.5: col_f = "tdah-green"
-    elif net_ev > 0: col_f = "tdah-yellow"
-    else: col_f = "tdah-red"
-    txt_desglose = f"Las medias a favor (Compras) suman <b>+{ev_compra:.2f}</b>. Las medias en contra (Ventas) restan <b>-{ev_venta:.2f}</b>.<br>👉 <b>Fuerza Neta Resultante: {net_ev:+.2f}</b>"
-    tot_abs = abs(ev_compra) + abs(ev_venta)
-    if tot_abs == 0: tot_abs = 1
-    pct_c = (abs(ev_compra) / tot_abs) * 100
-    pct_v = (abs(ev_venta) / tot_abs) * 100
-    html_barra_audit = f"""<div style="display:flex; height: 30px; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #e5e5ea; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);"><div style="width: {pct_c}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">+{ev_compra:.2f}</div><div style="width: {pct_v}%; background: linear-gradient(90deg, #f87171, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">-{ev_venta:.2f}</div></div>"""
-    st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>⚖️ Desglose de Medias (Suma vs Resta):</div><div class='tdah-text'>{txt_desglose}{html_barra_audit}</div></div>", unsafe_allow_html=True)
-
-    if z_in > 2.5: txt_z, col_z = "PELIGRO. Precio disparado por euforia. Entrar hoy es comprar el techo.", "tdah-red"
-    elif z_in > 2.0: txt_z, col_z = "Goma muy tensa. Si entras, reduce tu posición a la mitad.", "tdah-yellow"
-    elif z_in < -1.0: txt_z, col_z = "Goma estirada hacia abajo. Podría haber un rebote pronto.", "tdah-blue"
-    else: txt_z, col_z = "Tensión NORMAL. El precio está cerca de su media. Zona segura para comprar.", "tdah-green"
-    st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Tensión del Precio (Z-Score):</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
-
-    if acc_in > 0: txt_a, col_a = "Sigue entrando dinero nuevo. El tren está acelerando.", "tdah-green"
-    else: txt_a, col_a = "Han levantado el pie del acelerador. El movimiento está perdiendo gas.", "tdah-yellow"
-    st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
     if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
     elif net_ev > 1.5 and z_in <= 2.0 and acc_in > 0: ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Estructura fuerte, precio sin tensión y con el acelerador pisado. Adelante.", "tdah-green"
     elif acc_in <= 0: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La estructura es alcista pero el Momentum está en rojo (Pérdida de gas). Entra si quieres, pero reduce tu capital.", "tdah-yellow"
     else: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La operación es viable, pero hay dudas en la estructura o el precio. Opera solo con media posición.", "tdah-yellow"
+        
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
@@ -351,14 +360,12 @@ with tab1:
 
     with col_btn_buy:
         if st.button("🚀 COMPRAR AHORA: Añadir directamente a Cartera en Vivo"):
-            # 1. Guardamos el escaneo histórico (como en el botón anterior)
             v_t = "COMPRADO"
             d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
             for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
             df_upd = pd.concat([df_datos, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
             conn.update(worksheet="Sheet1", data=df_upd)
             
-            # 2. INYECCIÓN DIRECTA EN LA CARTERA
             try:
                 df_c = conn.read(worksheet="Cartera", ttl=0)
                 n_pos = {
@@ -368,9 +375,9 @@ with tab1:
                     "Num_Acciones": n_tit, 
                     "Stop_Actual": p_sl, 
                     "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), 
-                    "Precio_Ruptura_S4": p_buy, # Default seguro
+                    "Precio_Ruptura_S4": p_buy,
                     "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), 
-                    "Precio_Ruptura_S5": p_buy  # Default seguro
+                    "Precio_Ruptura_S5": p_buy
                 }
                 conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
                 st.success(f"🎉 ¡OPERACIÓN REGISTRADA! Se han añadido {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.")
