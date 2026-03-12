@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 36.4 ALTA CONVICCION", layout="wide")
+st.set_page_config(page_title="AITOR 37.0 DESGLOSE EV", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -117,12 +117,9 @@ c_sect = st.sidebar.checkbox("Lider Sector", value=True)
 bono = pts_eps + (10 if c_inst else 0) + (10 if c_sect else 0)
 ev_plus = bono / 7.0
 
-# =====================================================================
-# LA MODIFICACIÓN DE ALTA CONVICCIÓN (RIESGO HASTA 10%)
-# =====================================================================
 st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", min_value=0.5, max_value=10.0, value=3.3, step=0.1)
-st.sidebar.caption("💡 Para tu estrategia de Alta Convicción (3 acciones), el riesgo matemático ideal ronda el **3.3%** por operación para no dejar dinero improductivo.")
+st.sidebar.caption("💡 Riesgo ideal para Alta Convicción (3 acciones): **3.3%**")
 
 p_buy = st.sidebar.number_input("Precio Compra", value=float(p_merc), key=f"buy_{ticker}")
 
@@ -225,19 +222,6 @@ with tab1:
         h_ite += "</div>"
         st.markdown(h_ite, unsafe_allow_html=True)
 
-    st.markdown("### ⚖️ Fuerza Estructural (Compras vs Ventas)")
-    tot_abs = abs(ev_compra) + abs(ev_venta)
-    if tot_abs == 0: tot_abs = 1
-    pct_c = (abs(ev_compra) / tot_abs) * 100
-    pct_v = (abs(ev_venta) / tot_abs) * 100
-    html_barra = f"""
-    <div style="display:flex; height: 35px; border-radius: 10px; overflow: hidden; margin-bottom: 5px; background: #e5e5ea; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
-        <div style="width: {pct_c}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1.1rem;">COMPRAS (+{ev_compra:.2f})</div>
-        <div style="width: {pct_v}%; background: linear-gradient(90deg, #f87171, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1.1rem;">VENTAS (-{ev_venta:.2f})</div>
-    </div>
-    """
-    st.markdown(html_barra, unsafe_allow_html=True)
-
     pct_riesgo = r_pct / 100.0
     p_max = CAPITAL * pct_riesgo
     dif_p = p_buy - p_sl
@@ -305,25 +289,56 @@ with tab1:
                     st.markdown("</div>", unsafe_allow_html=True)
         except: pass
 
+    # =====================================================================
+    # AUDITORÍA CLÍNICA DESGLOSADA (LA GRAN NOVEDAD DE LA V37)
+    # =====================================================================
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada")
-    if net_ev > 1.5: txt_f, col_f = "Estructura ALCISTA FUERTE. El viento sopla a tu favor.", "tdah-green"
-    elif net_ev > 0: txt_f, col_f = "Estructura DÉBIL. Hay lucha entre compradores y vendedores.", "tdah-yellow"
-    else: txt_f, col_f = "Estructura BAJISTA. Estás intentando operar contra la corriente.", "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>🏋️‍♂️ Fuerza Estructural (Net EV):</div><div class='tdah-text'>{txt_f}</div></div>", unsafe_allow_html=True)
+    
+    # 1. ESPERANZA MATEMÁTICA TOTAL
+    if ev_tot >= 10: 
+        txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
+    elif ev_tot >= 5: 
+        txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
+    else: 
+        txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
+    
+    st.markdown(f"<div class='tdah-box {col_ev}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad del Sistema):</div><div class='tdah-text'>{txt_ev}</div></div>", unsafe_allow_html=True)
 
+    # 2. DESGLOSE DE FUERZAS (SUMA Y RESTA) Y BARRA VISUAL
+    if net_ev > 1.5: col_f = "tdah-green"
+    elif net_ev > 0: col_f = "tdah-yellow"
+    else: col_f = "tdah-red"
+    
+    txt_desglose = f"Las medias a favor (Compras) suman <b>+{ev_compra:.2f}</b>. Las medias en contra (Ventas) restan <b>-{ev_venta:.2f}</b>.<br>👉 <b>Fuerza Neta Resultante: {net_ev:+.2f}</b>"
+    
+    tot_abs = abs(ev_compra) + abs(ev_venta)
+    if tot_abs == 0: tot_abs = 1
+    pct_c = (abs(ev_compra) / tot_abs) * 100
+    pct_v = (abs(ev_venta) / tot_abs) * 100
+    html_barra_audit = f"""
+    <div style="display:flex; height: 30px; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #e5e5ea; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
+        <div style="width: {pct_c}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">+{ev_compra:.2f}</div>
+        <div style="width: {pct_v}%; background: linear-gradient(90deg, #f87171, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">-{ev_venta:.2f}</div>
+    </div>
+    """
+    st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>⚖️ Desglose de Medias (Suma vs Resta):</div><div class='tdah-text'>{txt_desglose}{html_barra_audit}</div></div>", unsafe_allow_html=True)
+
+    # 3. Z-SCORE
     if z_in > 2.5: txt_z, col_z = "PELIGRO. Precio disparado por euforia. Entrar hoy es comprar el techo.", "tdah-red"
     elif z_in > 2.0: txt_z, col_z = "Goma muy tensa. Si entras, reduce tu posición a la mitad.", "tdah-yellow"
     elif z_in < -1.0: txt_z, col_z = "Goma estirada hacia abajo. Podría haber un rebote pronto.", "tdah-blue"
     else: txt_z, col_z = "Tensión NORMAL. El precio está cerca de su media. Zona segura para comprar.", "tdah-green"
     st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Tensión del Precio (Z-Score):</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
 
+    # 4. ACELERACIÓN
     if acc_in > 0: txt_a, col_a = "Sigue entrando dinero nuevo. El tren está acelerando.", "tdah-green"
     else: txt_a, col_a = "Han levantado el pie del acelerador. El movimiento está perdiendo gas.", "tdah-yellow"
-    st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Momentum:</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     
+    # 5. VEREDICTO FINAL
     if net_ev < 0: 
         ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: 
