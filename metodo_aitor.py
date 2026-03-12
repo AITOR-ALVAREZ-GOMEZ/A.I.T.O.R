@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 37.0 DESGLOSE EV", layout="wide")
+st.set_page_config(page_title="AITOR 38.0 EJECUCION", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -289,82 +289,94 @@ with tab1:
                     st.markdown("</div>", unsafe_allow_html=True)
         except: pass
 
-    # =====================================================================
-    # AUDITORÍA CLÍNICA DESGLOSADA (LA GRAN NOVEDAD DE LA V37)
-    # =====================================================================
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada")
     
-    # 1. ESPERANZA MATEMÁTICA TOTAL
-    if ev_tot >= 10: 
-        txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
-    elif ev_tot >= 5: 
-        txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
-    else: 
-        txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
-    
+    if ev_tot >= 10: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
+    elif ev_tot >= 5: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
+    else: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
     st.markdown(f"<div class='tdah-box {col_ev}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad del Sistema):</div><div class='tdah-text'>{txt_ev}</div></div>", unsafe_allow_html=True)
 
-    # 2. DESGLOSE DE FUERZAS (SUMA Y RESTA) Y BARRA VISUAL
     if net_ev > 1.5: col_f = "tdah-green"
     elif net_ev > 0: col_f = "tdah-yellow"
     else: col_f = "tdah-red"
-    
     txt_desglose = f"Las medias a favor (Compras) suman <b>+{ev_compra:.2f}</b>. Las medias en contra (Ventas) restan <b>-{ev_venta:.2f}</b>.<br>👉 <b>Fuerza Neta Resultante: {net_ev:+.2f}</b>"
-    
     tot_abs = abs(ev_compra) + abs(ev_venta)
     if tot_abs == 0: tot_abs = 1
     pct_c = (abs(ev_compra) / tot_abs) * 100
     pct_v = (abs(ev_venta) / tot_abs) * 100
-    html_barra_audit = f"""
-    <div style="display:flex; height: 30px; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #e5e5ea; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
-        <div style="width: {pct_c}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">+{ev_compra:.2f}</div>
-        <div style="width: {pct_v}%; background: linear-gradient(90deg, #f87171, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">-{ev_venta:.2f}</div>
-    </div>
-    """
+    html_barra_audit = f"""<div style="display:flex; height: 30px; border-radius: 8px; overflow: hidden; margin-top: 10px; background: #e5e5ea; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);"><div style="width: {pct_c}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">+{ev_compra:.2f}</div><div style="width: {pct_v}%; background: linear-gradient(90deg, #f87171, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1rem;">-{ev_venta:.2f}</div></div>"""
     st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>⚖️ Desglose de Medias (Suma vs Resta):</div><div class='tdah-text'>{txt_desglose}{html_barra_audit}</div></div>", unsafe_allow_html=True)
 
-    # 3. Z-SCORE
     if z_in > 2.5: txt_z, col_z = "PELIGRO. Precio disparado por euforia. Entrar hoy es comprar el techo.", "tdah-red"
     elif z_in > 2.0: txt_z, col_z = "Goma muy tensa. Si entras, reduce tu posición a la mitad.", "tdah-yellow"
     elif z_in < -1.0: txt_z, col_z = "Goma estirada hacia abajo. Podría haber un rebote pronto.", "tdah-blue"
     else: txt_z, col_z = "Tensión NORMAL. El precio está cerca de su media. Zona segura para comprar.", "tdah-green"
     st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Tensión del Precio (Z-Score):</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
 
-    # 4. ACELERACIÓN
     if acc_in > 0: txt_a, col_a = "Sigue entrando dinero nuevo. El tren está acelerando.", "tdah-green"
     else: txt_a, col_a = "Han levantado el pie del acelerador. El movimiento está perdiendo gas.", "tdah-yellow"
     st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    
-    # 5. VEREDICTO FINAL
-    if net_ev < 0: 
-        ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
-    elif z_in > 2.5: 
-        ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
-    elif net_ev > 1.5 and z_in <= 2.0 and acc_in > 0: 
-        ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Estructura fuerte, precio sin tensión y con el acelerador pisado. Adelante.", "tdah-green"
-    elif acc_in <= 0:
-        ver_txt, ver_col = "⚠️ PRECAUCIÓN. La estructura es alcista pero el Momentum está en rojo (Pérdida de gas). Entra si quieres, pero reduce tu capital.", "tdah-yellow"
-    else: 
-        ver_txt, ver_col = "⚠️ PRECAUCIÓN. La operación es viable, pero hay dudas en la estructura o el precio. Opera solo con media posición.", "tdah-yellow"
-        
+    if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
+    elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
+    elif net_ev > 1.5 and z_in <= 2.0 and acc_in > 0: ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Estructura fuerte, precio sin tensión y con el acelerador pisado. Adelante.", "tdah-green"
+    elif acc_in <= 0: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La estructura es alcista pero el Momentum está en rojo (Pérdida de gas). Entra si quieres, pero reduce tu capital.", "tdah-yellow"
+    else: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La operación es viable, pero hay dudas en la estructura o el precio. Opera solo con media posición.", "tdah-yellow"
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-    if st.button("Guardar Escaneo en Base de Datos"):
-        v_t = "REVISION REQUERIDA"
-        if idt >= 100: v_t = "COMPRA OBLIGATORIA"
-        elif idt >= 85: v_t = "COMPRA TACTICA"
-        elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
-        
-        d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
-        for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-        new_row = pd.DataFrame([d_sav])
-        df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
-        conn.update(worksheet="Sheet1", data=df_upd)
-        st.success("Guardado ok.")
+    # =====================================================================
+    # BOTONES DE ACCIÓN (NUEVA ZONA DE GUARDADO Y COMPRA DIRECTA)
+    # =====================================================================
+    st.markdown("---")
+    st.subheader("⚙️ Panel de Ejecución Cuantitativa")
+    
+    col_btn_save, col_btn_buy = st.columns(2)
+    
+    with col_btn_save:
+        if st.button("💾 Solo Guardar Escaneo (Añadir a Radar de Vigilancia)"):
+            v_t = "REVISION REQUERIDA"
+            if idt >= 100: v_t = "COMPRA OBLIGATORIA"
+            elif idt >= 85: v_t = "COMPRA TACTICA"
+            elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
+            
+            d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
+            for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
+            new_row = pd.DataFrame([d_sav])
+            df_upd = pd.concat([df_datos, new_row], ignore_index=True).drop_duplicates("Ticker", keep="last")
+            conn.update(worksheet="Sheet1", data=df_upd)
+            st.success("✅ Guardado correctamente en tu Base de Datos de Vigilancia.")
+
+    with col_btn_buy:
+        if st.button("🚀 COMPRAR AHORA: Añadir directamente a Cartera en Vivo"):
+            # 1. Guardamos el escaneo histórico (como en el botón anterior)
+            v_t = "COMPRADO"
+            d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
+            for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
+            df_upd = pd.concat([df_datos, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
+            conn.update(worksheet="Sheet1", data=df_upd)
+            
+            # 2. INYECCIÓN DIRECTA EN LA CARTERA
+            try:
+                df_c = conn.read(worksheet="Cartera", ttl=0)
+                n_pos = {
+                    "Ticker": ticker, 
+                    "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), 
+                    "Precio_Entrada": p_buy, 
+                    "Num_Acciones": n_tit, 
+                    "Stop_Actual": p_sl, 
+                    "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), 
+                    "Precio_Ruptura_S4": p_buy, # Default seguro
+                    "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), 
+                    "Precio_Ruptura_S5": p_buy  # Default seguro
+                }
+                conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                st.success(f"🎉 ¡OPERACIÓN REGISTRADA! Se han añadido {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.")
+                st.balloons()
+            except Exception as e:
+                st.error(f"Error al enviar a cartera: {e}")
 
 # --- PESTAÑA 2: AUDITORÍA GLOBAL (EL CENTRO DE MANDO) ---
 with tab2: 
@@ -536,9 +548,9 @@ with tab3:
                             
         except Exception as e: st.error(f"Error técnico: {e}")
 
-    # --- NUEVA PESTAÑA: AÑADIR A CARTERA ---
+    # --- NUEVA PESTAÑA: AÑADIR A CARTERA MANULAMENTE ---
     with tab_add:
-        st.markdown("### ➕ Registrar Nueva Compra")
+        st.markdown("### ➕ Registrar Nueva Compra Manualmente")
         with st.form("form_add"):
             c1, c2, c3 = st.columns(3)
             with c1: 
