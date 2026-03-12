@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 30.2 ATR", layout="wide")
+st.set_page_config(page_title="AITOR 31.0 COMANDO", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -57,7 +57,7 @@ try: df_datos = conn.read(worksheet="Sheet1", ttl=5)
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 # =====================================================================
-# BUSCADOR LATERAL CON CÁLCULO DE ATR (VOLATILIDAD)
+# BUSCADOR LATERAL 
 # =====================================================================
 st.sidebar.header("Buscador de Activos")
 opciones_bd = df_datos['Ticker'].dropna().unique().tolist() if not df_datos.empty else []
@@ -77,15 +77,12 @@ if ticker != "":
         df_global = stock.history(period="1y")
         if not df_global.empty: 
             p_merc = float(df_global['Close'].iloc[-1])
-            
-            # CÁLCULO DEL ATR (Rango Verdadero Promedio de 14 días)
             high_low = df_global['High'] - df_global['Low']
             high_close = np.abs(df_global['High'] - df_global['Close'].shift())
             low_close = np.abs(df_global['Low'] - df_global['Close'].shift())
             ranges = pd.concat([high_low, high_close, low_close], axis=1)
             true_range = np.max(ranges, axis=1)
             atr_val = true_range.rolling(14).mean().iloc[-1]
-            
     except: pass
     try:
         info = stock.info
@@ -125,17 +122,11 @@ st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 
-# SUGERENCIA DE STOP BASADA EN ATR
 if atr_val > 0:
     stop_atr = p_buy - (2 * atr_val)
-    st.sidebar.markdown(f"""
-    <div style='background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 10px; border-radius: 4px; margin-bottom: 10px;'>
-        <div style='font-size: 0.8rem; color: #166534; font-weight: 600;'>💡 Paracaídas Inicial Matemático</div>
-        <div style='font-size: 0.85rem; color: #14532d; margin-top: 4px;'>Al no tener retroceso, pon tu Stop Loss a 2x el Ruido Diario (ATR) para no ser barrido: <b>{stop_atr:.2f} $</b></div>
-    </div>
-    """, unsafe_allow_html=True)
+    st.sidebar.markdown(f"<div style='background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 10px; border-radius: 4px; margin-bottom: 10px;'><div style='font-size: 0.8rem; color: #166534; font-weight: 600;'>💡 Paracaídas Inicial (2 ATR)</div><div style='font-size: 0.85rem; color: #14532d; margin-top: 4px;'>Red de seguridad sugerida si no hay retroceso: <b>{stop_atr:.2f} $</b></div></div>", unsafe_allow_html=True)
 else:
-    st.sidebar.info("☝️ Usa el precio de la Media Móvil del Escáner para rellenar tu Stop Loss:")
+    st.sidebar.info("☝️ Usa el precio de la Media Móvil para rellenar tu Stop Loss:")
 
 p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
 
@@ -342,77 +333,32 @@ with tab1:
         conn.update(worksheet="Sheet1", data=df_upd)
         st.success("Guardado ok.")
 
-# --- PESTAÑA 2: AUDITORÍA VISUAL E INTERACTIVA ---
+# --- PESTAÑA 2: AUDITORÍA GLOBAL (EL CENTRO DE MANDO) ---
 with tab2: 
-    st.markdown("### 🗂️ Ficha Clínica de Valores Guardados")
-    st.info("Selecciona cualquier Ticker de tu Base de Datos. La App descargará su precio de hoy y te mostrará su salud actual.")
+    st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
+    st.info("💡 **Cómo usar:** Haz clic en las cabeceras de la tabla para ordenar (ej: haz clic en 'Score EV' para ver los mejores arriba). Si quieres ver los radares y el diagnóstico de alguno, **selecciónalo en el desplegable de la barra lateral izquierda**.")
+    
     if not df_datos.empty:
-        list_tickers = df_datos['Ticker'].dropna().unique().tolist()
-        ticker_auditoria = st.selectbox("Selecciona un valor para auditar:", [""] + list_tickers)
-        if ticker_auditoria != "":
-            with st.spinner(f"Analizando paciente {ticker_auditoria}..."):
-                try:
-                    fila_aud = df_datos[df_datos["Ticker"] == ticker_auditoria].iloc[-1]
-                    s1_aud = int(fila_aud['S1_Dias']); w1_aud, r1_aud = int(fila_aud['W1']), float(fila_aud['R1'])
-                    s2_aud = int(fila_aud['S2_Dias']); w2_aud, r2_aud = int(fila_aud['W2']), float(fila_aud['R2'])
-                    s3_aud = int(fila_aud['S3_Dias']); w3_aud, r3_aud = int(fila_aud['W3']), float(fila_aud['R3'])
-                    s4_aud = int(fila_aud['S4_Dias']); w4_aud, r4_aud = int(fila_aud['W4']), float(fila_aud['R4'])
-                    s5_aud = int(fila_aud['S5_Dias']); w5_aud, r5_aud = int(fila_aud['W5']), float(fila_aud['R5'])
-
-                    stock_aud = yf.Ticker(ticker_auditoria)
-                    df_aud = stock_aud.history(period="1y")
-                    p_aud_vivo = df_aud['Close'].iloc[-1]
-                    
-                    m1 = df_aud['Close'].rolling(s1_aud).mean().iloc[-1]
-                    m2 = df_aud['Close'].rolling(s2_aud).mean().iloc[-1]
-                    m3 = df_aud['Close'].rolling(s3_aud).mean().iloc[-1]
-                    m4 = df_aud['Close'].rolling(s4_aud).mean().iloc[-1]
-                    m5 = df_aud['Close'].rolling(s5_aud).mean().iloc[-1]
-                    
-                    e1_aud = "Compra" if p_aud_vivo > m1 else "Venta"
-                    e2_aud = "Compra" if p_aud_vivo > m2 else "Venta"
-                    e3_aud = "Compra" if p_aud_vivo > m3 else "Venta"
-                    e4_aud = "Compra" if p_aud_vivo > m4 else "Venta"
-                    e5_aud = "Compra" if p_aud_vivo > m5 else "Venta"
-                    
-                    ev1_v = round(((w1_aud/100) * r1_aud) - ((1-(w1_aud/100)) * 1), 2)
-                    ev2_v = round(((w2_aud/100) * r2_aud) - ((1-(w2_aud/100)) * 1), 2)
-                    ev3_v = round(((w3_aud/100) * r3_aud) - ((1-(w3_aud/100)) * 1), 2)
-                    ev4_v = round(((w4_aud/100) * r4_aud) - ((1-(w4_aud/100)) * 1), 2)
-                    ev5_v = round(((w5_aud/100) * r5_aud) - ((1-(w5_aud/100)) * 1), 2)
-                    
-                    ev_c_aud = sum([ev for ev, e in zip([ev1_v, ev2_v, ev3_v, ev4_v, ev5_v], [e1_aud, e2_aud, e3_aud, e4_aud, e5_aud]) if e == "Compra"])
-                    ev_v_aud = sum([ev for ev, e in zip([ev1_v, ev2_v, ev3_v, ev4_v, ev5_v], [e1_aud, e2_aud, e3_aud, e4_aud, e5_aud]) if e == "Venta"])
-                    net_aud = ev_c_aud - ev_v_aud
-                    
-                    df_aud['MA55'] = df_aud['Close'].rolling(55).mean()
-                    df_aud['STD55'] = df_aud['Close'].rolling(55).std()
-                    z_aud_v = ((df_aud['Close'] - df_aud['MA55']) / df_aud['STD55']).iloc[-1]
-                    
-                    st.markdown(f"## Ficha Médica: {ticker_auditoria} (Precio Hoy: {p_aud_vivo:.2f} $)")
-                    col_s1, col_s2, col_s3, col_s4, col_s5 = st.columns(5)
-                    col_s1.metric(f"S1 ({s1_aud}D)", e1_aud, ev1_v if e1_aud=="Compra" else -ev1_v)
-                    col_s2.metric(f"S2 ({s2_aud}D)", e2_aud, ev2_v if e2_aud=="Compra" else -ev2_v)
-                    col_s3.metric(f"S3 ({s3_aud}D)", e3_aud, ev3_v if e3_aud=="Compra" else -ev3_v)
-                    col_s4.metric(f"S4 ({s4_aud}D)", e4_aud, ev4_v if e4_aud=="Compra" else -ev4_v)
-                    col_s5.metric(f"S5 ({s5_aud}D)", e5_aud, ev5_v if e5_aud=="Compra" else -ev5_v)
-                    
-                    tot_abs_a = abs(ev_c_aud) + abs(ev_v_aud)
-                    if tot_abs_a == 0: tot_abs_a = 1
-                    p_c_a = (abs(ev_c_aud) / tot_abs_a) * 100
-                    p_v_a = (abs(ev_v_aud) / tot_abs_a) * 100
-                    st.markdown(f"""
-                    <div style="display:flex; height: 35px; border-radius: 10px; overflow: hidden; margin-top: 15px; margin-bottom: 15px; background: #e5e5ea;">
-                        <div style="width: {p_c_a}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1.1rem;">COMPRAS (+{ev_c_aud:.2f})</div>
-                        <div style="width: {p_v_a}%; background: linear-gradient(90deg, #f87171, #dc2626); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1.1rem;">VENTAS (-{ev_v_aud:.2f})</div>
-                    </div>
-                    """, unsafe_allow_html=True)
-                    if net_aud < 0: st.error(f"🔴 **ESTADO CRÍTICO (Net EV: {net_aud:.2f}):** El activo es matemáticamente bajista hoy.")
-                    elif z_aud_v > 2.5: st.warning(f"🟠 **ESTADO SOBRECALENTADO (Z-Score: +{z_aud_v:.2f}):** Fuerte subida, pero peligro inminente de caída.")
-                    elif net_aud > 1.0 and z_aud_v <= 2.0: st.success(f"🟢 **ESTADO ÓPTIMO:** Fuerte tendencia a favor y sin tensión. Ideal para operar.")
-                    else: st.info("🟡 **ESTADO NEUTRAL:** Se puede operar, pero con extrema precaución y stops largos.")
-                except: st.error("Error al generar la ficha clínica en directo.")
-    else: st.warning("No hay valores en tu base de datos todavía.")
+        # Preparamos los datos para que se vean bonitos en la tabla
+        df_display = df_datos[['Ticker', 'Veredicto', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']].copy()
+        df_display['EV_Total'] = pd.to_numeric(df_display['EV_Total'], errors='coerce').fillna(0)
+        df_display['IDT_Puntos'] = pd.to_numeric(df_display['IDT_Puntos'], errors='coerce').fillna(0)
+        df_display['ITE_Porc'] = pd.to_numeric(df_display['ITE_Porc'], errors='coerce').fillna(0)
+        
+        st.dataframe(
+            df_display.sort_values("EV_Total", ascending=False),
+            column_config={
+                "Ticker": st.column_config.TextColumn("Activo 📈", width="medium"),
+                "Veredicto": st.column_config.TextColumn("Estado de Compra 🚦"),
+                "EV_Total": st.column_config.ProgressColumn("Fuerza EV (Esperanza) 🔋", format="%.2f", min_value=-2, max_value=15),
+                "IDT_Puntos": st.column_config.NumberColumn("Puntos IDT 🏆", format="%d pts"),
+                "ITE_Porc": st.column_config.NumberColumn("Riesgo ITE ⚠️", format="%.2f %%")
+            },
+            hide_index=True,
+            use_container_width=True
+        )
+    else:
+        st.warning("Aún no has guardado ningún escaneo en tu base de datos.")
 
 # --- PESTAÑA 3: CARTERA EN VIVO ---
 with tab3:
