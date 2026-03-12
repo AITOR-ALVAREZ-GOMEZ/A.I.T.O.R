@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 31.0 COMANDO", layout="wide")
+st.set_page_config(page_title="AITOR 32.0 DASHBOARD", layout="wide")
 
 # --- CSS ESTILO APPLE & TDAH FRIENDLY ---
 st.markdown("""
@@ -57,7 +57,7 @@ try: df_datos = conn.read(worksheet="Sheet1", ttl=5)
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 # =====================================================================
-# BUSCADOR LATERAL 
+# BUSCADOR LATERAL INTELIGENTE
 # =====================================================================
 st.sidebar.header("Buscador de Activos")
 opciones_bd = df_datos['Ticker'].dropna().unique().tolist() if not df_datos.empty else []
@@ -77,6 +77,7 @@ if ticker != "":
         df_global = stock.history(period="1y")
         if not df_global.empty: 
             p_merc = float(df_global['Close'].iloc[-1])
+            # Cálculo de la Volatilidad Real (ATR) para Auto-Stop
             high_low = df_global['High'] - df_global['Low']
             high_close = np.abs(df_global['High'] - df_global['Close'].shift())
             low_close = np.abs(df_global['Low'] - df_global['Close'].shift())
@@ -122,13 +123,14 @@ st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", 0.5, 3.0, 1.0, step=0.5)
 p_buy = st.sidebar.number_input("Precio Compra $", value=float(p_merc))
 
+# AUTO-STOP: La máquina calcula un stop lógico usando 2 veces la volatilidad (ATR)
+stop_sugerido_auto = p_buy * 0.95 # Fallback por si falla el ATR
 if atr_val > 0:
-    stop_atr = p_buy - (2 * atr_val)
-    st.sidebar.markdown(f"<div style='background-color: #f0fdf4; border-left: 4px solid #22c55e; padding: 10px; border-radius: 4px; margin-bottom: 10px;'><div style='font-size: 0.8rem; color: #166534; font-weight: 600;'>💡 Paracaídas Inicial (2 ATR)</div><div style='font-size: 0.85rem; color: #14532d; margin-top: 4px;'>Red de seguridad sugerida si no hay retroceso: <b>{stop_atr:.2f} $</b></div></div>", unsafe_allow_html=True)
-else:
-    st.sidebar.info("☝️ Usa el precio de la Media Móvil para rellenar tu Stop Loss:")
+    stop_sugerido_auto = p_buy - (2 * atr_val)
+    st.sidebar.markdown(f"<div style='font-size: 0.8rem; color: #166534; font-weight: 600; margin-bottom: 5px;'>🤖 Auto-Stop Calculado (2x ATR)</div>", unsafe_allow_html=True)
 
-p_sl = st.sidebar.number_input("Stop Loss $", value=float(p_buy * 0.95))
+# La casilla del Stop ya viene rellenada con el Stop Matemático
+p_sl = st.sidebar.number_input("Stop Loss $", value=float(stop_sugerido_auto))
 
 d_defs, w_defs, r_defs = [1, 3, 8, 14, 21], [50]*5, [2.0]*5
 if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
@@ -146,7 +148,7 @@ if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
 # =====================================================================
 # SISTEMA DE PESTAÑAS PRINCIPALES
 # =====================================================================
-tab1, tab2, tab3 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Visual", "💼 Cartera en Vivo"])
+tab1, tab2, tab3 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo"])
 
 # --- PESTAÑA 1: ESCÁNER INTELIGENTE ---
 with tab1:
@@ -224,7 +226,6 @@ with tab1:
     if tot_abs == 0: tot_abs = 1
     pct_c = (abs(ev_compra) / tot_abs) * 100
     pct_v = (abs(ev_venta) / tot_abs) * 100
-    
     html_barra = f"""
     <div style="display:flex; height: 35px; border-radius: 10px; overflow: hidden; margin-bottom: 5px; background: #e5e5ea; box-shadow: inset 0 2px 4px rgba(0,0,0,0.1);">
         <div style="width: {pct_c}%; background: linear-gradient(90deg, #34d399, #16a34a); display: flex; align-items: center; justify-content: center; color: white; font-weight: 800; font-size: 1.1rem;">COMPRAS (+{ev_compra:.2f})</div>
@@ -268,10 +269,10 @@ with tab1:
         st.markdown("<br><br>", unsafe_allow_html=True)
         if ite <= 5: st.success(f"**🟢 Riesgo Óptimo ({ite}%):** El Stop está matemáticamente bien ceñido. Tienes margen para usar apalancamiento.")
         elif ite <= 8: st.warning(f"**🟡 Llegas un poco tarde ({ite}%):** El precio se ha alejado de la media. Reduce drásticamente el número de acciones para mantener el riesgo.")
-        else: st.error(f"**🔴 Llegas MUY TARDE ({ite}%):** El precio ha escapado. Si entras con este stop perderás demasiado capital. Considera usar el Paracaídas ATR.")
+        else: st.error(f"**🔴 Llegas MUY TARDE ({ite}%):** El precio ha escapado. Si entras con este stop perderás demasiado capital. El radar te protege.")
 
     st.markdown("---")
-    st.subheader("🔮 Oráculo Quant (Solo Timing, Sin Hurst)")
+    st.subheader("🔮 Oráculo Quant (Solo Timing)")
     z_in, acc_in = 0.0, 0.0
     if ticker != "":
         with st.spinner("Midiendo tensión y velocidad..."):
@@ -336,23 +337,31 @@ with tab1:
 # --- PESTAÑA 2: AUDITORÍA GLOBAL (EL CENTRO DE MANDO) ---
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
-    st.info("💡 **Cómo usar:** Haz clic en las cabeceras de la tabla para ordenar (ej: haz clic en 'Score EV' para ver los mejores arriba). Si quieres ver los radares y el diagnóstico de alguno, **selecciónalo en el desplegable de la barra lateral izquierda**.")
+    st.info("💡 **Cómo usar:** Haz clic en las cabeceras para ordenar. La barra 'Salud Global' fusiona la Fuerza EV con la Estructura IDT para no dar lugar a confusiones.")
     
     if not df_datos.empty:
-        # Preparamos los datos para que se vean bonitos en la tabla
         df_display = df_datos[['Ticker', 'Veredicto', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']].copy()
         df_display['EV_Total'] = pd.to_numeric(df_display['EV_Total'], errors='coerce').fillna(0)
         df_display['IDT_Puntos'] = pd.to_numeric(df_display['IDT_Puntos'], errors='coerce').fillna(0)
         df_display['ITE_Porc'] = pd.to_numeric(df_display['ITE_Porc'], errors='coerce').fillna(0)
         
+        # NUEVO: CREACIÓN DE LA BARRA DE SALUD GLOBAL (0-100) BASADA EN EL IDT
+        # Normalizamos asumiendo que 140 pts de IDT es el máximo lógico (100%)
+        df_display['Score_Global'] = (df_display['IDT_Puntos'] / 140) * 100
+        df_display['Score_Global'] = df_display['Score_Global'].clip(upper=100, lower=0)
+        
+        # Reordenar las columnas para mostrar la barra pegada al veredicto
+        df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
+        
         st.dataframe(
-            df_display.sort_values("EV_Total", ascending=False),
+            df_display.sort_values("Score_Global", ascending=False),
             column_config={
-                "Ticker": st.column_config.TextColumn("Activo 📈", width="medium"),
-                "Veredicto": st.column_config.TextColumn("Estado de Compra 🚦"),
-                "EV_Total": st.column_config.ProgressColumn("Fuerza EV (Esperanza) 🔋", format="%.2f", min_value=-2, max_value=15),
-                "IDT_Puntos": st.column_config.NumberColumn("Puntos IDT 🏆", format="%d pts"),
-                "ITE_Porc": st.column_config.NumberColumn("Riesgo ITE ⚠️", format="%.2f %%")
+                "Ticker": st.column_config.TextColumn("Activo 📈", width="small"),
+                "Veredicto": st.column_config.TextColumn("Estado 🚦", width="medium"),
+                "Score_Global": st.column_config.ProgressColumn("Salud Global 🧬", format="%d/100", min_value=0, max_value=100),
+                "EV_Total": st.column_config.NumberColumn("Fuerza EV", format="%.2f"),
+                "IDT_Puntos": st.column_config.NumberColumn("Puntos IDT", format="%d pts"),
+                "ITE_Porc": st.column_config.NumberColumn("Riesgo ITE", format="%.2f %%")
             },
             hide_index=True,
             use_container_width=True
