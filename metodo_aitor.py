@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 48.0 LEYENDA DINAMICA", layout="wide")
+st.set_page_config(page_title="AITOR 49.0 MAQUINA DEL TIEMPO", layout="wide")
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
 st.markdown("""
@@ -86,7 +86,7 @@ beta_val = 1.0 # Default
 if ticker != "":
     stock = yf.Ticker(ticker)
     try:
-        df_global = stock.history(period="1y")
+        df_global = stock.history(period="2y") # Cargamos 2 años para poder viajar al pasado
         if not df_global.empty: 
             p_merc = float(df_global['Close'].iloc[-1])
             high_low = df_global['High'] - df_global['Low']
@@ -244,38 +244,51 @@ with tab1:
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
     # =====================================================================
-    # EL NUEVO ORÁCULO DE 3 ESFERAS (CON LEYENDA DINÁMICA)
+    # EL NUEVO ORÁCULO (MÁQUINA DEL TIEMPO + LEYENDA DINÁMICA)
     # =====================================================================
     st.markdown("---")
-    st.subheader("🔮 Matriz Temporal Quant (Oráculo de 15 Días)")
+    st.subheader("🔮 Matriz Temporal Quant (Backtesting Forense)")
+    
+    # LA MÁQUINA DEL TIEMPO
+    offset_dias = st.slider("⏳ Viajar al Pasado (Días hacia atrás): Analiza cómo estaban los indicadores de esta empresa justo antes de un techo o suelo histórico.", 0, 150, 0)
+    
     z_in, acc_in, vol_z_in = 0.0, 0.0, 0.0
     if ticker != "":
         try:
             if not df_global.empty:
                 df_esc = df_global.copy()
                 
-                # Cálculos Z-Score Precio
+                # Cálculos generales en toda la serie
                 df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
                 df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
                 df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
-                z_in = df_esc['Z_Score'].iloc[-1] if not pd.isna(df_esc['Z_Score'].iloc[-1]) else 0
                 
-                # Cálculos Momentum
                 df_esc['ROC_10'] = df_esc['Close'].pct_change(periods=10) * 100
                 df_esc['Accel'] = df_esc['ROC_10'].diff(periods=5)
-                acc_in = df_esc['Accel'].iloc[-1] if not pd.isna(df_esc['Accel'].iloc[-1]) else 0
                 
-                # Cálculos Z-Score VOLUMEN
                 df_esc['Vol_MA55'] = df_esc['Volume'].rolling(window=55).mean()
                 df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
                 df_esc['Vol_Z_Score'] = (df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']
+                
+                # APLICAR LA MÁQUINA DEL TIEMPO (Cortar el Dataframe)
+                if offset_dias > 0:
+                    df_esc = df_esc.iloc[:-offset_dias].copy()
+                    fecha_viaje = df_esc.index[-1].strftime("%d de %B de %Y")
+                    st.warning(f"⚠️ **MODO BACKTESTING:** Estás viendo los datos exactos del **{fecha_viaje}**. Todo el Oráculo refleja esa fecha.")
+                else:
+                    st.info("🟢 **MODO TIEMPO REAL:** Estás viendo los datos de la última sesión disponible.")
+
+                # Extraer valores del día analizado
+                z_in = df_esc['Z_Score'].iloc[-1] if not pd.isna(df_esc['Z_Score'].iloc[-1]) else 0
+                acc_in = df_esc['Accel'].iloc[-1] if not pd.isna(df_esc['Accel'].iloc[-1]) else 0
                 vol_z_in = df_esc['Vol_Z_Score'].iloc[-1] if not pd.isna(df_esc['Vol_Z_Score'].iloc[-1]) else 0
 
+                # Extraer historial de 15 días HASTA el día analizado
                 df_last_15 = df_esc.tail(15).copy()
 
                 col_eq1, col_eq2, col_eq3 = st.columns(3)
                 
-                # COLUMNA 1: Z-SCORE PRECIO (CON LEYENDA DINÁMICA)
+                # COLUMNA 1: Z-SCORE PRECIO (LEYENDA DINÁMICA)
                 with col_eq1:
                     z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
                     z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= 2.0 else "color:#a1a1aa;"
@@ -285,7 +298,7 @@ with tab1:
                         <div class="quant-title">Z-Score (Tensión Precio)</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
                             <div style='{z_c1}'>• < -2.0 : Sobrevendida (Rebote)</div>
-                            <div style='{z_c2}'>• Entre -2.0 y +2.0 : Tensión Normal</div>
+                            <div style='{z_c2}'>• -2.0 a +2.0 : Tensión Normal</div>
                             <div style='{z_c3}'>• > +2.0 : Euforia (Peligro)</div>
                         </div>
                     """, unsafe_allow_html=True)
@@ -296,12 +309,12 @@ with tab1:
                     
                     bar_c_z = ['#ff3b30' if val > 2.0 else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
                     fig_b_z = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Z_Score'], marker_color=bar_c_z)])
-                    fig_b_z.add_hline(y=2.0, line_dash="dash", line_color="#ff3b30", annotation_text="Peligro", annotation_position="top left", annotation_font=dict(size=10))
+                    fig_b_z.add_hline(y=2.0, line_dash="dash", line_color="#ff3b30")
                     fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
                     st.plotly_chart(fig_b_z, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                # COLUMNA 2: MOMENTUM (CON LEYENDA DINÁMICA)
+                # COLUMNA 2: MOMENTUM (LEYENDA DINÁMICA)
                 with col_eq2:
                     a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= 0 else "color:#a1a1aa;"
                     a_c2 = "font-weight:900; color:#16a34a;" if acc_in > 0 else "color:#a1a1aa;"
@@ -326,18 +339,18 @@ with tab1:
                     st.plotly_chart(fig_b_a, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                # COLUMNA 3: VOLUMEN (CON LEYENDA DINÁMICA)
+                # COLUMNA 3: VOLUMEN (LEYENDA DINÁMICA)
                 with col_eq3:
                     v_c1 = "font-weight:900; color:#ff3b30;" if vol_z_in < 0 else "color:#a1a1aa;"
                     v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= 1.5 else "color:#a1a1aa;"
                     v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > 1.5 else "color:#a1a1aa;"
                     
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                        <div class="quant-title">Huella de Volumen</div>
+                        <div class="quant-title">Huella Institucional</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                            <div style='{v_c1}'>• < 0 : Poco Interés (Ruido)</div>
+                            <div style='{v_c1}'>• < 0 : Minoristas (Ruido)</div>
                             <div style='{v_c2}'>• 0 a +1.5 : Volumen Sano / Oculto</div>
-                            <div style='{v_c3}'>• > +1.5 : Inyección Institucional</div>
+                            <div style='{v_c3}'>• > +1.5 : Inyección Ballenas</div>
                         </div>
                     """, unsafe_allow_html=True)
                     
@@ -347,43 +360,28 @@ with tab1:
                     
                     bar_c_v = ['#34c759' if val >= 1.5 else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
                     fig_b_v = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
-                    fig_b_v.add_hline(y=1.5, line_dash="dash", line_color="#34c759", annotation_text="Institucional", annotation_position="top left", annotation_font=dict(size=10))
+                    fig_b_v.add_hline(y=1.5, line_dash="dash", line_color="#34c759")
                     fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
                     st.plotly_chart(fig_b_v, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
                     
         except: pass
 
-    st.markdown("---")
-    st.subheader("📋 Auditoría Clínica de Entrada")
-    
-    if ev_tot >= 10: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
-    elif ev_tot >= 5: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
-    else: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar.", "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_ev}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad del Sistema):</div><div class='tdah-text'>{txt_ev}</div></div>", unsafe_allow_html=True)
+    # =====================================================================
+    # DIAGNÓSTICOS DE TEXTO (AHORA SINCRONIZADOS CON LA MÁQUINA DEL TIEMPO)
+    # =====================================================================
+    if z_in > 2.5: txt_z, col_z = "PELIGRO. Precio disparado por euforia. Comprar es entrar en el techo.", "tdah-red"
+    elif z_in > 2.0: txt_z, col_z = "Goma muy tensa. Riesgo inminente de corrección.", "tdah-yellow"
+    elif z_in < -1.0: txt_z, col_z = "Goma estirada hacia abajo. Podría haber un rebote pronto.", "tdah-blue"
+    else: txt_z, col_z = "Tensión NORMAL. El precio está cerca de su media. Zona segura.", "tdah-green"
+    st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Diagnóstico Precio:</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
 
-    if net_ev > 1.5: col_f = "tdah-green"
-    elif net_ev > 0: col_f = "tdah-yellow"
-    else: col_f = "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>El empuje real del precio descontando sistemas en contra es de <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
-
-    if vol_z_in >= 1.5: txt_v, col_v = "EXCELENTE. Hay una huella gigante de dinero institucional apoyando este movimiento hoy.", "tdah-green"
+    if vol_z_in >= 1.5: txt_v, col_v = "EXCELENTE. Hay una huella gigante de dinero institucional apoyando este movimiento.", "tdah-green"
     elif vol_z_in >= 0: txt_v, col_v = "Volumen sano. Participación normal del mercado sin anomalías.", "tdah-blue"
-    else: txt_v, col_v = "Pobre participación. El volumen de hoy está por debajo de la media.", "tdah-yellow"
-    st.markdown(f"<div class='tdah-box {col_v}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v}</div></div>", unsafe_allow_html=True)
-
-    if beta_val > 1.5: txt_b, col_b = f"PELIGRO ({beta_val:.2f}). Acción altamente radiactiva y pegada al mercado. Si el S&P500 estornuda, esta acción se hunde.", "tdah-red"
-    elif beta_val < 0.8: txt_b, col_b = f"IDEAL ({beta_val:.2f}). Actúa como escudo. Su correlación con el mercado es baja, te protege en las caídas.", "tdah-green"
-    else: txt_b, col_b = f"NORMAL ({beta_val:.2f}). Se mueve a la par que la economía general.", "tdah-blue"
-    st.markdown(f"<div class='tdah-box {col_b}'><div class='tdah-title'>🛡️ Correlación Beta (Riesgo de Mercado):</div><div class='tdah-text'>{txt_b}</div></div>", unsafe_allow_html=True)
+    else: txt_v, col_v = "Pobre participación. El volumen está por debajo de la media histórica.", "tdah-yellow"
+    st.markdown(f"<div class='tdah-box {col_v}'><div class='tdah-title'>🐘 Diagnóstico Volumen:</div><div class='tdah-text'>{txt_v}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
-    elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
-    elif net_ev >= 1.5 and z_in <= 2.0 and acc_in > 0: ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Estructura fuerte, precio sin tensión y con el acelerador pisado. Adelante.", "tdah-green"
-    elif acc_in <= 0: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La estructura es alcista pero el Momentum está en rojo (Pérdida de gas). Entra si quieres, pero reduce tu capital.", "tdah-yellow"
-    else: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La operación es viable, pero hay dudas en la estructura o el precio. Opera solo con media posición.", "tdah-yellow"
-    st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
 
     # =====================================================================
     # BOTONES DE ACCIÓN 
