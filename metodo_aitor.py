@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 44.0 MEDALLION", layout="wide")
+st.set_page_config(page_title="AITOR 45.0 NETWORK FIX", layout="wide")
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
 st.markdown("""
@@ -64,7 +64,9 @@ COL_DB = ["Ticker", "Tier", "EV_Total", "IDT_Puntos", "ITE_Porc", "Veredicto", "
 for i in range(1, 6): COL_DB.extend([f"S{i}_Dias", f"W{i}", f"R{i}"])
 
 conn = st.connection("gsheets", type=GSheetsConnection)
-try: df_datos = conn.read(worksheet="Sheet1", ttl=0) 
+
+# FIX NETWORK: Restauramos caché de 60s para no saturar a Google. Limpiaremos caché al guardar.
+try: df_datos = conn.read(worksheet="Sheet1", ttl=60) 
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 # =====================================================================
@@ -96,7 +98,6 @@ if ticker != "":
             true_range = np.max(ranges, axis=1)
             atr_val = true_range.rolling(14).mean().iloc[-1]
             
-            # NUEVO: CÁLCULO DE BETA (Correlación con el Mercado - S&P500)
             try:
                 spy = yf.Ticker("SPY").history(period="1y")
                 ret_stock = df_global['Close'].pct_change().dropna()
@@ -280,9 +281,6 @@ with tab1:
         elif ite <= 10: st.warning(f"**🟡 Stop Espacioso ({ite}%):** El Stop exige más espacio (por volatilidad ATR o estiramiento). Reduce tus acciones.")
         else: st.error(f"**🔴 Riesgo Estructural Alto ({ite}%):** Tienes que darle muchísimo oxígeno al precio para que no te barra el ruido. Usa un tamaño de posición muy reducido.")
 
-    # =====================================================================
-    # EL NUEVO ORÁCULO DE 3 ESFERAS (INCLUYE VOLUMEN INSTITUCIONAL)
-    # =====================================================================
     st.markdown("---")
     st.subheader("🔮 Oráculo Quant & Arbitraje Institucional")
     z_in, acc_in, vol_z_in = 0.0, 0.0, 0.0
@@ -290,26 +288,20 @@ with tab1:
         try:
             if not df_global.empty:
                 df_esc = df_global.copy()
-                
-                # Z-Score Precio
                 df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
                 df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
                 df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
                 z_in = df_esc['Z_Score'].iloc[-1] if not pd.isna(df_esc['Z_Score'].iloc[-1]) else 0
-                
-                # Momentum
                 df_esc['ROC_10'] = df_esc['Close'].pct_change(periods=10) * 100
                 df_esc['Accel'] = df_esc['ROC_10'].diff(periods=5)
                 acc_in = df_esc['Accel'].iloc[-1] if not pd.isna(df_esc['Accel'].iloc[-1]) else 0
-                
-                # Z-Score VOLUMEN (NUEVO)
                 df_esc['Vol_MA55'] = df_esc['Volume'].rolling(window=55).mean()
                 df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
                 vol_z_in = ((df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']).iloc[-1] if not pd.isna(((df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']).iloc[-1]) else 0
 
                 col_eq1, col_eq2, col_eq3 = st.columns(3)
                 with col_eq1:
-                    st.markdown("""<div class="quant-card"><div class="quant-title">Z-Score (Desviación Precio)</div><div class="quant-desc">Tensión de la goma. > +2.5 indica euforia extrema y riesgo inminente de reversión.</div>""", unsafe_allow_html=True)
+                    st.markdown("""<div class="quant-card"><div class="quant-title">Z-Score (Desviación)</div><div class="quant-desc">Tensión de la goma. > +2.5 indica euforia extrema y riesgo inminente de reversión.</div>""", unsafe_allow_html=True)
                     fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, number=dict(valueformat='.2f', suffix=' Sigmas'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, 0.5], color="lightgray"), dict(range=[0.5, 2.0], color="lightgreen"), dict(range=[2.0, 4], color="red")])))
                     fig_ze.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ze, use_container_width=True)
@@ -321,7 +313,7 @@ with tab1:
                     st.plotly_chart(fig_ae, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
                 with col_eq3:
-                    st.markdown("""<div class="quant-card"><div class="quant-title">Huella de Volumen (Institucional)</div><div class="quant-desc">Anomalía de participación. > +1.5 significa que los grandes fondos (Ballenas) están comprando.</div>""", unsafe_allow_html=True)
+                    st.markdown("""<div class="quant-card"><div class="quant-title">Huella Institucional</div><div class="quant-desc">Anomalía de Volumen. > +1.5 significa que los grandes fondos están comprando.</div>""", unsafe_allow_html=True)
                     fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, number=dict(valueformat='.2f', suffix=' Sigmas'), gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="blue"), steps=[dict(range=[-2, 1.0], color="lightgray"), dict(range=[1.0, 1.5], color="lightblue"), dict(range=[1.5, 4], color="royalblue")])))
                     fig_ve.update_layout(height=160, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ve, use_container_width=True)
@@ -347,13 +339,11 @@ with tab1:
     else: txt_z, col_z = "Tensión NORMAL. El precio está cerca de su media. Zona segura para comprar.", "tdah-green"
     st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Tensión del Precio (Z-Score):</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
 
-    # NUEVO: DIAGNÓSTICO DE VOLUMEN
     if vol_z_in > 1.5: txt_v, col_v = "EXCELENTE. Hay una huella gigante de dinero institucional apoyando este movimiento hoy.", "tdah-green"
     elif vol_z_in > 0.5: txt_v, col_v = "Volumen sano. Participación normal del mercado.", "tdah-blue"
     else: txt_v, col_v = "Pobre participación. El movimiento de hoy no tiene respaldo de los grandes fondos.", "tdah-yellow"
     st.markdown(f"<div class='tdah-box {col_v}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v}</div></div>", unsafe_allow_html=True)
 
-    # NUEVO: DIAGNÓSTICO BETA
     if beta_val > 1.5: txt_b, col_b = f"PELIGRO ({beta_val:.2f}). Acción altamente radiactiva y pegada al mercado. Si el S&P500 estornuda, esta acción se hunde.", "tdah-red"
     elif beta_val < 0.8: txt_b, col_b = f"IDEAL ({beta_val:.2f}). Actúa como escudo. Su correlación con el mercado es baja, te protege en las caídas.", "tdah-green"
     else: txt_b, col_b = f"NORMAL ({beta_val:.2f}). Se mueve a la par que la economía general.", "tdah-blue"
@@ -366,7 +356,6 @@ with tab1:
     elif acc_in <= 0: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La estructura es alcista pero el Momentum está en rojo (Pérdida de gas). Entra si quieres, pero reduce tu capital.", "tdah-yellow"
     else: ver_txt, ver_col = "⚠️ PRECAUCIÓN. La operación es viable, pero hay dudas en la estructura o el precio. Opera solo con media posición.", "tdah-yellow"
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
-    st.markdown("<br>", unsafe_allow_html=True)
 
     # =====================================================================
     # BOTONES DE ACCIÓN 
@@ -385,11 +374,11 @@ with tab1:
                     
                     d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
                     for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=60)
                     if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
                     df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="Sheet1", data=df_upd)
-                    st.cache_data.clear()
+                    st.cache_data.clear() # SMART WIPER
                     st.toast("✅ Escaneo guardado correctamente en tu Auditoría.", icon="💾")
                 except Exception as e: st.error(f"Error al guardar: {e}")
 
@@ -400,15 +389,15 @@ with tab1:
                     v_t = "COMPRADO"
                     d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
                     for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=60)
                     if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
                     df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="Sheet1", data=df_upd)
                     
-                    df_c = conn.read(worksheet="Cartera", ttl=0)
+                    df_c = conn.read(worksheet="Cartera", ttl=60)
                     n_pos = {"Ticker": ticker, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_buy, "Num_Acciones": n_tit, "Stop_Actual": p_sl, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_buy, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_buy}
                     conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                    st.cache_data.clear()
+                    st.cache_data.clear() # SMART WIPER
                     st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.", icon="🚀")
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
@@ -442,7 +431,7 @@ with tab3:
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
     with tab_vivas:
         try:
-            df_cartera = conn.read(worksheet="Cartera", ttl=0).dropna(how="all")
+            df_cartera = conn.read(worksheet="Cartera", ttl=60).dropna(how="all")
             if df_cartera.empty: st.warning("Tu cartera está vacía.")
             else:
                 ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
@@ -524,6 +513,7 @@ with tab3:
 
                 st.markdown("---")
                 st.subheader(f"📋 Diagnóstico Clínico de Mantenimiento ({ticker_sel})")
+
                 if z_actual > 2.5: txt_z_out, col_z_out = f"Tensión EXTREMA. Hay una burbuja a corto plazo. Obligatorio ceñir el Stop al sistema S2 ({media_s2:.2f}).", "tdah-red"
                 elif z_actual > 2.0: txt_z_out, col_z_out = f"Tensión Alta. El precio ha corrido mucho. Atento para subir el Stop pronto.", "tdah-yellow"
                 else: txt_z_out, col_z_out = "Tensión Normal. El precio respira sano. Mantén tu Stop estructural sin miedo.", "tdah-green"
@@ -567,12 +557,12 @@ with tab3:
                         
                     if submit_update:
                         with st.spinner("Actualizando..."):
-                            df_c_update = conn.read(worksheet="Cartera", ttl=0)
+                            df_c_update = conn.read(worksheet="Cartera", ttl=60)
                             idx_to_update = df_c_update[df_c_update['Ticker'] == ticker_sel].index
                             if not idx_to_update.empty:
                                 df_c_update.loc[idx_to_update[-1], 'Stop_Actual'] = nuevo_stop
                                 conn.update(worksheet="Cartera", data=df_c_update)
-                                st.cache_data.clear()
+                                st.cache_data.clear() # SMART WIPER
                                 st.toast(f"✅ ¡Hecho! El Stop de {ticker_sel} se ha actualizado a {nuevo_stop:.2f}.", icon="💾")
         except Exception as e: st.error(f"Error técnico: {e}")
 
@@ -596,16 +586,16 @@ with tab3:
             
             if st.form_submit_button("Añadir a Cartera") and t_ticker != "":
                 with st.spinner("Añadiendo..."):
-                    df_c = conn.read(worksheet="Cartera", ttl=0)
+                    df_c = conn.read(worksheet="Cartera", ttl=60)
                     n_pos = {"Ticker": t_ticker, "Fecha_Entrada": t_fecha_in.strftime("%Y-%m-%d"), "Precio_Entrada": t_precio_in, "Num_Acciones": t_acciones, "Stop_Actual": t_stop, "Fecha_Ruptura_S4": t_fecha_s4.strftime("%Y-%m-%d"), "Precio_Ruptura_S4": t_precio_s4, "Fecha_Ruptura_S5": t_fecha_s5.strftime("%Y-%m-%d"), "Precio_Ruptura_S5": t_precio_s5}
                     conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                    st.cache_data.clear()
+                    st.cache_data.clear() # SMART WIPER
                     st.toast("Añadido exitosamente.", icon="✅")
 
     # --- HISTORIAL ---
     with tab_historial:
         try:
-            df_h = conn.read(worksheet="Historial", ttl=0).dropna(how="all")
+            df_h = conn.read(worksheet="Historial", ttl=60).dropna(how="all")
             if not df_h.empty:
                 df_h['Fecha_Venta'] = pd.to_datetime(df_h['Fecha_Venta']).dt.date
                 f_in = st.date_input("Analizar desde:", value=pd.to_datetime("2024-01-01").date())
