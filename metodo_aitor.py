@@ -7,9 +7,9 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 58.0 GRID SEARCH", layout="wide")
+st.set_page_config(page_title="AITOR 59.0 OPTIMIZADOR DINAMICO", layout="wide")
 
-# --- MEMORIA RAM DE SESIÓN (SUPER RÁPIDA, NO BLOQUEA GOOGLE) ---
+# --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
     st.session_state['historial_lab'] = []
 
@@ -78,7 +78,7 @@ try: df_datos = conn.read(worksheet="Sheet1", ttl=60)
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
 try: df_adn = conn.read(worksheet="ADN_Quant", ttl=60)
-except: df_adn = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Rendimiento"])
+except: df_adn = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
 
 # =====================================================================
 # BUSCADOR LATERAL 
@@ -90,6 +90,7 @@ ticker_lista = st.sidebar.selectbox("O cargar de Auditoría:", [""] + opciones_b
 ticker = ticker_manual if ticker_manual != "" else ticker_lista
 if ticker == "": ticker = "MU"
 
+# --- LECTURA DEL ADN GENÉTICO ---
 opt_z, opt_acc, opt_vol = 1.0, 0.0, 1.5 
 tiene_adn = False
 if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
@@ -152,7 +153,7 @@ stop_sugerido_auto = p_buy - (2 * atr_val) if atr_val > 0 else p_buy * 0.95
 p_sl = st.sidebar.number_input("Stop Loss", value=float(stop_sugerido_auto), key=f"sl_{ticker}")
 
 # =====================================================================
-# SISTEMA DE PESTAÑAS
+# PESTAÑAS PRINCIPALES
 # =====================================================================
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo", "🧪 Laboratorio Modular"])
 
@@ -162,13 +163,13 @@ with tab1:
     if tiene_adn:
         st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
         st.caption(f"El Escáner ha mutado para {ticker}. Limites calibrados: Volumen > {opt_vol}σ | Aceleración > {opt_acc} | Tensión > {opt_z}σ")
-    st.info("Pestaña 1 operativa. Ve a la Pestaña 4 para ver el nuevo motor de Historial.")
+    st.info("Pestaña 1 operativa. Ve a la Pestaña 4 para ver el Optimizador Dinámico.")
 
 with tab2: st.info("Auditoría Activa")
 with tab3: st.info("Cartera Activa")
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR CON COMPETICIÓN AUTOMÁTICA (VERSIÓN 58)
+# PESTAÑA 4: LABORATORIO MODULAR (CON SELECTOR DE TROFEO)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Competición Genética")
@@ -256,7 +257,7 @@ with tab4:
                             p_entrada = row['Close']
                             fecha_texto_entrada = date.strftime("%Y-%m-%d")
                             
-                            gatillo_name = tipo_filtro.split(" (")[0].split(":")[0] # Extrae "Ninguno", "Fuerza Inmediata", "Continuación"
+                            gatillo_name = tipo_filtro.split(" (")[0].split(":")[0] 
                             
                             if "Ninguno" in tipo_filtro: es_valida = True
                             elif "Fuerza Inmediata" in tipo_filtro:
@@ -319,7 +320,6 @@ with tab4:
                         st.session_state['historial_lab'].append(nuevo_test)
                         st.success("✅ Test completado y añadido a la tabla comparativa.")
                         
-                        # Mostrar el desglose forense de la simulación ACTUAL
                         with st.expander("Ver Diario Forense de esta simulación (Vela a Vela)"):
                             df_display = pd.DataFrame(fechas_registro_display)
                             def color_retorno(val):
@@ -329,15 +329,14 @@ with tab4:
                                 return ''
                             st.dataframe(df_display.style.map(color_retorno, subset=["5 Días", "10 Días", "15 Días", "20 Días", "30 Días"]), use_container_width=True, hide_index=True)
                     else:
-                        st.warning("No hay resultados. Tus reglas son demasiado estrictas. Este intento no se guardará en el historial para no ensuciarlo.")
+                        st.warning("No hay resultados. Tus reglas son demasiado estrictas. Este intento no se guardará en el historial.")
                         
             except Exception as e: st.error(f"Error procesando los datos: {e}")
 
     # -------------------------------------------------------------------------
-    # LA COMPETICIÓN AUTOMÁTICA (EL SALÓN DE LA FAMA)
+    # LA COMPETICIÓN AUTOMÁTICA (EL SALÓN DE LA FAMA DINÁMICO)
     # -------------------------------------------------------------------------
     if len(st.session_state['historial_lab']) > 0:
-        # Filtrar el historial por el Ticker que estamos mirando
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
         
@@ -346,18 +345,32 @@ with tab4:
             st.markdown("---")
             st.markdown("## ⚔️ El Coliseo Quant (Resultados Acumulados)")
             
-            # Ordenar por Rendimiento a 20 Días (El objetivo principal)
-            df_ticker_hist = df_ticker_hist.sort_values(by="Ret_20D", ascending=False)
+            # EL SELECTOR DE TROFEO (LA NOVEDAD DE LA VERSIÓN 59)
+            st.markdown("<div style='background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #22c55e; margin-bottom:20px;'>", unsafe_allow_html=True)
+            objetivo_opt = st.selectbox(
+                "🏆 ¿Qué horizonte temporal define a la combinación ganadora para ti?",
+                ["5 Días", "10 Días", "15 Días", "20 Días", "30 Días"],
+                index=3, # Por defecto 20 Días
+                help="La tarjeta de Campeón se recalculará automáticamente para mostrarte la combinación que sacó mejor puntuación en el periodo de tiempo que elijas aquí."
+            )
+            st.markdown("</div>", unsafe_allow_html=True)
+            
+            # Mapear la selección a la columna de la tabla
+            dict_map = {"5 Días": "Ret_5D", "10 Días": "Ret_10D", "15 Días": "Ret_15D", "20 Días": "Ret_20D", "30 Días": "Ret_30D"}
+            col_orden = dict_map[objetivo_opt]
+            
+            # Ordenar dinámicamente
+            df_ticker_hist = df_ticker_hist.sort_values(by=col_orden, ascending=False)
             campeon = df_ticker_hist.iloc[0]
             
             # RENDERIZAR LA TARJETA DEL CAMPEÓN
             st.markdown(f"""
             <div class='champion-card'>
-                <div class='champion-title'>👑 LA COMBINACIÓN GANADORA ACTUAL PARA {ticker}</div>
-                <div style='font-size: 0.9rem; color: #92400e;'>Este es el mejor test que has lanzado en esta sesión basado en el rendimiento a 20 días. Si te gusta, guárdalo como ADN.</div>
+                <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA MAXIMIZAR A {objetivo_opt.upper()}</div>
+                <div style='font-size: 0.9rem; color: #92400e;'>Este es el mejor test de tu sesión buscando rentabilidad a {objetivo_opt}. Si te gusta este estilo de trading, guárdalo como ADN.</div>
                 <div class='champion-stats'>
                     <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
-                    <div class='stat-box'>💰 Rendimiento 20D: +{campeon['Ret_20D']}%</div>
+                    <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rendimiento {objetivo_opt}: +{campeon[col_orden]}%</div>
                     <div class='stat-box'>🔍 Z-Score: {campeon['Z-Score']}</div>
                     <div class='stat-box'>🏎️ Accel: {campeon['Accel']}</div>
                     <div class='stat-box'>🐘 Volumen: {campeon['Volumen']}</div>
@@ -366,18 +379,17 @@ with tab4:
             </div>
             """, unsafe_allow_html=True)
             
-            # BOTÓN DE GUARDAR EL ADN (AHORA VINCULADO AL CAMPEÓN)
+            # BOTÓN DE GUARDAR EL ADN (VINCULADO AL CAMPEÓN ACTUAL)
             if st.button(f"💾 GUARDAR 'EL CAMPEÓN' COMO ADN OFICIAL DE {ticker}", type="secondary", use_container_width=True):
                 try:
-                    # Transformar de texto a número para la BBDD
                     c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
                     c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
                     c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
                     
                     df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
-                    if df_adn_actual.empty: df_adn_actual = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Rendimiento"])
+                    if df_adn_actual.empty: df_adn_actual = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
                     
-                    nuevo_adn = {"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Rendimiento": campeon['Ret_20D']}
+                    nuevo_adn = {"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": objetivo_opt, "Rendimiento": campeon[col_orden]}
                     df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
                     st.cache_data.clear()
@@ -393,4 +405,8 @@ with tab4:
                     return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
                 return ''
                 
-            st.dataframe(df_ticker_hist.style.map(color_history, subset=["Ret_5D", "Ret_10D", "Ret_15D", "Ret_20D", "Ret_30D"]), use_container_width=True, hide_index=True)
+            # Highlight the sorting column
+            styled_df = df_ticker_hist.style.map(color_history, subset=["Ret_5D", "Ret_10D", "Ret_15D", "Ret_20D", "Ret_30D"])
+            styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[col_orden])
+            
+            st.dataframe(styled_df, use_container_width=True, hide_index=True)
