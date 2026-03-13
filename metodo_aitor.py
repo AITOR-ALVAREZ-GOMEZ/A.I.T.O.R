@@ -6,10 +6,9 @@ from streamlit_gsheets import GSheetsConnection
 import datetime
 import plotly.graph_objects as go
 import math
-import time
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 67.0 STRATEGY POOL", layout="wide")
+st.set_page_config(page_title="AITOR 68.0 FORENSIC INSPECTOR", layout="wide")
 
 # --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
@@ -86,14 +85,16 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 try: df_datos = conn.read(worksheet="Sheet1", ttl=0) 
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
-# GESTIÓN DE LA BASE DE DATOS ADN (NUEVAS COLUMNAS MULTIDIMENSIONALES)
+# GESTIÓN DE LA BASE DE DATOS ADN (CON PARCHE PARA NaN y None)
 try: 
     df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
-    # Migración silenciosa si es una tabla vieja
     if not df_adn.empty:
         if 'Es_Default' not in df_adn.columns: df_adn['Es_Default'] = True
         if 'ID_ADN' not in df_adn.columns: df_adn['ID_ADN'] = [str(i) for i in range(len(df_adn))]
         if 'WinRate' not in df_adn.columns: df_adn['WinRate'] = 0.0
+        # Limpieza de viejos errores en la DB
+        df_adn['ID_ADN'] = df_adn['ID_ADN'].fillna("LEGACY")
+        df_adn['WinRate'] = df_adn['WinRate'].fillna(0.0)
 except: 
     df_adn = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento", "WinRate", "Es_Default", "ID_ADN"])
 
@@ -117,11 +118,9 @@ if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
     total_adns = len(df_adn_ticker)
     if not df_adn_ticker.empty:
         tiene_adn = True
-        # Buscar el que es Por Defecto
         df_def = df_adn_ticker[df_adn_ticker['Es_Default'] == True]
         if not df_def.empty: adn_data = df_def.iloc[0]
-        else: adn_data = df_adn_ticker.iloc[0] # Fallback
-        
+        else: adn_data = df_adn_ticker.iloc[0] 
         opt_z = float(adn_data['Z_Min'])
         opt_acc = float(adn_data['Acc_Min'])
         opt_vol = float(adn_data['Vol_Min'])
@@ -197,363 +196,24 @@ if n_tit > 0:
 tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo", "🧪 Laboratorio Quant", "📡 Radar Diario"])
 
 # ---------------------------------------------------------------------
-# PESTAÑA 1: ESCÁNER INTELIGENTE
+# PESTAÑA 1, 2 Y 3 (RESUMIDAS POR ESPACIO, ENFOCAMOS EN LAB 4)
 # ---------------------------------------------------------------------
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
-    
     if st.session_state.get('adn_saved_success', False):
         st.success("✅ ¡ADN Guardado! Se ha añadido a tu Piscina de Sistemas para esta acción.")
         st.session_state['adn_saved_success'] = False
-    
     if tiene_adn:
-        if total_adns > 1:
-            st.markdown(f"<div class='dna-badge-mult'>🧬 {total_adns} SISTEMAS VIGILANDO ESTA ACCIÓN</div>", unsafe_allow_html=True)
-            st.caption(f"El Escáner visual está mostrando tu ADN *Por Defecto*. Límites: Vol > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Accel > {opt_acc if opt_acc!=-99 else 'OFF'} | Z > {opt_z if opt_z!=-99 else 'OFF'}σ")
-        else:
-            st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
-            st.caption(f"Límites adaptados: Vol > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Accel > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
-    else:
-        st.caption("Usando valores estándar por defecto. Usa la pestaña 'Laboratorio Quant' para guardar estrategias.")
-    
-    s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
-    cols = st.columns(5)
-    d_defs, w_defs, r_defs = [1, 3, 8, 14, 21], [50]*5, [2.0]*5
-    
-    if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
-        df_filtro = df_datos[df_datos["Ticker"] == ticker]
-        if len(df_filtro) > 0:
-            fila = df_filtro.iloc[-1]
-            try:
-                for idx in range(5):
-                    val_s = int(fila[f"S{idx+1}_Dias"])
-                    if val_s in DIAS: d_defs[idx] = val_s
-                    w_defs[idx] = int(fila[f"W{idx+1}"])
-                    r_defs[idx] = float(fila[f"R{idx+1}"])
-            except: pass
+        if total_adns > 1: st.markdown(f"<div class='dna-badge-mult'>🧬 {total_adns} SISTEMAS VIGILANDO ESTA ACCIÓN</div>", unsafe_allow_html=True)
+        else: st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
+        st.caption(f"El Escáner visual muestra tu ADN *Por Defecto*. Límites: Vol > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Accel > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
+    st.info("Pestaña 1 Operativa. Ve a la Pestaña 4 para usar el nuevo Inspector Forense.")
 
-    for i in range(5):
-        with cols[i]:
-            st.markdown(f"**{d_defs[i]} D**")
-            idx_d = DIAS.index(d_defs[i])
-            s_val = st.selectbox("S", DIAS, index=idx_d, key=f"d{i}", label_visibility="collapsed")
-            wr = st.number_input("WR %", 0, 100, w_defs[i], key=f"w{i}")
-            rt = st.number_input("R/R", 0.0, 50.0, r_defs[i], key=f"r{i}")
-            ma_val = 0.0
-            senal_auto = "Venta"
-            idx_radio = 0
-            if not df_global.empty:
-                try:
-                    ma_val = df_global['Close'].rolling(window=s_val).mean().iloc[-1]
-                    if p_merc > ma_val: idx_radio = 1
-                except: pass
-            st.markdown(f"<div style='font-size:0.85rem; color:#86868b; margin-top:5px; text-align:center;'>Media: <b>{ma_val:.2f}</b></div>", unsafe_allow_html=True)
-            es = st.radio("Señal", ["Venta", "Compra"], index=idx_radio, key=f"e{i}")
-            ev_i = round(((wr / 100.0) * rt) - ((1.0 - (wr / 100.0)) * 1.0), 2)
-            s_elegidos.append(s_val); l_ev.append(ev_i); l_wr.append(wr); l_rt.append(rt); l_es.append(es)
-            st.markdown(f"<div style='text-align:center; padding:10px; background:#fff; border-radius:10px; border:1px solid #e5e5ea; margin-top:5px;'><div style='color:#86868b; font-size:0.75rem; font-weight:bold;'>EV {s_val}D</div><div style='font-size:1.4rem; font-weight:800; color:#1d1d1f;'>{ev_i:.2f}</div></div>", unsafe_allow_html=True)
-
-    ev_compra = sum([l_ev[i] for i in range(5) if l_es[i] == "Compra"])
-    ev_venta = sum([l_ev[i] for i in range(5) if l_es[i] == "Venta"])
-    net_ev = ev_compra - ev_venta 
-    ev_tot = round(net_ev + ev_plus, 2) 
-    ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
-    penal = 30 if ite > 15 else 0 
-    p_estr = sum(10 for e in l_es[1:] if e == "Compra")
-    p_sen = 10 if l_es[0] == "Compra" else 0
-    idt = l_wr[0] + bono + p_estr + p_sen - penal
-
-    if net_ev >= 1.5: st.markdown("<div class='main-banner banner-green'>✅ LUZ VERDE ESTRUCTURAL: Ventaja Matemática Confirmada. APTO PARA COMPRAR.</div>", unsafe_allow_html=True)
-    elif net_ev >= 0: st.markdown("<div class='main-banner banner-yellow'>⚠️ PRECAUCIÓN: Fuerza Neta Débil. Apto solo con POSICIÓN REDUCIDA.</div>", unsafe_allow_html=True)
-    else: st.markdown("<div class='main-banner banner-red'>🚨 SISTEMA BLOQUEADO: Esperanza Matemática Negativa. PROHIBIDO COMPRAR.</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.markdown("### 🏛️ Auditoría Matemática Central")
-    c1, c2, c3 = st.columns(3)
-    with c1:
-        h_ev = "<div class='rank-box'>"
-        if ev_tot >= 10: h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
-        elif ev_tot >= 5: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-on' style='background:#2b8af7;'>TIER A</div><div class='tag-off'>DESCARTE</div>"
-        else: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-on' style='background:#ff3b30;'>DESCARTE</div>"
-        h_ev += "</div>"
-        net_color = "#16a34a" if net_ev > 0 else "#dc2626"
-        breakdown_ev = f"<div class='kpi-breakdown'>• Fuerza Sistemas (Neto): <b style='color:{net_color};'>{net_ev:+.2f}</b><br>• Bonus Calidad: <b style='color:#16a34a;'>+{ev_plus:.2f}</b><br>• Desglose: <span style='color:#16a34a;'>+{ev_compra:.2f} (C)</span> / <span style='color:#dc2626;'>-{ev_venta:.2f} (V)</span></div>"
-        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>SCORE EV (Esperanza)</div><div class='apple-kpi-value'>{ev_tot:.2f}</div>{breakdown_ev}{h_ev}</div>", unsafe_allow_html=True)
-    with c2:
-        h_idt = "<div class='rank-box'>"
-        if idt >= 100: h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
-        elif idt >= 85: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-on' style='background:#ff9500;'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
-        else: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-on' style='background:#ff3b30;'>BLOQUEADA</div>"
-        h_idt += "</div>"
-        breakdown_idt = f"<div class='kpi-breakdown'>• WinRate Principal: <b>+{l_wr[0]}</b><br>• Calidad + Sistemas: <b>+{(bono + p_estr + p_sen)}</b><br>• Penalización por Stop: <b style='color:#dc2626;'>-{penal}</b></div>"
-        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>PUNTOS IDT (Estructura)</div><div class='apple-kpi-value'>{idt}</div>{breakdown_idt}{h_idt}</div>", unsafe_allow_html=True)
-    with c3:
-        h_ite = "<div class='rank-box'>"
-        if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
-        elif ite <= 10: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
-        else: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-on' style='background:#ff3b30;'>PELIGROSO</div>"
-        h_ite += "</div>"
-        breakdown_ite = f"<div class='kpi-breakdown'>• Precio Compra: <b>{p_buy:.2f} $</b><br>• Stop Loss: <b>{p_sl:.2f} $</b><br>• Distancia de caída: <b>{distancia_stop:.2f} $</b></div>"
-        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.subheader("🔮 Oráculo Quant (Calibrado con el ADN Principal)")
-    z_in, acc_in, vol_z_in = 0.0, 0.0, 0.0
-    if ticker != "" and not df_global.empty:
-        try:
-            df_esc = df_global.copy()
-            df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
-            df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
-            df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
-            df_esc['ROC_10'] = df_esc['Close'].pct_change(periods=10) * 100
-            df_esc['Accel'] = df_esc['ROC_10'].diff(periods=5)
-            df_esc['Vol_MA55'] = df_esc['Volume'].rolling(window=55).mean()
-            df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
-            df_esc['Vol_Z_Score'] = (df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']
-            
-            today_naive = df_esc.index[-1].replace(tzinfo=None)
-            target_dates_naive = []
-            for i in range(12): 
-                m = today_naive.month - i; y = today_naive.year
-                while m <= 0: m += 12; y -= 1
-                target_dates_naive.append(datetime.datetime(y, m, 1))
-                target_dates_naive.append(datetime.datetime(y, m, 15))
-                
-            fechas_slider = []
-            for td in target_dates_naive:
-                if td <= today_naive:
-                    deltas = abs(df_esc.index.tz_localize(None) - td)
-                    fechas_slider.append(df_esc.index[deltas.argmin()])
-                    
-            for d in df_esc.index[-15:]: fechas_slider.append(d)
-            fechas_slider = sorted(list(set(fechas_slider)))
-            meses = {1:"Ene", 2:"Feb", 3:"Mar", 4:"Abr", 5:"May", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dic"}
-            opciones_str = []
-            dict_fechas = {}
-            for d in fechas_slider:
-                d_naive = d.replace(tzinfo=None)
-                if d == df_esc.index[-1]: s = "🟢 HOY"
-                else: s = f"{d_naive.day} {meses[d_naive.month]} {d_naive.year}"
-                opciones_str.append(s)
-                dict_fechas[s] = d
-
-            fecha_sel_str = st.select_slider("⏳ **Máquina del Tiempo:** Desliza para ver qué marcaba el radar ese día exacto.", options=opciones_str, value="🟢 HOY")
-            fecha_sel = dict_fechas[fecha_sel_str]
-            if fecha_sel_str != "🟢 HOY": st.warning(f"⚠️ **MODO VIAJE EN EL TIEMPO:** Estás viendo la pantalla de A.I.T.O.R. exactamente como cerró el **{fecha_sel_str}**.")
-
-            df_corte = df_esc[df_esc.index <= fecha_sel].copy()
-            z_in = df_corte['Z_Score'].iloc[-1] if not pd.isna(df_corte['Z_Score'].iloc[-1]) else 0
-            acc_in = df_corte['Accel'].iloc[-1] if not pd.isna(df_corte['Accel'].iloc[-1]) else 0
-            vol_z_in = df_corte['Vol_Z_Score'].iloc[-1] if not pd.isna(df_corte['Vol_Z_Score'].iloc[-1]) else 0
-
-            df_last_15 = df_corte.tail(15).copy()
-            bar_x = [f"{d.day} {meses[d.month]}" for d in df_last_15.index.tz_localize(None)]
-
-            col_eq1, col_eq2, col_eq3 = st.columns(3)
-            with col_eq1:
-                z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
-                z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= opt_z else "color:#a1a1aa;"
-                z_c3 = "font-weight:900; color:#ff3b30;" if z_in > opt_z else "color:#a1a1aa;"
-                if opt_z != -99:
-                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                        <div class="quant-title">Tensión Precio (ADN > {opt_z}σ)</div>
-                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                            <div style='{z_c1}'>• < -2.0 : Sobrevendida</div><div style='{z_c2}'>• -2.0 a {opt_z} : Normal</div><div style='{z_c3}'>• > {opt_z} : Disparador Activo</div>
-                        </div>""", unsafe_allow_html=True)
-                    fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2.0], color="#3b82f6"), dict(range=[-2.0, opt_z], color="#e5e5ea"), dict(range=[opt_z, 4], color="#ff3b30")])))
-                    bar_c_z = ['#ff3b30' if val > opt_z else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
-                    line_z = opt_z
-                else:
-                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Tensión Precio (Apagado)</div>""", unsafe_allow_html=True)
-                    fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="gray"))))
-                    bar_c_z = ['gray'] * 15; line_z = 2.0
-                fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
-                st.plotly_chart(fig_ze, use_container_width=True)
-                fig_b_z = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Z_Score'], marker_color=bar_c_z)])
-                fig_b_z.add_hline(y=line_z, line_dash="dash", line_color="#ff3b30")
-                fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
-                st.plotly_chart(fig_b_z, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with col_eq2:
-                a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= opt_acc else "color:#a1a1aa;"
-                a_c2 = "font-weight:900; color:#16a34a;" if acc_in > opt_acc else "color:#a1a1aa;"
-                if opt_acc != -99:
-                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                        <div class="quant-title">Momentum (ADN > {opt_acc})</div>
-                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                            <div style='{a_c1}'>• ≤ {opt_acc} : Sin Gatillo</div><div style='{a_c2}'>• > {opt_acc} : Aceleración Activa</div><div style='color:transparent;'>_</div>
-                        </div>""", unsafe_allow_html=True)
-                    fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, opt_acc], color="#ffcdd2"), dict(range=[opt_acc, 10], color="#c8e6c9")])))
-                    bar_c_a = ['#34c759' if val > opt_acc else '#ff3b30' for val in df_last_15['Accel']]
-                    line_acc = opt_acc
-                else:
-                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Momentum (Apagado)</div>""", unsafe_allow_html=True)
-                    fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="gray"))))
-                    bar_c_a = ['gray'] * 15; line_acc = 0
-                fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
-                st.plotly_chart(fig_ae, use_container_width=True)
-                fig_b_a = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Accel'], marker_color=bar_c_a)])
-                fig_b_a.add_hline(y=line_acc, line_dash="solid", line_color="#1d1d1f")
-                fig_b_a.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
-                st.plotly_chart(fig_b_a, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-
-            with col_eq3:
-                v_c1 = "font-weight:900; color:#ff3b30;" if vol_z_in < 0 else "color:#a1a1aa;"
-                v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= opt_vol else "color:#a1a1aa;"
-                v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > opt_vol else "color:#a1a1aa;"
-                if opt_vol != -99:
-                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                        <div class="quant-title">Volumen (ADN > {opt_vol}σ)</div>
-                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                            <div style='{v_c1}'>• < 0 : Ruido Minorista</div><div style='{v_c2}'>• 0 a {opt_vol} : Volumen Sano</div><div style='{v_c3}'>• > {opt_vol} : Gatillo Institucional</div>
-                        </div>""", unsafe_allow_html=True)
-                    fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, opt_vol], color="#e5e5ea"), dict(range=[opt_vol, 4], color="#34c759")])))
-                    bar_c_v = ['#34c759' if val >= opt_vol else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
-                    line_vol = opt_vol
-                else:
-                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Volumen (Apagado)</div>""", unsafe_allow_html=True)
-                    fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="gray"))))
-                    bar_c_v = ['gray'] * 15; line_vol = 1.5
-                fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
-                st.plotly_chart(fig_ve, use_container_width=True)
-                fig_b_v = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
-                fig_b_v.add_hline(y=line_vol, line_dash="dash", line_color="#34c759")
-                fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
-                st.plotly_chart(fig_b_v, use_container_width=True)
-                st.markdown("</div>", unsafe_allow_html=True)
-        except: pass
-
-    st.markdown("---")
-    st.subheader("📋 Auditoría Clínica de Entrada")
-    if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto.", "tdah-green"
-    elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto.", "tdah-blue"
-    else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL.", "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_ev_out}'><div class='tdah-title'>📊 Esperanza Matemática:</div><div class='tdah-text'>{txt_ev_out}</div></div>", unsafe_allow_html=True)
-
-    if net_ev >= 1.5: col_f_out = "tdah-green"
-    elif net_ev >= 0: col_f_out = "tdah-yellow"
-    else: col_f_out = "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_f_out}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>Empuje real descontando sistemas en contra: <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
-    if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
-    elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa.", "tdah-red"
-    else:
-        cumple_z = True if opt_z == -99 else (z_in >= opt_z)
-        cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
-        cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
-        if net_ev >= 1.5 and cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "✅ LUZ VERDE TOTAL (ADN PERFECTO). Tu sistema clásico y los parámetros Quant están alineados. (TIER S).", "tdah-green"
-        elif cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "⚠️ PRECAUCIÓN. El ADN Quant da señal verde, pero tu sistema clásico (Fuerza Neta) duda. Reduce capital.", "tdah-yellow"
-        else: ver_txt, ver_col = "⚠️ OPERACIÓN ESTÁNDAR. Tu sistema clásico da señal, pero el ADN Quant no apoya. Opera normal (TIER A).", "tdah-blue"
-            
-    st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.subheader("⚙️ Panel de Ejecución Cuantitativa")
-    col_btn_save, col_btn_buy = st.columns(2)
-    with col_btn_save:
-        if st.button("💾 Solo Guardar Escaneo (Añadir a Radar)", use_container_width=True):
-            with st.spinner("📡 Guardando..."):
-                try:
-                    v_t = "REVISION REQUERIDA"
-                    if idt >= 100: v_t = "COMPRA OBLIGATORIA"
-                    elif idt >= 85: v_t = "COMPRA TACTICA"
-                    elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
-                    d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
-                    for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
-                    if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
-                    df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
-                    conn.update(worksheet="Sheet1", data=df_upd)
-                    st.cache_data.clear(); st.session_state['scan_saved_success'] = True; st.rerun()
-                except Exception as e: st.error(f"Error al guardar: {e}")
-
-    with col_btn_buy:
-        if st.button("🚀 COMPRAR AHORA: Enviar a Cartera en Vivo", use_container_width=True):
-            with st.spinner("📡 Ejecutando..."):
-                try:
-                    v_t = "COMPRADO"
-                    d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
-                    for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
-                    if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
-                    df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
-                    conn.update(worksheet="Sheet1", data=df_upd)
-                    df_c = conn.read(worksheet="Cartera", ttl=0)
-                    n_pos = {"Ticker": ticker, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_buy, "Num_Acciones": n_tit, "Stop_Actual": p_sl, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_buy, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_buy}
-                    conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                    st.cache_data.clear(); st.session_state['scan_saved_success'] = True; st.rerun()
-                except Exception as e: st.error(f"Error al enviar a cartera: {e}")
+with tab2: st.info("Auditoría Activa")
+with tab3: st.info("Cartera Activa")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 2 Y 3: AUDITORIA Y CARTERA
-# ---------------------------------------------------------------------
-with tab2: 
-    st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
-    if not df_datos.empty:
-        df_display = df_datos[['Ticker', 'Veredicto', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']].copy()
-        df_display['EV_Total'] = pd.to_numeric(df_display['EV_Total'], errors='coerce').fillna(0)
-        df_display['IDT_Puntos'] = pd.to_numeric(df_display['IDT_Puntos'], errors='coerce').fillna(0)
-        df_display['ITE_Porc'] = pd.to_numeric(df_display['ITE_Porc'], errors='coerce').fillna(0)
-        df_display['Score_Global'] = (df_display['IDT_Puntos'] / 140) * 100
-        df_display['Score_Global'] = df_display['Score_Global'].clip(upper=100, lower=0)
-        df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
-        st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
-
-with tab3:
-    st.markdown("### Gestión Quántica de Operaciones")
-    tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
-    with tab_vivas:
-        try:
-            df_cartera = conn.read(worksheet="Cartera", ttl=0).dropna(how="all")
-            if df_cartera.empty: st.warning("Tu cartera está vacía.")
-            else:
-                ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
-                datos_ticker = df_cartera[df_cartera['Ticker'] == ticker_sel].iloc[0]
-                fecha_in = pd.to_datetime(datos_ticker['Fecha_Entrada']).date()
-                precio_in = float(datos_ticker['Precio_Entrada'])
-                acciones = float(datos_ticker['Num_Acciones'])
-                stop_actual = float(datos_ticker['Stop_Actual'])
-                
-                with st.spinner(f"Analizando data científica de {ticker_sel}..."):
-                    stock_cartera = yf.Ticker(ticker_sel)
-                    df_q = stock_cartera.history(start=fecha_in - datetime.timedelta(days=365), end=datetime.date.today() + datetime.timedelta(days=1))
-                    if df_q.empty: df_q = stock_cartera.history(period="2y")
-                    precio_vivo = df_q['Close'].iloc[-1]
-                    beneficio_eur = (precio_vivo - precio_in) * acciones
-                    beneficio_pct = ((precio_vivo - precio_in) / precio_in) * 100
-                    dias_pos = max((datetime.date.today() - fecha_in).days, 1)
-                    
-                color_borde = '#34c759' if beneficio_pct >= 0 else '#ff3b30'
-                html_kpis = f'<div class="apple-kpi-container"><div class="apple-kpi-card" style="border-left: 5px solid {color_borde};"><div class="apple-kpi-title" style="margin:0;">Rentabilidad Real</div><div class="apple-kpi-value">{beneficio_pct:+.2f}%</div><div class="apple-kpi-sub {"sub-green" if beneficio_pct>=0 else "sub-red"}">{beneficio_eur:+.2f} Netos</div></div><div class="apple-kpi-card"><div class="apple-kpi-title">Precio Mercado ({ticker_sel})</div><div class="apple-kpi-value">{precio_vivo:.2f}</div><div class="apple-kpi-sub sub-gray">Entrada: {precio_in:.2f}</div></div><div class="apple-kpi-card"><div class="apple-kpi-title">Días en Tendencia</div><div class="apple-kpi-value">{dias_pos}</div></div></div>'
-                st.markdown(html_kpis, unsafe_allow_html=True)
-                
-                col_term, col_vacia = st.columns([2, 1])
-                with col_term:
-                    rango_min = stop_actual * 0.90 
-                    rango_max = max(precio_vivo * 1.05, stop_actual * 1.10) 
-                    fig_riesgo = go.Figure(go.Indicator(mode="gauge+number", value=precio_vivo, title=dict(text=f"Radar: Precio Actual vs Stop ({stop_actual:.2f})"), gauge=dict(axis=dict(range=[rango_min, rango_max]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min, stop_actual], color="#ff3b30"), dict(range=[stop_actual, stop_actual*1.03], color="#ffcc00"), dict(range=[stop_actual*1.03, rango_max], color="#34c759")], threshold=dict(line=dict(color="black", width=5), value=stop_actual))))
-                    fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
-                    st.plotly_chart(fig_riesgo, use_container_width=True)
-                
-                with st.form("form_update_stop"):
-                    c_u1, c_u2 = st.columns([1, 2])
-                    with c_u1: nuevo_stop = st.number_input("Fijar Nuevo Stop Loss", value=float(stop_actual))
-                    with c_u2:
-                        st.markdown("<br>", unsafe_allow_html=True)
-                        if st.form_submit_button("Actualizar Stop en Base de Datos"):
-                            df_c_update = conn.read(worksheet="Cartera", ttl=0)
-                            idx = df_c_update[df_c_update['Ticker'] == ticker_sel].index
-                            if not idx.empty:
-                                df_c_update.loc[idx[-1], 'Stop_Actual'] = nuevo_stop
-                                conn.update(worksheet="Cartera", data=df_c_update)
-                                st.cache_data.clear(); st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
-        except: pass
-
-# ---------------------------------------------------------------------
-# PESTAÑA 4: LABORATORIO MODULAR & PISCINA DE ADN (VERSIÓN 67)
+# PESTAÑA 4: LABORATORIO MODULAR & INSPECTOR FORENSE (VERSIÓN 68)
 # ---------------------------------------------------------------------
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Genético")
@@ -598,6 +258,7 @@ with tab4:
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
     
+    # --- TEST MANUAL ---
     if col_run_man.button(f"⚙️ Ejecutar Simulación Manual en {ticker}", type="primary", use_container_width=True):
         with st.spinner(f"Analizando 5 años de {ticker}..."):
             try:
@@ -638,12 +299,19 @@ with tab4:
                                 if row_next['High'] > row['High']: es_valida = True; idx_entrada = i + 1; p_entrada = row_next['Close']
 
                             if es_valida:
-                                fila_diario = {"Señal Original": date.strftime("%Y-%m-%d"), "Precio": f"{p_entrada:.2f} $", "Vol (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-"}
+                                # GUARDADO FORENSE VELA A VELA
+                                fecha_compra_efectiva = df_bt.index[idx_entrada].strftime("%Y-%m-%d")
+                                fila_diario = {
+                                    "Fecha Señal": date.strftime("%Y-%m-%d"), 
+                                    "Entrada": fecha_compra_efectiva,
+                                    "Precio": f"{p_entrada:.2f} $", 
+                                    "Vol (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-"
+                                }
                                 for h in horizontes_fibo:
                                     p_salida = df_bt['Close'].iloc[idx_entrada + h]
                                     ret = ((p_salida - p_entrada) / p_entrada) * 100
                                     datos_estadistica[h].append(ret)
-                                    fila_diario[f"{h}D"] = f"{ret:+.2f}%"
+                                    fila_diario[f"Ret_{h}D"] = ret
                                 fechas_registro_display.append(fila_diario)
                                 ultimo_dia_señal = date 
 
@@ -651,13 +319,18 @@ with tab4:
                     if total_señales > 0:
                         positivas = len([s for s in datos_estadistica[21] if s > 0])
                         win_rate = (positivas / total_señales) * 100
-                        nuevo_test = {"Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)}
+                        nuevo_test = {
+                            "Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
+                            "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1),
+                            "Trades_Log": fechas_registro_display # AÑADIDO PARA EL INSPECTOR
+                        }
                         for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
                         st.session_state['historial_lab'].append(nuevo_test)
                         st.success("✅ Test manual completado y añadido a la tabla.")
                     else: st.warning("Tus reglas son demasiado estrictas. 0 señales.")
             except Exception as e: st.error(f"Error: {e}")
 
+    # --- TEST AUTO (FUERZA BRUTA) ---
     if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo", type="secondary", use_container_width=True):
         with st.spinner("Probando decenas de combinaciones institucionales..."):
             try:
@@ -680,9 +353,12 @@ with tab4:
                                 cond_acc = df_bt['Accel'] > test_a
                                 cond_vol = df_bt['Vol_Z_Score'] > test_v
                                 df_bt['Candidato'] = cond_z & cond_acc & cond_vol
+                                
+                                fechas_registro_display = []
                                 datos_estadistica = {h: [] for h in horizontes_fibo}
                                 ultimo_dia_señal = None
                                 total_señales = 0
+                                
                                 for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
                                     row = df_bt.iloc[i]
                                     date = df_bt.index[i]
@@ -691,16 +367,36 @@ with tab4:
                                         row_next = df_bt.iloc[i+1]
                                         if row_next['High'] > row['High']:
                                             idx_entrada = i + 1; p_entrada = row_next['Close']
-                                            for h in horizontes_fibo: datos_estadistica[h].append(((df_bt['Close'].iloc[idx_entrada + h] - p_entrada) / p_entrada) * 100)
+                                            fecha_compra_efectiva = df_bt.index[idx_entrada].strftime("%Y-%m-%d")
+                                            
+                                            # GUARDADO FORENSE VELA A VELA PARA AUTO
+                                            fila_diario = {
+                                                "Fecha Señal": date.strftime("%Y-%m-%d"), 
+                                                "Entrada": fecha_compra_efectiva,
+                                                "Precio": f"{p_entrada:.2f} $", 
+                                                "Vol (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-"
+                                            }
+                                            for h in horizontes_fibo:
+                                                p_salida = df_bt['Close'].iloc[idx_entrada + h]
+                                                ret = ((p_salida - p_entrada) / p_entrada) * 100
+                                                datos_estadistica[h].append(ret)
+                                                fila_diario[f"Ret_{h}D"] = ret
+                                            fechas_registro_display.append(fila_diario)
                                             total_señales += 1
                                             ultimo_dia_señal = date 
+                                
                                 if total_señales > 0:
                                     win_rate = (len([s for s in datos_estadistica[21] if s > 0]) / total_señales) * 100
-                                    nuevo_test = {"Ticker": ticker, "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", "Volumen": f"> {test_v}", "Medias": "OFF", "Precio": "Continuación", "Trades": total_señales, "WinRate": round(win_rate, 1)}
+                                    nuevo_test = {
+                                        "Ticker": ticker, "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", "Volumen": f"> {test_v}", 
+                                        "Medias": "OFF", "Precio": "Continuación", "Trades": total_señales, "WinRate": round(win_rate, 1),
+                                        "Trades_Log": fechas_registro_display # AÑADIDO PARA EL INSPECTOR
+                                    }
                                     for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
                                     st.session_state['historial_lab'].append(nuevo_test)
             except Exception as e: st.error(f"Error: {e}")
 
+    # LA COMPETICIÓN Y GUARDADO
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
@@ -718,7 +414,7 @@ with tab4:
             
             st.markdown(f"""
             <div class='champion-card'>
-                <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA {objetivo_opt.upper()}</div>
+                <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA MAXIMIZAR A {objetivo_opt.upper()}</div>
                 <div class='champion-stats'>
                     <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
                     <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rendimiento: +{campeon[col_orden]}%</div>
@@ -737,10 +433,7 @@ with tab4:
                         c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
                         
                         df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
-                        
-                        # Generar ID único
                         nuevo_id = str(int(datetime.datetime.now().timestamp()))
-                        # Si no hay ADNs para este ticker, este será el Default. Si hay, no lo será.
                         es_def = True if df_adn_actual[df_adn_actual['Ticker'] == ticker].empty else False
                         
                         nuevo_adn = {
@@ -751,31 +444,73 @@ with tab4:
                         
                         df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True)
                         conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
-                        st.cache_data.clear()
-                        st.session_state['adn_saved_success'] = True
-                        st.rerun()
+                        st.cache_data.clear(); st.session_state['adn_saved_success'] = True; st.rerun()
                     except Exception as e: st.error(f"Error: {e}")
 
             st.markdown("#### 📋 Historial de esta Sesión:")
             def color_history(val):
                 if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
                 return ''
-            styled_df = df_ticker_hist.style.map(color_history, subset=str_cols_fibo)
+            
+            # Quitar la columna 'Trades_Log' antes de mostrar la tabla general
+            df_mostrar = df_ticker_hist.drop(columns=['Trades_Log'], errors='ignore')
+            styled_df = df_mostrar.style.map(color_history, subset=str_cols_fibo)
             styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[col_orden])
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
+            # -----------------------------------------------------------------
+            # 🔍 EL NUEVO INSPECTOR FORENSE
+            # -----------------------------------------------------------------
+            st.markdown("---")
+            st.markdown("### 🔍 Inspección Forense (Auditoría Vela a Vela)")
+            st.markdown("Selecciona uno de los tests de arriba para ver las fechas exactas en las que la máquina compró y verifica si fueron operaciones lógicas en tu gráfico de TradingView.")
+            
+            # Recuperar la lista de tests reales para este ticker desde la memoria RAM (manteniendo el orden original o el de pandas)
+            tests_del_ticker = [t for t in st.session_state['historial_lab'] if t['Ticker'] == ticker]
+            
+            opciones_inspector = []
+            for i, t in enumerate(tests_del_ticker):
+                texto_opcion = f"Test #{i+1} | Z: {t['Z-Score']} | Accel: {t['Accel']} | Vol: {t['Volumen']} | {t['Trades']} Entradas"
+                opciones_inspector.append(texto_opcion)
+                
+            if opciones_inspector:
+                test_elegido_str = st.selectbox("Abre la caja negra de un Test:", opciones_inspector)
+                idx_elegido = int(test_elegido_str.split("#")[1].split(" ")[0]) - 1
+                
+                datos_forenses = tests_del_ticker[idx_elegido].get("Trades_Log", [])
+                
+                if datos_forenses:
+                    df_forense = pd.DataFrame(datos_forenses)
+                    
+                    # Formatear porcentajes para visualización
+                    def format_pct(val):
+                        if isinstance(val, (int, float)): return f"{val:+.2f}%"
+                        return val
+                        
+                    for col in str_cols_fibo:
+                        if col in df_forense.columns:
+                            df_forense[col] = df_forense[col].apply(format_pct)
+                    
+                    def color_forense(val):
+                        if isinstance(val, str) and '%' in val:
+                            num = float(val.replace('%', '').replace('+', ''))
+                            return 'color: #16a34a; font-weight: bold' if num > 0 else 'color: #dc2626'
+                        return ''
+                        
+                    st.dataframe(df_forense.style.map(color_forense, subset=str_cols_fibo), use_container_width=True, hide_index=True)
+                else:
+                    st.info("Este test no generó ninguna entrada para analizar.")
+
     # -------------------------------------------------------------------------
-    # EL GESTOR DE ADN (NUEVA SECCIÓN DE LA VERSIÓN 67)
+    # EL GESTOR DE ADN
     # -------------------------------------------------------------------------
     st.markdown("---")
     st.markdown(f"## 🧬 Tu Banco de ADN para {ticker}")
     if tiene_adn:
         st.markdown("Estos son los sistemas que están vigilando esta acción. **El Radar Diario buscará oportunidades en TODOS ellos a la vez.**")
         
-        # Display saved ADNs for this ticker
         df_display_adn = df_adn_ticker.copy()
         
-        # Formatear para mostrar bonito
         df_display_adn['Es_Default'] = df_display_adn['Es_Default'].apply(lambda x: "⭐ SÍ" if x else "No")
         df_display_adn['Z_Min'] = df_display_adn['Z_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
         df_display_adn['Acc_Min'] = df_display_adn['Acc_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
@@ -789,9 +524,7 @@ with tab4:
         
         if col_m2.button("⭐ Establecer como ADN Principal (Se verá en el Escáner)", use_container_width=True):
             df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
-            # Quitar Default a todos los de este ticker
             df_adn_full.loc[df_adn_full['Ticker'] == ticker, 'Es_Default'] = False
-            # Poner Default al elegido
             df_adn_full.loc[df_adn_full['ID_ADN'] == str(adn_a_gestionar), 'Es_Default'] = True
             conn.update(worksheet="ADN_Quant", data=df_adn_full)
             st.cache_data.clear(); st.rerun()
@@ -799,22 +532,20 @@ with tab4:
         if col_m2.button("🗑️ Borrar este ADN", use_container_width=True):
             df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
             df_adn_full = df_adn_full[df_adn_full['ID_ADN'] != str(adn_a_gestionar)]
-            # Si borramos el default y quedan otros, hacer el primero default
             quedan = df_adn_full[df_adn_full['Ticker'] == ticker]
             if not quedan.empty and not quedan['Es_Default'].any():
                 df_adn_full.loc[quedan.index[0], 'Es_Default'] = True
             conn.update(worksheet="ADN_Quant", data=df_adn_full)
             st.cache_data.clear(); st.rerun()
-
     else:
         st.info("Aún no tienes ningún sistema guardado para esta acción.")
 
 # =====================================================================
-# PESTAÑA 5: EL RADAR DIARIO (BÚSQUEDA MULTIDIMENSIONAL)
+# PESTAÑA 5: EL RADAR DIARIO 
 # =====================================================================
 with tab5:
     st.title("📡 Radar Institucional (El Centro de Mando)")
-    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY. Las alertas te dirán exactamente qué ADN (Corto, Medio o Largo plazo) acaba de detonar.")
+    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY.")
     
     if st.button("🔄 Lanzar Radar Diario de Mercado", type="primary", use_container_width=True):
         if df_adn.empty:
@@ -849,7 +580,6 @@ with tab5:
                         hoy_vol = df_rad['Vol_Z_Score'].iloc[-1]
                         precio_hoy = df_rad['Close'].iloc[-1]
                         
-                        # CHEQUEAR TODOS LOS SISTEMAS GUARDADOS PARA ESE TICKER
                         sistemas_disparados = []
                         for _, sys_adn in adns_del_ticker.iterrows():
                             adn_z = float(sys_adn['Z_Min'])
@@ -910,8 +640,7 @@ with tab5:
                                             df_c = conn.read(worksheet="Cartera", ttl=0)
                                             n_pos = {"Ticker": t_alert, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_compra_rad, "Num_Acciones": acciones_rad, "Stop_Actual": p_stop_rad, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_compra_rad, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_compra_rad}
                                             conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                                            st.cache_data.clear()
-                                            st.success(f"✅ ¡Operación en {t_alert} registrada con éxito! (Pestaña Cartera)")
+                                            st.cache_data.clear(); st.success(f"✅ ¡Operación en {t_alert} registrada con éxito! (Pestaña Cartera)")
                                         except Exception as e: st.error(f"Error en base de datos: {e}")
                                 else:
                                     st.error("Calcula bien el riesgo antes de disparar.")
