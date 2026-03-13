@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 55.0 MEMORIA GENETICA", layout="wide")
+st.set_page_config(page_title="AITOR 56.0 AUDITORIA COMPLETA", layout="wide")
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
 st.markdown("""
@@ -70,7 +70,6 @@ conn = st.connection("gsheets", type=GSheetsConnection)
 try: df_datos = conn.read(worksheet="Sheet1", ttl=60) 
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
-# NUEVA BASE DE DATOS: ADN DE OPTIMIZACIÓN
 try: df_adn = conn.read(worksheet="ADN_Quant", ttl=60)
 except: df_adn = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Rendimiento"])
 
@@ -84,8 +83,8 @@ ticker_lista = st.sidebar.selectbox("O cargar de Auditoría:", [""] + opciones_b
 ticker = ticker_manual if ticker_manual != "" else ticker_lista
 if ticker == "": ticker = "MU"
 
-# --- LECTURA DEL ADN GENÉTICO DEL TICKER ---
-opt_z, opt_acc, opt_vol = 1.0, 0.0, 1.5 # Valores por defecto
+# --- LECTURA DEL ADN GENÉTICO ---
+opt_z, opt_acc, opt_vol = 1.0, 0.0, 1.5 # Valores genéricos por defecto
 tiene_adn = False
 if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
     df_adn_ticker = df_adn[df_adn['Ticker'] == ticker]
@@ -98,7 +97,6 @@ if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
 
 nom_emp, p_merc, prev_1y, eps_base, atr_val = "Buscando...", 0.0, 0.0, 0.0, 0.0
 df_global = pd.DataFrame()
-beta_val = 1.0 
 
 if ticker != "":
     stock = yf.Ticker(ticker)
@@ -112,16 +110,6 @@ if ticker != "":
             ranges = pd.concat([high_low, high_close, low_close], axis=1)
             true_range = np.max(ranges, axis=1)
             atr_val = true_range.rolling(14).mean().iloc[-1]
-            try:
-                spy = yf.Ticker("SPY").history(period="1y")
-                ret_stock = df_global['Close'].pct_change().dropna()
-                ret_spy = spy['Close'].pct_change().dropna()
-                aligned_rets = pd.concat([ret_stock, ret_spy], axis=1, join='inner')
-                aligned_rets.columns = ['Stock', 'Market']
-                cov = aligned_rets.cov().iloc[0, 1]
-                var = aligned_rets['Market'].var()
-                beta_val = cov / var if var != 0 else 1.0
-            except: pass
     except: pass
     try:
         info = stock.info
@@ -162,7 +150,7 @@ p_sl = st.sidebar.number_input("Stop Loss", value=float(stop_sugerido_auto), key
 # =====================================================================
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo", "🧪 Laboratorio Modular"])
 
-# --- PESTAÑA 1: ESCÁNER INTELIGENTE (MUTADO POR ADN) ---
+# --- PESTAÑA 1: ESCÁNER INTELIGENTE ---
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
     
@@ -211,10 +199,48 @@ with tab1:
     ev_venta = sum([l_ev[i] for i in range(5) if l_es[i] == "Venta"])
     net_ev = ev_compra - ev_venta 
     ev_tot = round(net_ev + ev_plus, 2) 
+    ite = round(((p_buy - p_sl) / p_buy) * 100.0, 2) if p_buy > 0 else 0.0
+    penal = 30 if ite > 15 else 0 
+    p_estr = sum(10 for e in l_es[1:] if e == "Compra")
+    p_sen = 10 if l_es[0] == "Compra" else 0
+    idt = l_wr[0] + bono + p_estr + p_sen - penal
 
     if net_ev >= 1.5: st.markdown("<div class='main-banner banner-green'>✅ LUZ VERDE ESTRUCTURAL: Ventaja Matemática Confirmada. APTO PARA COMPRAR.</div>", unsafe_allow_html=True)
     elif net_ev >= 0: st.markdown("<div class='main-banner banner-yellow'>⚠️ PRECAUCIÓN: Fuerza Neta Débil. Apto solo con POSICIÓN REDUCIDA.</div>", unsafe_allow_html=True)
     else: st.markdown("<div class='main-banner banner-red'>🚨 SISTEMA BLOQUEADO: Esperanza Matemática Negativa. PROHIBIDO COMPRAR.</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.markdown("### 🏛️ Auditoría Matemática Central")
+    c1, c2, c3 = st.columns(3)
+    
+    with c1:
+        h_ev = "<div class='rank-box'>"
+        if ev_tot >= 10: h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
+        elif ev_tot >= 5: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-on' style='background:#2b8af7;'>TIER A</div><div class='tag-off'>DESCARTE</div>"
+        else: h_ev += "<div class='tag-off'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-on' style='background:#ff3b30;'>DESCARTE</div>"
+        h_ev += "</div>"
+        net_color = "#16a34a" if net_ev > 0 else "#dc2626"
+        breakdown_ev = f"<div class='kpi-breakdown'>• Fuerza Sistemas (Neto): <b style='color:{net_color};'>{net_ev:+.2f}</b><br>• Bonus Calidad: <b style='color:#16a34a;'>+{ev_plus:.2f}</b><br>• Desglose: <span style='color:#16a34a;'>+{ev_compra:.2f} (C)</span> / <span style='color:#dc2626;'>-{ev_venta:.2f} (V)</span></div>"
+        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>SCORE EV (Esperanza)</div><div class='apple-kpi-value'>{ev_tot:.2f}</div>{breakdown_ev}{h_ev}</div>", unsafe_allow_html=True)
+
+    with c2:
+        h_idt = "<div class='rank-box'>"
+        if idt >= 100: h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
+        elif idt >= 85: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-on' style='background:#ff9500;'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
+        else: h_idt += "<div class='tag-off'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-on' style='background:#ff3b30;'>BLOQUEADA</div>"
+        h_idt += "</div>"
+        breakdown_idt = f"<div class='kpi-breakdown'>• WinRate Principal: <b>+{l_wr[0]}</b><br>• Calidad + Sistemas: <b>+{(bono + p_estr + p_sen)}</b><br>• Penalización por Stop: <b style='color:#dc2626;'>-{penal}</b></div>"
+        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>PUNTOS IDT (Estructura)</div><div class='apple-kpi-value'>{idt}</div>{breakdown_idt}{h_idt}</div>", unsafe_allow_html=True)
+
+    with c3:
+        h_ite = "<div class='rank-box'>"
+        if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
+        elif ite <= 10: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-on' style='background:#ff9500;'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
+        else: h_ite += "<div class='tag-off'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-on' style='background:#ff3b30;'>PELIGROSO</div>"
+        h_ite += "</div>"
+        distancia = p_buy - p_sl
+        breakdown_ite = f"<div class='kpi-breakdown'>• Precio Compra: <b>{p_buy:.2f} $</b><br>• Stop Loss: <b>{p_sl:.2f} $</b><br>• Distancia de caída: <b>{distancia:.2f} $</b></div>"
+        st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
     st.markdown("---")
     
@@ -279,7 +305,7 @@ with tab1:
                     z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= opt_z else "color:#a1a1aa;"
                     z_c3 = "font-weight:900; color:#ff3b30;" if z_in > opt_z else "color:#a1a1aa;"
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                        <div class="quant-title">Tensión (Setup > {opt_z})</div>
+                        <div class="quant-title">Tensión (ADN > {opt_z}σ)</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
                             <div style='{z_c1}'>• < -2.0 : Sobrevendida</div>
                             <div style='{z_c2}'>• -2.0 a {opt_z} : Normal</div>
@@ -300,7 +326,7 @@ with tab1:
                     a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= opt_acc else "color:#a1a1aa;"
                     a_c2 = "font-weight:900; color:#16a34a;" if acc_in > opt_acc else "color:#a1a1aa;"
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                        <div class="quant-title">Momentum (Setup > {opt_acc})</div>
+                        <div class="quant-title">Momentum (ADN > {opt_acc})</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
                             <div style='{a_c1}'>• ≤ {opt_acc} : Sin Gatillo</div>
                             <div style='{a_c2}'>• > {opt_acc} : Aceleración Activa</div>
@@ -322,7 +348,7 @@ with tab1:
                     v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= opt_vol else "color:#a1a1aa;"
                     v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > opt_vol else "color:#a1a1aa;"
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                        <div class="quant-title">Volumen (Setup > {opt_vol})</div>
+                        <div class="quant-title">Volumen (ADN > {opt_vol}σ)</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
                             <div style='{v_c1}'>• < 0 : Ruido Minorista</div>
                             <div style='{v_c2}'>• 0 a {opt_vol} : Volumen Sano</div>
@@ -341,33 +367,180 @@ with tab1:
                     
         except: pass
 
-    # DIAGNOSTICOS TEXTUALES MUTADOS
+    # =====================================================================
+    # RESTAURACIÓN COMPLETA DE LA AUDITORÍA CLÍNICA (CONECTADA AL ADN)
+    # =====================================================================
     st.markdown("---")
-    st.subheader("📋 Auditoría Clínica de Entrada")
-    if z_in > opt_z: txt_z, col_z = f"GATILLO ACTIVO. El precio supera el límite de {opt_z} establecido en tu ADN.", "tdah-green"
-    else: txt_z, col_z = "Tensión insuficiente. No cumple tu ADN.", "tdah-yellow"
-    st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Diagnóstico Precio:</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
+    st.subheader("📋 Auditoría Clínica de Entrada (ADN Integrado)")
+    
+    # 1. Esperanza EV
+    if ev_tot >= 10: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
+    elif ev_tot >= 5: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
+    else: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
+    st.markdown(f"<div class='tdah-box {col_ev}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad):</div><div class='tdah-text'>{txt_ev}</div></div>", unsafe_allow_html=True)
 
-    if vol_z_in >= opt_vol: txt_v, col_v = f"GATILLO ACTIVO. Volumen por encima de tu límite de {opt_vol}.", "tdah-green"
-    else: txt_v, col_v = "Volumen insuficiente para tu setup.", "tdah-yellow"
-    st.markdown(f"<div class='tdah-box {col_v}'><div class='tdah-title'>🐘 Diagnóstico Volumen:</div><div class='tdah-text'>{txt_v}</div></div>", unsafe_allow_html=True)
+    # 2. Fuerza Neta
+    if net_ev >= 1.5: col_f = "tdah-green"
+    elif net_ev >= 0: col_f = "tdah-yellow"
+    else: col_f = "tdah-red"
+    st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>El empuje real del precio descontando sistemas en contra es de <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
 
-    # BOTONES
+    # 3. Z-Score Adaptado al ADN
+    if opt_z != -99:
+        if z_in > 2.5: txt_z, col_z = f"PELIGRO. Precio disparado por euforia (> 2.5σ). Riesgo altísimo de reversión.", "tdah-red"
+        elif z_in >= opt_z: txt_z, col_z = f"GATILLO ACTIVO. El precio supera el límite de {opt_z}σ establecido en tu ADN.", "tdah-green"
+        else: txt_z, col_z = f"Tensión insuficiente ({z_in:.2f}σ). No cumple el mínimo de tu ADN ({opt_z}σ).", "tdah-yellow"
+    else:
+        txt_z, col_z = "Módulo Z-Score apagado en el ADN.", "tdah-blue"
+    st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Tensión Precio (Z-Score):</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
+
+    # 4. Aceleracion Adaptada al ADN
+    if opt_acc != -99:
+        if acc_in >= opt_acc: txt_a, col_a = f"GATILLO ACTIVO. Aceleración positiva ({acc_in:.2f}), superando tu límite de {opt_acc}.", "tdah-green"
+        else: txt_a, col_a = f"Pérdida de gas ({acc_in:.2f}). No cumple el requisito de tu ADN ({opt_acc}).", "tdah-yellow"
+    else:
+        txt_a, col_a = "Módulo de Aceleración apagado en el ADN.", "tdah-blue"
+    st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
+
+    # 5. Volumen Adaptado al ADN
+    if opt_vol != -99:
+        if vol_z_in >= opt_vol: txt_v, col_v = f"GATILLO ACTIVO. Volumen institucional detectado ({vol_z_in:.2f}σ), por encima de tu ADN ({opt_vol}σ).", "tdah-green"
+        else: txt_v, col_v = f"Volumen sano o insuficiente ({vol_z_in:.2f}σ). No salta la alarma de tu ADN ({opt_vol}σ).", "tdah-yellow"
+    else:
+        txt_v, col_v = "Módulo de Volumen apagado en el ADN.", "tdah-blue"
+    st.markdown(f"<div class='tdah-box {col_v}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v}</div></div>", unsafe_allow_html=True)
+
+    # 6. Gran Veredicto Final 
+    st.markdown("<br>", unsafe_allow_html=True)
+    if net_ev < 0: 
+        ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
+    elif z_in > 2.5: 
+        ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
+    else:
+        # Check ADN conditions
+        cumple_z = True if opt_z == -99 else (z_in >= opt_z)
+        cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
+        cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
+        
+        if net_ev >= 1.5 and cumple_z and cumple_acc and cumple_vol: 
+            ver_txt, ver_col = "✅ LUZ VERDE TOTAL (ADN PERFECTO). Estructura fuerte y todos los parámetros de tu ADN cuantitativo están alineados. Ejecución autorizada.", "tdah-green"
+        elif cumple_z and cumple_acc and cumple_vol:
+            ver_txt, ver_col = "⚠️ PRECAUCIÓN. Los indicadores de tu ADN están en verde, pero la Fuerza Neta (Medias) es débil. Reduce tu capital a la mitad.", "tdah-yellow"
+        else: 
+            ver_txt, ver_col = "⚠️ OPERACIÓN NO ALINEADA. La acción no cumple tu firma genética. Si decides entrar, es bajo tu propio riesgo (fuera de sistema).", "tdah-yellow"
+            
+    st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
+
+    # =====================================================================
+    # BOTONES DE ACCIÓN 
+    # =====================================================================
     st.markdown("---")
     st.subheader("⚙️ Panel de Ejecución Cuantitativa")
     col_btn_save, col_btn_buy = st.columns(2)
     with col_btn_save:
         if st.button("💾 Solo Guardar Escaneo (Añadir a Radar)", use_container_width=True):
-            st.success("Guardado.")
+            with st.spinner("📡 Sincronizando con Base de Datos..."):
+                try:
+                    v_t = "REVISION REQUERIDA"
+                    if idt >= 100: v_t = "COMPRA OBLIGATORIA"
+                    elif idt >= 85: v_t = "COMPRA TACTICA"
+                    elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
+                    d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
+                    for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=60)
+                    if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
+                    df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
+                    conn.update(worksheet="Sheet1", data=df_upd)
+                    st.cache_data.clear() 
+                    st.toast("✅ Escaneo guardado correctamente en tu Auditoría.", icon="💾")
+                except Exception as e: st.error(f"Error al guardar: {e}")
+
     with col_btn_buy:
         if st.button("🚀 COMPRAR AHORA: Enviar a Cartera en Vivo", use_container_width=True):
-            st.success("Comprado.")
+            with st.spinner("📡 Ejecutando operación y guardando..."):
+                try:
+                    v_t = "COMPRADO"
+                    d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
+                    for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=60)
+                    if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
+                    df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
+                    conn.update(worksheet="Sheet1", data=df_upd)
+                    df_c = conn.read(worksheet="Cartera", ttl=60)
+                    n_pos = {"Ticker": ticker, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_buy, "Num_Acciones": n_tit, "Stop_Actual": p_sl, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_buy, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_buy}
+                    conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                    st.cache_data.clear() 
+                    st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.", icon="🚀")
+                except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
-with tab2: st.info("Auditoría Activa")
-with tab3: st.info("Cartera Activa")
+# --- PESTAÑAS 2 Y 3 ---
+with tab2: 
+    st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
+    if not df_datos.empty:
+        df_display = df_datos[['Ticker', 'Veredicto', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']].copy()
+        df_display['EV_Total'] = pd.to_numeric(df_display['EV_Total'], errors='coerce').fillna(0)
+        df_display['IDT_Puntos'] = pd.to_numeric(df_display['IDT_Puntos'], errors='coerce').fillna(0)
+        df_display['ITE_Porc'] = pd.to_numeric(df_display['ITE_Porc'], errors='coerce').fillna(0)
+        df_display['Score_Global'] = (df_display['IDT_Puntos'] / 140) * 100
+        df_display['Score_Global'] = df_display['Score_Global'].clip(upper=100, lower=0)
+        df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
+        st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
+
+with tab3:
+    st.markdown("### Gestión Quántica de Operaciones")
+    tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
+    with tab_vivas:
+        try:
+            df_cartera = conn.read(worksheet="Cartera", ttl=60).dropna(how="all")
+            if df_cartera.empty: st.warning("Tu cartera está vacía.")
+            else:
+                ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
+                datos_ticker = df_cartera[df_cartera['Ticker'] == ticker_sel].iloc[0]
+                fecha_in = pd.to_datetime(datos_ticker['Fecha_Entrada']).date()
+                precio_in = float(datos_ticker['Precio_Entrada'])
+                acciones = float(datos_ticker['Num_Acciones'])
+                stop_actual = float(datos_ticker['Stop_Actual'])
+                
+                with st.spinner(f"Analizando data científica de {ticker_sel}..."):
+                    stock_cartera = yf.Ticker(ticker_sel)
+                    df_q = stock_cartera.history(start=fecha_in - datetime.timedelta(days=365), end=datetime.date.today() + datetime.timedelta(days=1))
+                    if df_q.empty: df_q = stock_cartera.history(period="2y")
+                    precio_vivo = df_q['Close'].iloc[-1]
+                    beneficio_eur = (precio_vivo - precio_in) * acciones
+                    beneficio_pct = ((precio_vivo - precio_in) / precio_in) * 100
+                    dias_pos = max((datetime.date.today() - fecha_in).days, 1)
+                    
+                color_borde = '#34c759' if beneficio_pct >= 0 else '#ff3b30'
+                html_kpis = f'<div class="apple-kpi-container"><div class="apple-kpi-card" style="border-left: 5px solid {color_borde};"><div class="apple-kpi-title" style="margin:0;">Rentabilidad Real</div><div class="apple-kpi-value">{beneficio_pct:+.2f}%</div><div class="apple-kpi-sub {"sub-green" if beneficio_pct>=0 else "sub-red"}">{beneficio_eur:+.2f} Netos</div></div><div class="apple-kpi-card"><div class="apple-kpi-title">Precio Mercado ({ticker_sel})</div><div class="apple-kpi-value">{precio_vivo:.2f}</div><div class="apple-kpi-sub sub-gray">Entrada: {precio_in:.2f}</div></div><div class="apple-kpi-card"><div class="apple-kpi-title">Días en Tendencia</div><div class="apple-kpi-value">{dias_pos}</div></div></div>'
+                st.markdown(html_kpis, unsafe_allow_html=True)
+                
+                col_term, col_vacia = st.columns([2, 1])
+                with col_term:
+                    rango_min = stop_actual * 0.90 
+                    rango_max = max(precio_vivo * 1.05, stop_actual * 1.10) 
+                    fig_riesgo = go.Figure(go.Indicator(mode="gauge+number", value=precio_vivo, title=dict(text=f"Radar: Precio Actual vs Stop ({stop_actual:.2f})"), gauge=dict(axis=dict(range=[rango_min, rango_max]), bar=dict(color="#1d1d1f"), steps=[dict(range=[rango_min, stop_actual], color="#ff3b30"), dict(range=[stop_actual, stop_actual*1.03], color="#ffcc00"), dict(range=[stop_actual*1.03, rango_max], color="#34c759")], threshold=dict(line=dict(color="black", width=5), value=stop_actual))))
+                    fig_riesgo.update_layout(height=250, margin=dict(l=20, r=20, t=40, b=20))
+                    st.plotly_chart(fig_riesgo, use_container_width=True)
+                
+                with st.form("form_update_stop"):
+                    c_u1, c_u2 = st.columns([1, 2])
+                    with c_u1: nuevo_stop = st.number_input("Fijar Nuevo Stop Loss", value=float(stop_actual))
+                    with c_u2:
+                        st.markdown("<br>", unsafe_allow_html=True)
+                        if st.form_submit_button("Actualizar Stop en Base de Datos"):
+                            df_c_update = conn.read(worksheet="Cartera", ttl=60)
+                            idx = df_c_update[df_c_update['Ticker'] == ticker_sel].index
+                            if not idx.empty:
+                                df_c_update.loc[idx[-1], 'Stop_Actual'] = nuevo_stop
+                                conn.update(worksheet="Cartera", data=df_c_update)
+                                st.cache_data.clear()
+                                st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
+        except: pass
+    with tab_add: st.info("Registro manual en código.")
+    with tab_historial: st.info("Historial en código.")
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR CON GUARDADO DE ADN (VERSIÓN 55)
+# PESTAÑA 4: LABORATORIO MODULAR CON GUARDADO DE ADN
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Edición de ADN")
@@ -375,20 +548,26 @@ with tab4:
     
     st.markdown("### 🎛️ 1. Panel Quant (Enciende/Apaga Módulos)")
     col_p1, col_p2, col_p3 = st.columns(3)
+    
+    # Check si estaban deshabilitados en el ADN
+    val_z = True if opt_z != -99 else False
+    val_acc = True if opt_acc != -99 else False
+    val_vol = True if opt_vol != -99 else False
+    
     with col_p1:
         st.markdown("<div style='background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e8eaed;'>", unsafe_allow_html=True)
-        use_z = st.checkbox("🟢 Usar Tensión Precio (Z-Score)", value=True)
-        bt_z_precio = st.number_input("Z-Score Mínimo (>)", value=float(opt_z), step=0.1, disabled=not use_z)
+        use_z = st.checkbox("🟢 Usar Tensión Precio (Z-Score)", value=val_z)
+        bt_z_precio = st.number_input("Z-Score Mínimo (>)", value=float(opt_z) if opt_z != -99 else 1.0, step=0.1, disabled=not use_z)
         st.markdown("</div>", unsafe_allow_html=True)
     with col_p2:
         st.markdown("<div style='background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e8eaed;'>", unsafe_allow_html=True)
-        use_acc = st.checkbox("🟢 Usar Aceleración (Momentum)", value=True)
-        bt_accel = st.number_input("Aceleración Mínima (>)", value=float(opt_acc), step=0.5, disabled=not use_acc)
+        use_acc = st.checkbox("🟢 Usar Aceleración (Momentum)", value=val_acc)
+        bt_accel = st.number_input("Aceleración Mínima (>)", value=float(opt_acc) if opt_acc != -99 else 0.0, step=0.5, disabled=not use_acc)
         st.markdown("</div>", unsafe_allow_html=True)
     with col_p3:
         st.markdown("<div style='background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e8eaed;'>", unsafe_allow_html=True)
-        use_vol = st.checkbox("🟢 Usar Huella Volumen", value=True)
-        bt_z_vol = st.number_input("Huella Volumen Mínima (>)", value=float(opt_vol), step=0.1, disabled=not use_vol)
+        use_vol = st.checkbox("🟢 Usar Huella Volumen", value=val_vol)
+        bt_z_vol = st.number_input("Huella Volumen Mínima (>)", value=float(opt_vol) if opt_vol != -99 else 1.5, step=0.1, disabled=not use_vol)
         st.markdown("</div>", unsafe_allow_html=True)
         
     st.markdown("### 📈 2. Filtro de Tendencia (Medias Móviles)")
