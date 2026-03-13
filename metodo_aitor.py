@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 47.0 MATRIZ TEMPORAL", layout="wide")
+st.set_page_config(page_title="AITOR 48.0 LEYENDA DINAMICA", layout="wide")
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
 st.markdown("""
@@ -35,7 +35,7 @@ st.markdown("""
     .tag-off { border-radius: 8px; padding: 6px 12px; font-size: 0.75rem; font-weight: 600; color: #8e8e93; border: 1px solid #d2d2d7; background: #fff; text-transform: uppercase; letter-spacing: 0.5px;}
     
     .quant-card { background: #fff; padding: 20px; border-radius: 15px; border: 1px solid #e5e5ea; height: 100%; box-shadow: 0 2px 10px rgba(0,0,0,0.02); margin-bottom: 15px;}
-    .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 5px; }
+    .quant-title { font-size: 1.1rem; font-weight: 700; color: #1d1d1f; margin-bottom: 8px; }
     .quant-desc { font-size: 0.85rem; color: #86868b; line-height: 1.4; margin-bottom: 15px; }
     .tdah-box { padding: 15px 20px; border-radius: 12px; margin-bottom: 12px; border-left: 6px solid; }
     .tdah-green { background: #f0fdf4; border-color: #22c55e; }
@@ -244,7 +244,7 @@ with tab1:
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
     # =====================================================================
-    # EL NUEVO ORÁCULO DE 3 ESFERAS (MATRIZ TEMPORAL)
+    # EL NUEVO ORÁCULO DE 3 ESFERAS (CON LEYENDA DINÁMICA)
     # =====================================================================
     st.markdown("---")
     st.subheader("🔮 Matriz Temporal Quant (Oráculo de 15 Días)")
@@ -275,29 +275,50 @@ with tab1:
 
                 col_eq1, col_eq2, col_eq3 = st.columns(3)
                 
-                # COLUMNA 1: Z-SCORE PRECIO
+                # COLUMNA 1: Z-SCORE PRECIO (CON LEYENDA DINÁMICA)
                 with col_eq1:
-                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Z-Score (Desviación Precio)</div><div class="quant-desc">> +2.0 Peligro de euforia.</div>""", unsafe_allow_html=True)
-                    # Velocímetro
+                    z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
+                    z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= 2.0 else "color:#a1a1aa;"
+                    z_c3 = "font-weight:900; color:#ff3b30;" if z_in > 2.0 else "color:#a1a1aa;"
+                    
+                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
+                        <div class="quant-title">Z-Score (Tensión Precio)</div>
+                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
+                            <div style='{z_c1}'>• < -2.0 : Sobrevendida (Rebote)</div>
+                            <div style='{z_c2}'>• Entre -2.0 y +2.0 : Tensión Normal</div>
+                            <div style='{z_c3}'>• > +2.0 : Euforia (Peligro)</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
                     fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, number=dict(valueformat='.2f', suffix='σ'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2.0], color="#3b82f6"), dict(range=[-2.0, 2.0], color="#e5e5ea"), dict(range=[2.0, 4], color="#ff3b30")])))
                     fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ze, use_container_width=True)
-                    # Historial
+                    
                     bar_c_z = ['#ff3b30' if val > 2.0 else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
                     fig_b_z = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Z_Score'], marker_color=bar_c_z)])
-                    fig_b_z.add_hline(y=2.0, line_dash="dash", line_color="#ff3b30", annotation_text="Tensión Alta", annotation_position="top left", annotation_font=dict(size=10))
+                    fig_b_z.add_hline(y=2.0, line_dash="dash", line_color="#ff3b30", annotation_text="Peligro", annotation_position="top left", annotation_font=dict(size=10))
                     fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
                     st.plotly_chart(fig_b_z, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                # COLUMNA 2: MOMENTUM
+                # COLUMNA 2: MOMENTUM (CON LEYENDA DINÁMICA)
                 with col_eq2:
-                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Aceleración (Momentum)</div><div class="quant-desc">> 0 Entra dinero fresco.</div>""", unsafe_allow_html=True)
-                    # Velocímetro
+                    a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= 0 else "color:#a1a1aa;"
+                    a_c2 = "font-weight:900; color:#16a34a;" if acc_in > 0 else "color:#a1a1aa;"
+                    
+                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
+                        <div class="quant-title">Aceleración (Momentum)</div>
+                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
+                            <div style='{a_c1}'>• ≤ 0 : Perdiendo Gas (Frena)</div>
+                            <div style='{a_c2}'>• > 0 : Entrando Dinero (Acelera)</div>
+                            <div style='color:transparent;'>_</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
                     fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, 0], color="#ffcdd2"), dict(range=[0, 10], color="#c8e6c9")])))
                     fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ae, use_container_width=True)
-                    # Historial
+                    
                     bar_c_a = ['#34c759' if val > 0 else '#ff3b30' for val in df_last_15['Accel']]
                     fig_b_a = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Accel'], marker_color=bar_c_a)])
                     fig_b_a.add_hline(y=0, line_dash="solid", line_color="#1d1d1f")
@@ -305,15 +326,26 @@ with tab1:
                     st.plotly_chart(fig_b_a, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                # COLUMNA 3: VOLUMEN
+                # COLUMNA 3: VOLUMEN (CON LEYENDA DINÁMICA)
                 with col_eq3:
-                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Huella Institucional</div><div class="quant-desc">> +1.5σ Compran las ballenas.</div>""", unsafe_allow_html=True)
-                    # Velocímetro
-                    fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, number=dict(valueformat='.2f', suffix='σ'), gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, 1.5], color="#ff3b30"), dict(range=[1.5, 4], color="#34c759")])))
+                    v_c1 = "font-weight:900; color:#ff3b30;" if vol_z_in < 0 else "color:#a1a1aa;"
+                    v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= 1.5 else "color:#a1a1aa;"
+                    v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > 1.5 else "color:#a1a1aa;"
+                    
+                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
+                        <div class="quant-title">Huella de Volumen</div>
+                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
+                            <div style='{v_c1}'>• < 0 : Poco Interés (Ruido)</div>
+                            <div style='{v_c2}'>• 0 a +1.5 : Volumen Sano / Oculto</div>
+                            <div style='{v_c3}'>• > +1.5 : Inyección Institucional</div>
+                        </div>
+                    """, unsafe_allow_html=True)
+                    
+                    fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, number=dict(valueformat='.2f', suffix='σ'), gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, 1.5], color="#e5e5ea"), dict(range=[1.5, 4], color="#34c759")])))
                     fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ve, use_container_width=True)
-                    # Historial
-                    bar_c_v = ['#34c759' if val >= 1.5 else '#ff3b30' for val in df_last_15['Vol_Z_Score']]
+                    
+                    bar_c_v = ['#34c759' if val >= 1.5 else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
                     fig_b_v = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
                     fig_b_v.add_hline(y=1.5, line_dash="dash", line_color="#34c759", annotation_text="Institucional", annotation_position="top left", annotation_font=dict(size=10))
                     fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
@@ -395,6 +427,7 @@ with tab1:
                     st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.", icon="🚀")
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
+# --- PESTAÑA 2 Y 3 SE MANTIENEN IGUALES ---
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
     if not df_datos.empty:
