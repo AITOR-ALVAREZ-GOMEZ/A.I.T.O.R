@@ -8,11 +8,16 @@ import plotly.graph_objects as go
 import math
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 64.1 ANTI-CRASH", layout="wide")
+st.set_page_config(page_title="AITOR 65.0 SYNC ENGINE", layout="wide")
 
 # --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
     st.session_state['historial_lab'] = []
+
+# Limpieza de memoria vieja por si cambian las columnas
+if len(st.session_state['historial_lab']) > 0:
+    if "Ret_21D" not in st.session_state['historial_lab'][0]:
+        st.session_state['historial_lab'] = []
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY ---
 st.markdown("""
@@ -81,10 +86,12 @@ COL_DB = ["Ticker", "Tier", "EV_Total", "IDT_Puntos", "ITE_Porc", "Veredicto", "
 for i in range(1, 6): COL_DB.extend([f"S{i}_Dias", f"W{i}", f"R{i}"])
 
 conn = st.connection("gsheets", type=GSheetsConnection)
-try: df_datos = conn.read(worksheet="Sheet1", ttl=60) 
+
+# CACHÉ AL 0: Lectura directa sin fantasmas
+try: df_datos = conn.read(worksheet="Sheet1", ttl=0) 
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
-try: df_adn = conn.read(worksheet="ADN_Quant", ttl=60)
+try: df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
 except: df_adn = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
 
 # =====================================================================
@@ -97,7 +104,7 @@ ticker_lista = st.sidebar.selectbox("O cargar de Auditoría:", [""] + opciones_b
 ticker = ticker_manual if ticker_manual != "" else ticker_lista
 if ticker == "": ticker = "MU"
 
-# --- LECTURA DEL ADN GENÉTICO ---
+# --- LECTURA DEL ADN GENÉTICO EN DIRECTO ---
 opt_z, opt_acc, opt_vol = 1.0, 0.0, 1.5 
 tiene_adn = False
 if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
@@ -154,7 +161,7 @@ bono = pts_eps + (10 if c_inst else 0) + (10 if c_sect else 0)
 ev_plus = bono / 7.0
 
 # ---------------------------------------------------------------------
-# CALCULADORA DE RIESGO
+# CALCULADORA DE RIESGO (ESTABLE)
 # ---------------------------------------------------------------------
 st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", min_value=0.5, max_value=10.0, value=3.3, step=0.1)
@@ -185,6 +192,15 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Escáner Cuántico", "📋 Auditor
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
     
+    # MENSAJE DE ÉXITO TRAS RECARGA
+    if st.session_state.get('adn_saved_success', False):
+        st.success("✅ ¡ADN Sincronizado! El Escáner y los Velocímetros se han adaptado automáticamente a tu nuevo campeón.")
+        st.session_state['adn_saved_success'] = False
+        
+    if st.session_state.get('scan_saved_success', False):
+        st.toast("✅ Operación guardada/enviada correctamente a la base de datos.", icon="💾")
+        st.session_state['scan_saved_success'] = False
+    
     if tiene_adn:
         st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
         st.caption(f"El Escáner ha mutado para **{ticker}**. Límites adaptados en base a tu Backtesting: Volumen > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Aceleración > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
@@ -207,6 +223,7 @@ with tab1:
                     r_defs[idx] = float(fila[f"R{idx+1}"])
             except: pass
 
+    # CAJAS DE LOS 5 SISTEMAS
     for i in range(5):
         with cols[i]:
             st.markdown(f"**{d_defs[i]} D**")
@@ -408,6 +425,7 @@ with tab1:
 
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada (ADN Integrado)")
+    
     if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto.", "tdah-green"
     elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto.", "tdah-blue"
     else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. Usa confirmación.", "tdah-red"
@@ -463,11 +481,13 @@ with tab1:
                     elif ev_tot < 5: v_t = "OPERACION NO VIABLE"
                     d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
                     for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-                    df_fresh = conn.read(worksheet="Sheet1", ttl=60)
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
                     if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
                     df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="Sheet1", data=df_upd)
-                    st.cache_data.clear(); st.toast("✅ Escaneo guardado correctamente.", icon="💾")
+                    st.cache_data.clear()
+                    st.session_state['scan_saved_success'] = True
+                    st.rerun()
                 except Exception as e: st.error(f"Error al guardar: {e}")
 
     with col_btn_buy:
@@ -477,18 +497,20 @@ with tab1:
                     v_t = "COMPRADO"
                     d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
                     for j in range(5): d_sav[f"S{j+1}_Dias"] = s_elegidos[j]; d_sav[f"W{j+1}"] = l_wr[j]; d_sav[f"R{j+1}"] = l_rt[j]
-                    df_fresh = conn.read(worksheet="Sheet1", ttl=60)
+                    df_fresh = conn.read(worksheet="Sheet1", ttl=0)
                     if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
                     df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="Sheet1", data=df_upd)
-                    df_c = conn.read(worksheet="Cartera", ttl=60)
+                    df_c = conn.read(worksheet="Cartera", ttl=0)
                     n_pos = {"Ticker": ticker, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_buy, "Num_Acciones": n_tit, "Stop_Actual": p_sl, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_buy, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_buy}
                     conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                    st.cache_data.clear(); st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones a tu Cartera.", icon="🚀")
+                    st.cache_data.clear()
+                    st.session_state['scan_saved_success'] = True
+                    st.rerun()
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 2: AUDITORÍA
+# PESTAÑA 2: AUDITORÍA GLOBAL
 # ---------------------------------------------------------------------
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
@@ -510,7 +532,7 @@ with tab3:
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
     with tab_vivas:
         try:
-            df_cartera = conn.read(worksheet="Cartera", ttl=60).dropna(how="all")
+            df_cartera = conn.read(worksheet="Cartera", ttl=0).dropna(how="all")
             if df_cartera.empty: st.warning("Tu cartera está vacía.")
             else:
                 ticker_sel = st.selectbox("Selecciona Posición Abierta:", df_cartera['Ticker'].tolist())
@@ -547,16 +569,18 @@ with tab3:
                     with c_u2:
                         st.markdown("<br>", unsafe_allow_html=True)
                         if st.form_submit_button("Actualizar Stop en Base de Datos"):
-                            df_c_update = conn.read(worksheet="Cartera", ttl=60)
+                            df_c_update = conn.read(worksheet="Cartera", ttl=0)
                             idx = df_c_update[df_c_update['Ticker'] == ticker_sel].index
                             if not idx.empty:
                                 df_c_update.loc[idx[-1], 'Stop_Actual'] = nuevo_stop
                                 conn.update(worksheet="Cartera", data=df_c_update)
                                 st.cache_data.clear(); st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
         except: pass
+    with tab_add: st.info("Registro manual en código.")
+    with tab_historial: st.info("Historial en código.")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 4: LABORATORIO MODULAR Y AUTO-DESCUBRIMIENTO 
+# PESTAÑA 4: LABORATORIO MODULAR Y OPTIMIZADOR
 # ---------------------------------------------------------------------
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Genético")
@@ -565,13 +589,6 @@ with tab4:
     horizontes_fibo = [1, 3, 5, 8, 13, 21, 34, 55, 89]
     str_cols_fibo = [f"Ret_{h}D" for h in horizontes_fibo]
     
-    # RECOLECTOR DE BASURA (El Failsafe que evita el error de la V59)
-    if len(st.session_state['historial_lab']) > 0:
-        df_hist = pd.DataFrame(st.session_state['historial_lab'])
-        if "Ret_21D" not in df_hist.columns and len(df_hist.columns) > 0:
-            st.session_state['historial_lab'] = [] # Resetea la RAM silenciosamente
-            st.rerun() # Recarga la app para limpiar el error
-
     st.markdown("### 🎛️ 1. Panel Quant Manual")
     col_p1, col_p2, col_p3 = st.columns(3)
     val_z = True if opt_z != -99 else False
@@ -608,14 +625,13 @@ with tab4:
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
     
-    # BÓTON 1: TEST MANUAL
     if col_run_man.button(f"⚙️ Ejecutar Simulación Manual en {ticker}", type="primary", use_container_width=True):
         with st.spinner(f"Analizando 5 años de {ticker}..."):
             try:
                 stock_bt = yf.Ticker(ticker)
                 df_bt = stock_bt.history(period="5y")
                 
-                if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos históricos.")
+                if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos.")
                 else:
                     df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
                     df_bt['Vol_MA55'] = df_bt['Volume'].rolling(window=55).mean()
@@ -678,7 +694,6 @@ with tab4:
                     else: st.warning("Tus reglas son demasiado estrictas. 0 señales.")
             except Exception as e: st.error(f"Error procesando los datos: {e}")
 
-    # BOTÓN 2: AUTO-OPTIMIZADOR
     if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo (Fuerza Bruta)", type="secondary", use_container_width=True):
         with st.spinner("Creando clones... Probando 27 combinaciones institucionales a la vez..."):
             try:
@@ -738,7 +753,7 @@ with tab4:
                                     
             except Exception as e: st.error(f"Error en Auto-Optimizer: {e}")
 
-    # LA COMPETICIÓN (EL SALÓN DE LA FAMA) Y GUARDADO DE ADN
+    # LA COMPETICIÓN Y GUARDADO
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
@@ -768,21 +783,32 @@ with tab4:
             </div>
             """, unsafe_allow_html=True)
             
+            # BOTÓN DE GUARDADO DEL ADN CON AUTO-REINICIO (EL BUG CORREGIDO)
             if st.button(f"💾 GUARDAR 'EL CAMPEÓN' COMO ADN OFICIAL DE {ticker}", type="secondary", use_container_width=True):
-                with st.spinner("Guardando en Base de Datos..."):
+                with st.spinner("Guardando en la Nube y sincronizando el Escáner..."):
                     try:
                         c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
                         c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
                         c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
+                        
                         df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
                         if df_adn_actual.empty: df_adn_actual = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
+                        
+                        # Borrar la versión antigua de este ticker para evitar duplicados residuales
+                        df_adn_actual = df_adn_actual[df_adn_actual['Ticker'] != ticker]
+                        
                         nuevo_adn = {"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": objetivo_opt, "Rendimiento": campeon[col_orden]}
-                        df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True).drop_duplicates("Ticker", keep="last")
+                        df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True)
+                        
                         conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
                         st.cache_data.clear()
-                        st.success("✅ ADN Modificado. El Escáner y la Auditoría ya están usando esta configuración.")
+                        
+                        # LA MAGIA: Forzar el reinicio instantáneo
+                        st.session_state['adn_saved_success'] = True
+                        st.rerun()
                     except Exception as e:
-                        if "ADN_Quant" in str(e): st.error("🚨 **Falta crear la carpeta en la nube.** Abre tu Google Sheets, crea una nueva pestaña y llámala exactamente: **`ADN_Quant`**.")
+                        if "ADN_Quant" in str(e) or "worksheet" in str(e).lower():
+                            st.error("🚨 **Falta crear la carpeta en la nube.** Abre tu archivo de Google Sheets, crea una nueva pestaña (en el botón '+' abajo a la izquierda) y llámala exactamente: **`ADN_Quant`**.")
                         else: st.error(f"Error técnico: {e}")
 
             st.markdown("#### 📋 Historial de Experimentos de esta Sesión:")
@@ -793,12 +819,12 @@ with tab4:
             styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[col_orden])
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-# =====================================================================
+# ---------------------------------------------------------------------
 # PESTAÑA 5: EL RADAR AUTOMÁTICO DIARIO
-# =====================================================================
+# ---------------------------------------------------------------------
 with tab5:
     st.title("📡 Radar Institucional (Escáner Automático Diario)")
-    st.markdown("Esta herramienta lee todas las acciones que tienen su ADN guardado y escanea el mercado de **HOY** buscando si alguna ha activado sus propios parámetros cuánticos. Ideal para revisar a final de sesión.")
+    st.markdown("Esta herramienta lee todas las acciones que tienen su ADN guardado y escanea el mercado de **HOY** buscando si alguna ha activado sus propios parámetros cuánticos.")
     
     if st.button("🔄 Lanzar Radar Diario de Mercado", type="primary", use_container_width=True):
         if df_adn.empty:
@@ -838,10 +864,7 @@ with tab5:
                         
                         if cumple_z and cumple_acc and cumple_vol:
                             alertas_encontradas.append({
-                                "Ticker": t,
-                                "Z-Score Hoy": f"{hoy_z:.2f}σ (Req: {adn_z})",
-                                "Accel Hoy": f"{hoy_acc:.2f} (Req: {adn_acc})",
-                                "Volumen Hoy": f"{hoy_vol:.2f}σ (Req: {adn_vol})"
+                                "Ticker": t, "Z-Score Hoy": f"{hoy_z:.2f}σ (Req: {adn_z})", "Accel Hoy": f"{hoy_acc:.2f} (Req: {adn_acc})", "Volumen Hoy": f"{hoy_vol:.2f}σ (Req: {adn_vol})"
                             })
                     except: pass
                 
