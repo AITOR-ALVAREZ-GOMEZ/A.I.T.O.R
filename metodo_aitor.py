@@ -555,6 +555,9 @@ with tab3:
 # ---------------------------------------------------------------------
 # PESTAÑA 4: LABORATORIO MODULAR & PISCINA DE ADN (VERSIÓN 67)
 # ---------------------------------------------------------------------
+# =====================================================================
+# INICIO DE LA PESTAÑA 4 (SUSTITUIR DESDE AQUÍ)
+# =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Genético")
     st.markdown(f"Experimenta con **{ticker}**. Guarda **múltiples sistemas ganadores** para crear tu propia piscina de estrategias.")
@@ -598,12 +601,14 @@ with tab4:
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
     
+    # --- TEST MANUAL ---
     if col_run_man.button(f"⚙️ Ejecutar Simulación Manual en {ticker}", type="primary", use_container_width=True):
         with st.spinner(f"Analizando 5 años de {ticker}..."):
             try:
                 stock_bt = yf.Ticker(ticker)
                 df_bt = stock_bt.history(period="5y")
-                if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos.")
+                if df_bt.empty or len(df_bt) < 100: 
+                    st.error("No hay suficientes datos.")
                 else:
                     df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
                     df_bt['Vol_MA55'] = df_bt['Volume'].rolling(window=55).mean()
@@ -613,6 +618,7 @@ with tab4:
                     df_bt['ROC_10'] = df_bt['Close'].pct_change(periods=10) * 100
                     df_bt['Accel'] = df_bt['ROC_10'].diff(periods=5)
                     for ma in lista_mas: df_bt[f'MA_{ma}'] = df_bt['Close'].rolling(window=ma).mean()
+                    
                     cond_z = (df_bt['Z_Score'] > bt_z_precio) if use_z else pd.Series(True, index=df_bt.index)
                     cond_acc = (df_bt['Accel'] > bt_accel) if use_acc else pd.Series(True, index=df_bt.index)
                     cond_vol = (df_bt['Vol_Z_Score'] > bt_z_vol) if use_vol else pd.Series(True, index=df_bt.index)
@@ -620,14 +626,16 @@ with tab4:
                     for ma in mas_seleccionadas: cond_mas = cond_mas & (df_bt['Close'] > df_bt[f'MA_{ma}'])
                     df_bt['Candidato'] = cond_z & cond_acc & cond_vol & cond_mas
                     
-                    fechas_registro_display = []
+                    log_forense = []
                     datos_estadistica = {h: [] for h in horizontes_fibo}
                     ultimo_dia_señal = None
+                    
                     for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
                         row = df_bt.iloc[i]
                         date = df_bt.index[i]
                         if row['Candidato']:
-                            if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: continue 
+                            if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: 
+                                continue 
                             es_valida = False; idx_entrada = i; p_entrada = row['Close']
                             gatillo_name = tipo_filtro.split(" (")[0].split(":")[0] 
                             if "Ninguno" in tipo_filtro: es_valida = True
@@ -638,32 +646,50 @@ with tab4:
                                 if row_next['High'] > row['High']: es_valida = True; idx_entrada = i + 1; p_entrada = row_next['Close']
 
                             if es_valida:
-                                fila_diario = {"Señal Original": date.strftime("%Y-%m-%d"), "Precio": f"{p_entrada:.2f} $", "Vol (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-"}
+                                # CALCULO DEL MAX DRAWDOWN (NIVEL DE PÁNICO)
+                                ventana_minimos = df_bt['Low'].iloc[idx_entrada + 1 : idx_entrada + 90]
+                                minimo_alcanzado = ventana_minimos.min()
+                                max_drawdown = ((minimo_alcanzado - p_entrada) / p_entrada) * 100
+                                
+                                fila_diario = {
+                                    "Fecha Entrada": df_bt.index[idx_entrada].strftime("%Y-%m-%d"), 
+                                    "Precio": f"{p_entrada:.2f} $", 
+                                    "Max Drawdown": max_drawdown
+                                }
                                 for h in horizontes_fibo:
                                     p_salida = df_bt['Close'].iloc[idx_entrada + h]
                                     ret = ((p_salida - p_entrada) / p_entrada) * 100
                                     datos_estadistica[h].append(ret)
-                                    fila_diario[f"{h}D"] = f"{ret:+.2f}%"
-                                fechas_registro_display.append(fila_diario)
+                                    fila_diario[f"Ret_{h}D"] = ret
+                                    
+                                log_forense.append(fila_diario)
                                 ultimo_dia_señal = date 
 
-                    total_señales = len(fechas_registro_display)
+                    total_señales = len(log_forense)
                     if total_señales > 0:
                         positivas = len([s for s in datos_estadistica[21] if s > 0])
                         win_rate = (positivas / total_señales) * 100
-                        nuevo_test = {"Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)}
+                        nuevo_test = {
+                            "Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", 
+                            "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
+                            "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, 
+                            "Trades": total_señales, "WinRate": round(win_rate, 1),
+                            "Logs": log_forense
+                        }
                         for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
                         st.session_state['historial_lab'].append(nuevo_test)
-                        st.success("✅ Test manual completado y añadido a la tabla.")
+                        st.success("✅ Test manual completado.")
                     else: st.warning("Tus reglas son demasiado estrictas. 0 señales.")
             except Exception as e: st.error(f"Error: {e}")
 
+    # --- TEST AUTO (GRID SEARCH) ---
     if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo", type="secondary", use_container_width=True):
-        with st.spinner("Probando decenas de combinaciones institucionales..."):
+        with st.spinner("Probando decenas de combinaciones y calculando Pánico..."):
             try:
                 stock_bt = yf.Ticker(ticker)
                 df_bt = stock_bt.history(period="5y")
-                if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos.")
+                if df_bt.empty or len(df_bt) < 100: 
+                    st.error("No hay suficientes datos.")
                 else:
                     df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
                     df_bt['Vol_MA55'] = df_bt['Volume'].rolling(window=55).mean()
@@ -680,27 +706,56 @@ with tab4:
                                 cond_acc = df_bt['Accel'] > test_a
                                 cond_vol = df_bt['Vol_Z_Score'] > test_v
                                 df_bt['Candidato'] = cond_z & cond_acc & cond_vol
-                                datos_estadistica = {h: [] for h in horizontes_fibo}
+                                
+                                log_forense = []
+                                rets_21d = []
                                 ultimo_dia_señal = None
-                                total_señales = 0
+                                
                                 for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
                                     row = df_bt.iloc[i]
                                     date = df_bt.index[i]
                                     if row['Candidato']:
-                                        if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: continue 
+                                        if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: 
+                                            continue 
                                         row_next = df_bt.iloc[i+1]
                                         if row_next['High'] > row['High']:
                                             idx_entrada = i + 1; p_entrada = row_next['Close']
-                                            for h in horizontes_fibo: datos_estadistica[h].append(((df_bt['Close'].iloc[idx_entrada + h] - p_entrada) / p_entrada) * 100)
-                                            total_señales += 1
+                                            
+                                            # CÁLCULO DEL MAX DRAWDOWN (NIVEL DE PÁNICO)
+                                            ventana_minimos = df_bt['Low'].iloc[idx_entrada + 1 : idx_entrada + 90]
+                                            minimo_alcanzado = ventana_minimos.min()
+                                            max_drawdown = ((minimo_alcanzado - p_entrada) / p_entrada) * 100
+                                            
+                                            fila_diario = {
+                                                "Fecha Entrada": df_bt.index[idx_entrada].strftime("%Y-%m-%d"), 
+                                                "Precio": f"{p_entrada:.2f} $",
+                                                "Max Drawdown": max_drawdown
+                                            }
+                                            for h in horizontes_fibo:
+                                                p_salida = df_bt['Close'].iloc[idx_entrada + h]
+                                                ret = ((p_salida - p_entrada) / p_entrada) * 100
+                                                fila_diario[f"Ret_{h}D"] = ret
+                                                if h == 21: rets_21d.append(ret)
+                                                
+                                            log_forense.append(fila_diario)
                                             ultimo_dia_señal = date 
-                                if total_señales > 0:
-                                    win_rate = (len([s for s in datos_estadistica[21] if s > 0]) / total_señales) * 100
-                                    nuevo_test = {"Ticker": ticker, "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", "Volumen": f"> {test_v}", "Medias": "OFF", "Precio": "Continuación", "Trades": total_señales, "WinRate": round(win_rate, 1)}
-                                    for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
+                                
+                                if len(log_forense) > 0:
+                                    win_rate = (len([s for s in rets_21d if s > 0]) / len(log_forense)) * 100
+                                    nuevo_test = {
+                                        "Ticker": ticker, "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", 
+                                        "Volumen": f"> {test_v}", "Medias": "OFF", "Precio": "Continuación", 
+                                        "Trades": len(log_forense), "WinRate": round(win_rate, 1),
+                                        "Logs": log_forense
+                                    }
+                                    # Para la tabla resumen, calculamos la media de cada Fibonacci
+                                    for h in horizontes_fibo:
+                                        medias = [f[f"Ret_{h}D"] for f in log_forense]
+                                        nuevo_test[f"Ret_{h}D"] = round(np.mean(medias), 2)
                                     st.session_state['historial_lab'].append(nuevo_test)
             except Exception as e: st.error(f"Error: {e}")
 
+    # --- RESULTADOS Y GUARDADO (EL COLISEO) ---
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
@@ -737,10 +792,7 @@ with tab4:
                         c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
                         
                         df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
-                        
-                        # Generar ID único
                         nuevo_id = str(int(datetime.datetime.now().timestamp()))
-                        # Si no hay ADNs para este ticker, este será el Default. Si hay, no lo será.
                         es_def = True if df_adn_actual[df_adn_actual['Ticker'] == ticker].empty else False
                         
                         nuevo_adn = {
@@ -760,22 +812,65 @@ with tab4:
             def color_history(val):
                 if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
                 return ''
-            styled_df = df_ticker_hist.style.map(color_history, subset=str_cols_fibo)
+            
+            df_mostrar = df_ticker_hist.drop(columns=["Logs"])
+            styled_df = df_mostrar.style.map(color_history, subset=str_cols_fibo)
             styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[col_orden])
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
+            # -----------------------------------------------------------------
+            # 🔍 EL NUEVO INSPECTOR FORENSE (CON MAX DRAWDOWN)
+            # -----------------------------------------------------------------
+            st.markdown("---")
+            st.markdown("### 🔍 Inspección Forense (Autopsia Vela a Vela)")
+            st.markdown("Selecciona un Test para ver en qué fechas exactas entró y **cuánto llegó a caer el precio (Max Drawdown)**.")
+            
+            # Obtener los tests que se muestran en pantalla en su orden actual
+            tests_visibles = df_ticker_hist.to_dict('records')
+            
+            opciones_inspector = [f"Test Z {t['Z-Score']} | Acc {t['Accel']} | Vol {t['Volumen']} ({t['Trades']} trades)" for t in tests_visibles]
+            
+            idx_elegido = st.selectbox("Abre la caja negra de un Test:", range(len(opciones_inspector)), format_func=lambda x: opciones_inspector[x])
+            
+            datos_forenses = tests_visibles[idx_elegido]["Logs"]
+            
+            if datos_forenses:
+                df_forense = pd.DataFrame(datos_forenses)
+                
+                def format_pct(val):
+                    if isinstance(val, (int, float)): return f"{val:+.2f}%"
+                    return val
+                    
+                def color_forense(val):
+                    if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else 'color: #dc2626'
+                    return ''
+
+                def color_drawdown(val):
+                    if isinstance(val, (int, float)):
+                        if val < -15: return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold'
+                        elif val < -8: return 'background-color: #fff9c4; color: #e65100; font-weight: bold'
+                        else: return 'color: #1d1d1f'
+                    return ''
+                    
+                cols_retorno = [col for col in df_forense.columns if col.startswith('Ret_')]
+                
+                styled_df_for = df_forense.style.format(format_pct, subset=cols_retorno + ['Max Drawdown'])
+                styled_df_for = styled_df_for.map(color_forense, subset=cols_retorno)
+                styled_df_for = styled_df_for.map(color_drawdown, subset=['Max Drawdown'])
+                
+                st.dataframe(styled_df_for, use_container_width=True, hide_index=True)
+                
+                st.info("💡 **El Nivel de Pánico:** Si el 'Max Drawdown' medio de este test es del -12%, fijar tu Stop Loss al -5% garantiza que el mercado te barrerá antes de que la operación madure.")
+
     # -------------------------------------------------------------------------
-    # EL GESTOR DE ADN (NUEVA SECCIÓN DE LA VERSIÓN 67)
+    # EL GESTOR DE ADN
     # -------------------------------------------------------------------------
     st.markdown("---")
     st.markdown(f"## 🧬 Tu Banco de ADN para {ticker}")
     if tiene_adn:
         st.markdown("Estos son los sistemas que están vigilando esta acción. **El Radar Diario buscará oportunidades en TODOS ellos a la vez.**")
         
-        # Display saved ADNs for this ticker
         df_display_adn = df_adn_ticker.copy()
-        
-        # Formatear para mostrar bonito
         df_display_adn['Es_Default'] = df_display_adn['Es_Default'].apply(lambda x: "⭐ SÍ" if x else "No")
         df_display_adn['Z_Min'] = df_display_adn['Z_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
         df_display_adn['Acc_Min'] = df_display_adn['Acc_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
@@ -789,9 +884,7 @@ with tab4:
         
         if col_m2.button("⭐ Establecer como ADN Principal (Se verá en el Escáner)", use_container_width=True):
             df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
-            # Quitar Default a todos los de este ticker
             df_adn_full.loc[df_adn_full['Ticker'] == ticker, 'Es_Default'] = False
-            # Poner Default al elegido
             df_adn_full.loc[df_adn_full['ID_ADN'] == str(adn_a_gestionar), 'Es_Default'] = True
             conn.update(worksheet="ADN_Quant", data=df_adn_full)
             st.cache_data.clear(); st.rerun()
@@ -799,18 +892,15 @@ with tab4:
         if col_m2.button("🗑️ Borrar este ADN", use_container_width=True):
             df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
             df_adn_full = df_adn_full[df_adn_full['ID_ADN'] != str(adn_a_gestionar)]
-            # Si borramos el default y quedan otros, hacer el primero default
             quedan = df_adn_full[df_adn_full['Ticker'] == ticker]
             if not quedan.empty and not quedan['Es_Default'].any():
                 df_adn_full.loc[quedan.index[0], 'Es_Default'] = True
             conn.update(worksheet="ADN_Quant", data=df_adn_full)
             st.cache_data.clear(); st.rerun()
-
     else:
         st.info("Aún no tienes ningún sistema guardado para esta acción.")
-
 # =====================================================================
-# PESTAÑA 5: EL RADAR DIARIO (BÚSQUEDA MULTIDIMENSIONAL)
+# FIN DE LA PESTAÑA 4 (EL CÓDIGO SIGUE CON `with tab5:`)
 # =====================================================================
 with tab5:
     st.title("📡 Radar Institucional (El Centro de Mando)")
