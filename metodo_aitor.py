@@ -8,7 +8,7 @@ import plotly.graph_objects as go
 import math
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 64.0 FOND QUANT", layout="wide")
+st.set_page_config(page_title="AITOR 64.1 ANTI-CRASH", layout="wide")
 
 # --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
@@ -187,7 +187,9 @@ with tab1:
     
     if tiene_adn:
         st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
-        st.caption(f"El Escáner ha mutado para **{ticker}**. Límites: Volumen > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Aceleración > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
+        st.caption(f"El Escáner ha mutado para **{ticker}**. Límites adaptados en base a tu Backtesting: Volumen > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Aceleración > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
+    else:
+        st.caption("Usando valores estándar por defecto. Usa la pestaña 'Laboratorio Quant' para guardar un ADN personalizado.")
     
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
     cols = st.columns(5)
@@ -272,7 +274,6 @@ with tab1:
         breakdown_ite = f"<div class='kpi-breakdown'>• Precio Compra: <b>{p_buy:.2f} $</b><br>• Stop Loss: <b>{p_sl:.2f} $</b><br>• Distancia de caída: <b>{distancia_stop:.2f} $</b></div>"
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
-    # ORÁCULO DE VELOCÍMETROS
     st.markdown("---")
     st.subheader("🔮 Oráculo Quant (Calibrado con ADN)")
     
@@ -317,9 +318,7 @@ with tab1:
 
             fecha_sel_str = st.select_slider("⏳ **Máquina del Tiempo:** Desliza para ver qué marcaba el radar ese día exacto.", options=opciones_str, value="🟢 HOY")
             fecha_sel = dict_fechas[fecha_sel_str]
-            
-            if fecha_sel_str != "🟢 HOY":
-                st.warning(f"⚠️ **MODO VIAJE EN EL TIEMPO:** Estás viendo la pantalla de A.I.T.O.R. exactamente como cerró el **{fecha_sel_str}**.")
+            if fecha_sel_str != "🟢 HOY": st.warning(f"⚠️ **MODO VIAJE EN EL TIEMPO:** Estás viendo la pantalla de A.I.T.O.R. exactamente como cerró el **{fecha_sel_str}**.")
 
             df_corte = df_esc[df_esc.index <= fecha_sel].copy()
             
@@ -336,14 +335,11 @@ with tab1:
                 z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
                 z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= opt_z else "color:#a1a1aa;"
                 z_c3 = "font-weight:900; color:#ff3b30;" if z_in > opt_z else "color:#a1a1aa;"
-                
                 if opt_z != -99:
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
                         <div class="quant-title">Tensión Precio (ADN > {opt_z}σ)</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                            <div style='{z_c1}'>• < -2.0 : Sobrevendida</div>
-                            <div style='{z_c2}'>• -2.0 a {opt_z} : Normal</div>
-                            <div style='{z_c3}'>• > {opt_z} : Disparador Activo</div>
+                            <div style='{z_c1}'>• < -2.0 : Sobrevendida</div><div style='{z_c2}'>• -2.0 a {opt_z} : Normal</div><div style='{z_c3}'>• > {opt_z} : Disparador Activo</div>
                         </div>""", unsafe_allow_html=True)
                     fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2.0], color="#3b82f6"), dict(range=[-2.0, opt_z], color="#e5e5ea"), dict(range=[opt_z, 4], color="#ff3b30")])))
                     bar_c_z = ['#ff3b30' if val > opt_z else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
@@ -351,9 +347,7 @@ with tab1:
                 else:
                     st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Tensión Precio (Apagado)</div>""", unsafe_allow_html=True)
                     fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="gray"))))
-                    bar_c_z = ['gray'] * 15
-                    line_z = 2.0
-                    
+                    bar_c_z = ['gray'] * 15; line_z = 2.0
                 fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig_ze, use_container_width=True)
                 fig_b_z = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Z_Score'], marker_color=bar_c_z)])
@@ -365,14 +359,11 @@ with tab1:
             with col_eq2:
                 a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= opt_acc else "color:#a1a1aa;"
                 a_c2 = "font-weight:900; color:#16a34a;" if acc_in > opt_acc else "color:#a1a1aa;"
-                
                 if opt_acc != -99:
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
                         <div class="quant-title">Momentum (ADN > {opt_acc})</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                            <div style='{a_c1}'>• ≤ {opt_acc} : Sin Gatillo</div>
-                            <div style='{a_c2}'>• > {opt_acc} : Aceleración Activa</div>
-                            <div style='color:transparent;'>_</div>
+                            <div style='{a_c1}'>• ≤ {opt_acc} : Sin Gatillo</div><div style='{a_c2}'>• > {opt_acc} : Aceleración Activa</div><div style='color:transparent;'>_</div>
                         </div>""", unsafe_allow_html=True)
                     fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, opt_acc], color="#ffcdd2"), dict(range=[opt_acc, 10], color="#c8e6c9")])))
                     bar_c_a = ['#34c759' if val > opt_acc else '#ff3b30' for val in df_last_15['Accel']]
@@ -380,9 +371,7 @@ with tab1:
                 else:
                     st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Momentum (Apagado)</div>""", unsafe_allow_html=True)
                     fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="gray"))))
-                    bar_c_a = ['gray'] * 15
-                    line_acc = 0
-                    
+                    bar_c_a = ['gray'] * 15; line_acc = 0
                 fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig_ae, use_container_width=True)
                 fig_b_a = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Accel'], marker_color=bar_c_a)])
@@ -395,14 +384,11 @@ with tab1:
                 v_c1 = "font-weight:900; color:#ff3b30;" if vol_z_in < 0 else "color:#a1a1aa;"
                 v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= opt_vol else "color:#a1a1aa;"
                 v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > opt_vol else "color:#a1a1aa;"
-                
                 if opt_vol != -99:
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
                         <div class="quant-title">Volumen (ADN > {opt_vol}σ)</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                            <div style='{v_c1}'>• < 0 : Ruido Minorista</div>
-                            <div style='{v_c2}'>• 0 a {opt_vol} : Volumen Sano</div>
-                            <div style='{v_c3}'>• > {opt_vol} : Gatillo Institucional</div>
+                            <div style='{v_c1}'>• < 0 : Ruido Minorista</div><div style='{v_c2}'>• 0 a {opt_vol} : Volumen Sano</div><div style='{v_c3}'>• > {opt_vol} : Gatillo Institucional</div>
                         </div>""", unsafe_allow_html=True)
                     fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, opt_vol], color="#e5e5ea"), dict(range=[opt_vol, 4], color="#34c759")])))
                     bar_c_v = ['#34c759' if val >= opt_vol else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
@@ -410,9 +396,7 @@ with tab1:
                 else:
                     st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Volumen (Apagado)</div>""", unsafe_allow_html=True)
                     fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="gray"))))
-                    bar_c_v = ['gray'] * 15
-                    line_vol = 1.5
-
+                    bar_c_v = ['gray'] * 15; line_vol = 1.5
                 fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig_ve, use_container_width=True)
                 fig_b_v = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
@@ -422,10 +406,8 @@ with tab1:
                 st.markdown("</div>", unsafe_allow_html=True)
         except: pass
 
-    # AUDITORÍA CLÍNICA DE ENTRADA
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada (ADN Integrado)")
-    
     if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto.", "tdah-green"
     elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto.", "tdah-blue"
     else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. Usa confirmación.", "tdah-red"
@@ -437,8 +419,8 @@ with tab1:
     st.markdown(f"<div class='tdah-box {col_f_out}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>Empuje real descontando sistemas en contra: <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
 
     if opt_z != -99:
-        if z_in > 2.5: txt_z_out, col_z_out = f"PELIGRO. Precio disparado por euforia (> 2.5σ). Riesgo altísimo.", "tdah-red"
-        elif z_in >= opt_z: txt_z_out, col_z_out = f"GATILLO ACTIVO. Supera el límite de {opt_z}σ establecido en tu ADN.", "tdah-green"
+        if z_in > 2.5: txt_z_out, col_z_out = f"PELIGRO. Precio disparado por euforia (> 2.5σ).", "tdah-red"
+        elif z_in >= opt_z: txt_z_out, col_z_out = f"GATILLO ACTIVO. Supera el límite de {opt_z}σ de tu ADN.", "tdah-green"
         else: txt_z_out, col_z_out = f"Tensión insuficiente ({z_in:.2f}σ). No cumple tu ADN ({opt_z}σ).", "tdah-yellow"
     else: txt_z_out, col_z_out = "Módulo Z-Score apagado en el ADN.", "tdah-blue"
     st.markdown(f"<div class='tdah-box {col_z_out}'><div class='tdah-title'>🪢 Tensión Precio (Z-Score):</div><div class='tdah-text'>{txt_z_out}</div></div>", unsafe_allow_html=True)
@@ -456,31 +438,24 @@ with tab1:
     st.markdown(f"<div class='tdah-box {col_v_out}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v_out}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if net_ev < 0: 
-        ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
-    elif z_in > 2.5: 
-        ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa.", "tdah-red"
+    if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
+    elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa.", "tdah-red"
     else:
         cumple_z = True if opt_z == -99 else (z_in >= opt_z)
         cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
         cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
-        
-        if net_ev >= 1.5 and cumple_z and cumple_acc and cumple_vol: 
-            ver_txt, ver_col = "✅ LUZ VERDE TOTAL (ADN PERFECTO). Tu sistema clásico y los parámetros Quant están alineados. Ejecución autorizada (TIER S).", "tdah-green"
-        elif cumple_z and cumple_acc and cumple_vol:
-            ver_txt, ver_col = "⚠️ PRECAUCIÓN. El ADN Quant da señal verde, pero tu sistema clásico (Fuerza Neta) duda. Reduce tu capital a la mitad.", "tdah-yellow"
-        else: 
-            ver_txt, ver_col = "⚠️ OPERACIÓN ESTÁNDAR. Tu sistema clásico da señal, pero el ADN Quant no apoya. Opera normal (TIER A).", "tdah-blue"
+        if net_ev >= 1.5 and cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "✅ LUZ VERDE TOTAL (ADN PERFECTO). Tu sistema clásico y los parámetros Quant están alineados. (TIER S).", "tdah-green"
+        elif cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "⚠️ PRECAUCIÓN. El ADN Quant da señal verde, pero tu sistema clásico (Fuerza Neta) duda. Reduce tu capital a la mitad.", "tdah-yellow"
+        else: ver_txt, ver_col = "⚠️ OPERACIÓN ESTÁNDAR. Tu sistema clásico da señal, pero el ADN Quant no apoya. Opera normal (TIER A).", "tdah-blue"
             
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
 
-    # BOTONES DE ACCIÓN (CON EL BUG DE N_TIT CORREGIDO)
     st.markdown("---")
     st.subheader("⚙️ Panel de Ejecución Cuantitativa")
     col_btn_save, col_btn_buy = st.columns(2)
     with col_btn_save:
         if st.button("💾 Solo Guardar Escaneo (Añadir a Radar)", use_container_width=True):
-            with st.spinner("📡 Sincronizando con Base de Datos..."):
+            with st.spinner("📡 Guardando..."):
                 try:
                     v_t = "REVISION REQUERIDA"
                     if idt >= 100: v_t = "COMPRA OBLIGATORIA"
@@ -492,13 +467,12 @@ with tab1:
                     if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
                     df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="Sheet1", data=df_upd)
-                    st.cache_data.clear() 
-                    st.toast("✅ Escaneo guardado correctamente.", icon="💾")
+                    st.cache_data.clear(); st.toast("✅ Escaneo guardado correctamente.", icon="💾")
                 except Exception as e: st.error(f"Error al guardar: {e}")
 
     with col_btn_buy:
         if st.button("🚀 COMPRAR AHORA: Enviar a Cartera en Vivo", use_container_width=True):
-            with st.spinner("📡 Ejecutando operación y guardando..."):
+            with st.spinner("📡 Ejecutando..."):
                 try:
                     v_t = "COMPRADO"
                     d_sav = {"Ticker": ticker, "Tier": v_t, "EV_Total": ev_tot, "IDT_Puntos": idt, "ITE_Porc": ite, "Veredicto": v_t, "Acciones": n_tit, "Inversion": inv_t}
@@ -510,12 +484,11 @@ with tab1:
                     df_c = conn.read(worksheet="Cartera", ttl=60)
                     n_pos = {"Ticker": ticker, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_buy, "Num_Acciones": n_tit, "Stop_Actual": p_sl, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_buy, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_buy}
                     conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                    st.cache_data.clear() 
-                    st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones a tu Cartera en Vivo.", icon="🚀")
+                    st.cache_data.clear(); st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones a tu Cartera.", icon="🚀")
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 2 Y 3: AUDITORIA Y CARTERA 
+# PESTAÑA 2: AUDITORÍA
 # ---------------------------------------------------------------------
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
@@ -529,6 +502,9 @@ with tab2:
         df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
         st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
 
+# ---------------------------------------------------------------------
+# PESTAÑA 3: CARTERA EN VIVO
+# ---------------------------------------------------------------------
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
@@ -576,21 +552,26 @@ with tab3:
                             if not idx.empty:
                                 df_c_update.loc[idx[-1], 'Stop_Actual'] = nuevo_stop
                                 conn.update(worksheet="Cartera", data=df_c_update)
-                                st.cache_data.clear()
-                                st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
+                                st.cache_data.clear(); st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
         except: pass
 
 # ---------------------------------------------------------------------
-# PESTAÑA 4: LABORATORIO MODULAR (HORIZONTES FIBONACCI + FUERZA BRUTA)
+# PESTAÑA 4: LABORATORIO MODULAR Y AUTO-DESCUBRIMIENTO 
 # ---------------------------------------------------------------------
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Genético")
     st.markdown(f"Experimenta con **{ticker}**. Usa tus propias reglas o deja que la máquina pruebe combinaciones por fuerza bruta.")
     
-    # LA NUEVA LISTA DE HORIZONTES TIPO FIBONACCI
     horizontes_fibo = [1, 3, 5, 8, 13, 21, 34, 55, 89]
     str_cols_fibo = [f"Ret_{h}D" for h in horizontes_fibo]
     
+    # RECOLECTOR DE BASURA (El Failsafe que evita el error de la V59)
+    if len(st.session_state['historial_lab']) > 0:
+        df_hist = pd.DataFrame(st.session_state['historial_lab'])
+        if "Ret_21D" not in df_hist.columns and len(df_hist.columns) > 0:
+            st.session_state['historial_lab'] = [] # Resetea la RAM silenciosamente
+            st.rerun() # Recarga la app para limpiar el error
+
     st.markdown("### 🎛️ 1. Panel Quant Manual")
     col_p1, col_p2, col_p3 = st.columns(3)
     val_z = True if opt_z != -99 else False
@@ -627,17 +608,14 @@ with tab4:
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
     
-    # -------------------------------------------------------------------------
-    # BOTÓN 1: TEST MANUAL
-    # -------------------------------------------------------------------------
+    # BÓTON 1: TEST MANUAL
     if col_run_man.button(f"⚙️ Ejecutar Simulación Manual en {ticker}", type="primary", use_container_width=True):
         with st.spinner(f"Analizando 5 años de {ticker}..."):
             try:
                 stock_bt = yf.Ticker(ticker)
                 df_bt = stock_bt.history(period="5y")
                 
-                if df_bt.empty or len(df_bt) < 100:
-                    st.error("No hay suficientes datos históricos.")
+                if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos históricos.")
                 else:
                     df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
                     df_bt['Vol_MA55'] = df_bt['Volume'].rolling(window=55).mean()
@@ -652,7 +630,6 @@ with tab4:
                     cond_z = (df_bt['Z_Score'] > bt_z_precio) if use_z else pd.Series(True, index=df_bt.index)
                     cond_acc = (df_bt['Accel'] > bt_accel) if use_acc else pd.Series(True, index=df_bt.index)
                     cond_vol = (df_bt['Vol_Z_Score'] > bt_z_vol) if use_vol else pd.Series(True, index=df_bt.index)
-                    
                     cond_mas = pd.Series(True, index=df_bt.index)
                     for ma in mas_seleccionadas: cond_mas = cond_mas & (df_bt['Close'] > df_bt[f'MA_{ma}'])
                         
@@ -667,7 +644,7 @@ with tab4:
                         date = df_bt.index[i]
                         if row['Candidato']:
                             if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: continue 
-                            es_valida = False; idx_entrada = i; p_entrada = row['Close']; fecha_texto_entrada = date.strftime("%Y-%m-%d")
+                            es_valida = False; idx_entrada = i; p_entrada = row['Close']
                             gatillo_name = tipo_filtro.split(" (")[0].split(":")[0] 
                             
                             if "Ninguno" in tipo_filtro: es_valida = True
@@ -675,8 +652,7 @@ with tab4:
                                 if row['High'] > df_bt.iloc[i-1]['High']: es_valida = True
                             elif "Continuación" in tipo_filtro:
                                 row_next = df_bt.iloc[i+1]
-                                if row_next['High'] > row['High']:
-                                    es_valida = True; idx_entrada = i + 1; p_entrada = row_next['Close']; fecha_texto_entrada = f"{df_bt.index[i+1].strftime('%Y-%m-%d')} (T+1)"
+                                if row_next['High'] > row['High']: es_valida = True; idx_entrada = i + 1; p_entrada = row_next['Close']
 
                             if es_valida:
                                 fila_diario = {"Señal Original": date.strftime("%Y-%m-%d"), "Precio": f"{p_entrada:.2f} $", "Vol (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-"}
@@ -690,23 +666,19 @@ with tab4:
 
                     total_señales = len(fechas_registro_display)
                     if total_señales > 0:
-                        positivas = len([s for s in datos_estadistica[21] if s > 0]) # Winrate based on 21 days
+                        positivas = len([s for s in datos_estadistica[21] if s > 0])
                         win_rate = (positivas / total_señales) * 100
-                        
                         nuevo_test = {
                             "Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF",
                             "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)
                         }
                         for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
-                        
                         st.session_state['historial_lab'].append(nuevo_test)
                         st.success("✅ Test manual completado y añadido a la tabla.")
                     else: st.warning("Tus reglas son demasiado estrictas. 0 señales.")
             except Exception as e: st.error(f"Error procesando los datos: {e}")
 
-    # -------------------------------------------------------------------------
-    # BOTÓN 2: AUTO-OPTIMIZADOR (FUERZA BRUTA)
-    # -------------------------------------------------------------------------
+    # BOTÓN 2: AUTO-OPTIMIZADOR
     if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo (Fuerza Bruta)", type="secondary", use_container_width=True):
         with st.spinner("Creando clones... Probando 27 combinaciones institucionales a la vez..."):
             try:
@@ -728,7 +700,6 @@ with tab4:
                     v_ranges = [1.0, 1.5, 2.0]
                     gatillo_name = "Continuación"
                     
-                    # BUCLE DE FUERZA BRUTA
                     for test_z in z_ranges:
                         for test_a in a_ranges:
                             for test_v in v_ranges:
@@ -746,8 +717,6 @@ with tab4:
                                     date = df_bt.index[i]
                                     if row['Candidato']:
                                         if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: continue 
-                                        
-                                        # Simular filtro "Continuación" (el más robusto por defecto en Auto)
                                         row_next = df_bt.iloc[i+1]
                                         if row_next['High'] > row['High']:
                                             idx_entrada = i + 1; p_entrada = row_next['Close']
@@ -769,9 +738,7 @@ with tab4:
                                     
             except Exception as e: st.error(f"Error en Auto-Optimizer: {e}")
 
-    # -------------------------------------------------------------------------
     # LA COMPETICIÓN (EL SALÓN DE LA FAMA) Y GUARDADO DE ADN
-    # -------------------------------------------------------------------------
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
@@ -781,11 +748,7 @@ with tab4:
             st.markdown("## ⚔️ El Coliseo Quant (Resultados)")
             
             st.markdown("<div style='background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #22c55e; margin-bottom:20px;'>", unsafe_allow_html=True)
-            objetivo_opt = st.selectbox(
-                "🏆 ¿A cuántos días vista quieres encontrar al Campeón?",
-                [f"{h} Días" for h in horizontes_fibo],
-                index=5 # Por defecto 21 Días
-            )
+            objetivo_opt = st.selectbox("🏆 ¿A cuántos días vista quieres encontrar al Campeón?", [f"{h} Días" for h in horizontes_fibo], index=5)
             st.markdown("</div>", unsafe_allow_html=True)
             
             col_orden = f"Ret_{objetivo_opt.split(' ')[0]}D"
@@ -811,18 +774,15 @@ with tab4:
                         c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
                         c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
                         c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
-                        
                         df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
                         if df_adn_actual.empty: df_adn_actual = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
-                        
                         nuevo_adn = {"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": objetivo_opt, "Rendimiento": campeon[col_orden]}
                         df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                         conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
                         st.cache_data.clear()
                         st.success("✅ ADN Modificado. El Escáner y la Auditoría ya están usando esta configuración.")
                     except Exception as e:
-                        if "ADN_Quant" in str(e):
-                            st.error("🚨 **Falta crear la carpeta en la nube.** Abre tu Google Sheets, crea una nueva pestaña y llámala exactamente: **`ADN_Quant`**.")
+                        if "ADN_Quant" in str(e): st.error("🚨 **Falta crear la carpeta en la nube.** Abre tu Google Sheets, crea una nueva pestaña y llámala exactamente: **`ADN_Quant`**.")
                         else: st.error(f"Error técnico: {e}")
 
             st.markdown("#### 📋 Historial de Experimentos de esta Sesión:")
@@ -834,7 +794,7 @@ with tab4:
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
 # =====================================================================
-# PESTAÑA 5: EL RADAR AUTOMÁTICO DIARIO (NUEVO)
+# PESTAÑA 5: EL RADAR AUTOMÁTICO DIARIO
 # =====================================================================
 with tab5:
     st.title("📡 Radar Institucional (Escáner Automático Diario)")
@@ -850,18 +810,15 @@ with tab5:
                 
                 for t in tickers_adn:
                     try:
-                        # Extraer ADN del Ticker
                         datos_adn = df_adn[df_adn['Ticker'] == t].iloc[-1]
                         adn_z = float(datos_adn['Z_Min'])
                         adn_acc = float(datos_adn['Acc_Min'])
                         adn_vol = float(datos_adn['Vol_Min'])
                         
-                        # Descargar últimos 60 días para cálculos rápidos
                         stock_rad = yf.Ticker(t)
                         df_rad = stock_rad.history(period="3mo")
                         if df_rad.empty: continue
                         
-                        # Calcular el Oráculo de hoy
                         df_rad['MA55'] = df_rad['Close'].rolling(window=55).mean()
                         df_rad['STD55'] = df_rad['Close'].rolling(window=55).std()
                         df_rad['Z_Score'] = (df_rad['Close'] - df_rad['MA55']) / df_rad['STD55']
@@ -871,12 +828,10 @@ with tab5:
                         df_rad['Vol_STD55'] = df_rad['Volume'].rolling(window=55).std()
                         df_rad['Vol_Z_Score'] = (df_rad['Volume'] - df_rad['Vol_MA55']) / df_rad['Vol_STD55']
                         
-                        # Extraer valores de la última vela (HOY)
                         hoy_z = df_rad['Z_Score'].iloc[-1]
                         hoy_acc = df_rad['Accel'].iloc[-1]
                         hoy_vol = df_rad['Vol_Z_Score'].iloc[-1]
                         
-                        # Chequear si cumple el ADN
                         cumple_z = True if adn_z == -99 else (hoy_z >= adn_z)
                         cumple_acc = True if adn_acc == -99 else (hoy_acc >= adn_acc)
                         cumple_vol = True if adn_vol == -99 else (hoy_vol >= adn_vol)
@@ -888,10 +843,8 @@ with tab5:
                                 "Accel Hoy": f"{hoy_acc:.2f} (Req: {adn_acc})",
                                 "Volumen Hoy": f"{hoy_vol:.2f}σ (Req: {adn_vol})"
                             })
-                    except:
-                        pass
+                    except: pass
                 
-                # Mostrar Resultados
                 st.markdown("---")
                 if len(alertas_encontradas) > 0:
                     st.markdown(f"### 🚨 ¡ALERTA! {len(alertas_encontradas)} acciones acaban de detonar su ADN Institucional HOY:")
@@ -900,7 +853,7 @@ with tab5:
                         <div class='radar-alert'>
                             <h2>🚀 {alerta['Ticker']} LISTO PARA COMPRAR</h2>
                             <b>Volumen:</b> {alerta['Volumen Hoy']} | <b>Aceleración:</b> {alerta['Accel Hoy']} | <b>Tensión:</b> {alerta['Z-Score Hoy']}
-                            <br><br><i>Vete a la pestaña 'Escáner Cuántico', pon el Ticker {alerta['Ticker']} y ejecuta la operación si tu sistema clásico (Fuerza Neta) te lo confirma.</i>
+                            <br><br><i>Vete a la pestaña 'Escáner Cuántico', pon el Ticker {alerta['Ticker']} y ejecuta la operación si tu sistema clásico te lo confirma.</i>
                         </div>
                         """, unsafe_allow_html=True)
                 else:
