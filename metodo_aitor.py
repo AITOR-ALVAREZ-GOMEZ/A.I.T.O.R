@@ -311,7 +311,10 @@ with tab1:
             df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
             df_esc['Vol_Z_Score'] = (df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']
             
-            today_naive = df_esc.index[-1].replace(tzinfo=None)
+            # --- BLINDAJE DE ZONAS HORARIAS Y DUPLICADOS ---
+            idx_naive = df_esc.index.tz_localize(None) if getattr(df_esc.index, 'tz', None) is not None else df_esc.index
+            today_naive = idx_naive[-1]
+            
             target_dates_naive = []
             for i in range(12): 
                 m = today_naive.month - i; y = today_naive.year
@@ -322,23 +325,32 @@ with tab1:
             fechas_slider = []
             for td in target_dates_naive:
                 if td <= today_naive:
-                    deltas = abs(df_esc.index.tz_localize(None) - td)
+                    deltas = abs(idx_naive - td)
                     fechas_slider.append(df_esc.index[deltas.argmin()])
                     
             for d in df_esc.index[-15:]: fechas_slider.append(d)
             fechas_slider = sorted(list(set(fechas_slider)))
             meses = {1:"Ene", 2:"Feb", 3:"Mar", 4:"Abr", 5:"May", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dic"}
+            
             opciones_str = []
             dict_fechas = {}
             for d in fechas_slider:
-                d_naive = d.replace(tzinfo=None)
+                d_naive = d.replace(tzinfo=None) if hasattr(d, 'tzinfo') and d.tzinfo is not None else d
                 if d == df_esc.index[-1]: s = "🟢 HOY"
                 else: s = f"{d_naive.day} {meses[d_naive.month]} {d_naive.year}"
                 opciones_str.append(s)
                 dict_fechas[s] = d
 
-            fecha_sel_str = st.select_slider("⏳ **Máquina del Tiempo:** Desliza para ver qué marcaba el radar ese día exacto.", options=opciones_str, value="🟢 HOY")
-            fecha_sel = dict_fechas[fecha_sel_str]
+            # Eliminar duplicados para que el Slider no explote
+            opciones_unicas = []
+            dict_fechas_unicas = {}
+            for s in opciones_str:
+                if s not in opciones_unicas:
+                    opciones_unicas.append(s)
+                    dict_fechas_unicas[s] = dict_fechas[s]
+
+            fecha_sel_str = st.select_slider("⏳ **Máquina del Tiempo:** Desliza para ver qué marcaba el radar ese día exacto.", options=opciones_unicas, value="🟢 HOY")
+            fecha_sel = dict_fechas_unicas[fecha_sel_str]
             if fecha_sel_str != "🟢 HOY": st.warning(f"⚠️ **MODO VIAJE EN EL TIEMPO:** Estás viendo la pantalla de A.I.T.O.R. exactamente como cerró el **{fecha_sel_str}**.")
 
             df_corte = df_esc[df_esc.index <= fecha_sel].copy()
@@ -347,7 +359,8 @@ with tab1:
             vol_z_in = df_corte['Vol_Z_Score'].iloc[-1] if not pd.isna(df_corte['Vol_Z_Score'].iloc[-1]) else 0
 
             df_last_15 = df_corte.tail(15).copy()
-            bar_x = [f"{d.day} {meses[d.month]}" for d in df_last_15.index.tz_localize(None)]
+            idx_15_naive = df_last_15.index.tz_localize(None) if getattr(df_last_15.index, 'tz', None) is not None else df_last_15.index
+            bar_x = [f"{d.day} {meses[d.month]}" for d in idx_15_naive]
 
             col_eq1, col_eq2, col_eq3 = st.columns(3)
             with col_eq1:
@@ -423,7 +436,9 @@ with tab1:
                 fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
                 st.plotly_chart(fig_b_v, use_container_width=True)
                 st.markdown("</div>", unsafe_allow_html=True)
-        except: pass
+                
+        except Exception as e: 
+            st.error(f"🚨 Error en el procesamiento del Oráculo: {e}")
 
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada")
