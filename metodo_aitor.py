@@ -427,23 +427,44 @@ with tab1:
 
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada")
+    
+    # 1. Esperanza Matemática
     if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto.", "tdah-green"
     elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto.", "tdah-blue"
     else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL.", "tdah-red"
     st.markdown(f"<div class='tdah-box {col_ev_out}'><div class='tdah-title'>📊 Esperanza Matemática:</div><div class='tdah-text'>{txt_ev_out}</div></div>", unsafe_allow_html=True)
 
+    # 2. Fuerza Estructural Neta
     if net_ev >= 1.5: col_f_out = "tdah-green"
     elif net_ev >= 0: col_f_out = "tdah-yellow"
     else: col_f_out = "tdah-red"
     st.markdown(f"<div class='tdah-box {col_f_out}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>Empuje real descontando sistemas en contra: <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
 
+    # Pre-cálculos para los diagnósticos Quant
+    cumple_z = True if opt_z == -99 else (z_in >= opt_z)
+    cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
+    cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
+
+    # 3. Diagnóstico Precio
+    dz_c = "tdah-green" if cumple_z else "tdah-yellow"
+    txt_z = 'GATILLO ACTIVO.' if cumple_z else 'Tensión insuficiente. No cumple tu ADN.'
+    st.markdown(f"<div class='tdah-box {dz_c}'><div class='tdah-title'>🪢 Diagnóstico Precio:</div><div class='tdah-text'>{txt_z} Z-Score: {z_in:.2f}σ.</div></div>", unsafe_allow_html=True)
+
+    # 4. Diagnóstico Momentum
+    da_c = "tdah-green" if cumple_acc else "tdah-red"
+    txt_a = 'VELOCIDAD CRUCERO.' if cumple_acc else 'FRENADA INSTITUCIONAL.'
+    st.markdown(f"<div class='tdah-box {da_c}'><div class='tdah-title'>🏎️ Diagnóstico Momentum:</div><div class='tdah-text'>{txt_a} Accel: {acc_in:.2f}.</div></div>", unsafe_allow_html=True)
+
+    # 5. Diagnóstico Volumen
+    dv_c = "tdah-green" if cumple_vol else "tdah-yellow"
+    txt_v = 'HUELLA DETECTADA.' if cumple_vol else 'Volumen insuficiente para tu setup.'
+    st.markdown(f"<div class='tdah-box {dv_c}'><div class='tdah-title'>🐘 Diagnóstico Volumen:</div><div class='tdah-text'>{txt_v} VolZ: {vol_z_in:.2f}σ.</div></div>", unsafe_allow_html=True)
+
+    # 6. Veredicto Final Combinado
     st.markdown("<br>", unsafe_allow_html=True)
     if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa.", "tdah-red"
     else:
-        cumple_z = True if opt_z == -99 else (z_in >= opt_z)
-        cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
-        cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
         if net_ev >= 1.5 and cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "✅ LUZ VERDE TOTAL (ADN PERFECTO). Tu sistema clásico y los parámetros Quant están alineados. (TIER S).", "tdah-green"
         elif cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "⚠️ PRECAUCIÓN. El ADN Quant da señal verde, pero tu sistema clásico (Fuerza Neta) duda. Reduce capital.", "tdah-yellow"
         else: ver_txt, ver_col = "⚠️ OPERACIÓN ESTÁNDAR. Tu sistema clásico da señal, pero el ADN Quant no apoya. Opera normal (TIER A).", "tdah-blue"
@@ -490,7 +511,7 @@ with tab1:
 # ---------------------------------------------------------------------
 # PESTAÑA 2 Y 3: AUDITORIA Y CARTERA
 # ---------------------------------------------------------------------
-with tab2: 
+with tab2:
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
     if not df_datos.empty:
         df_display = df_datos[['Ticker', 'Veredicto', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']].copy()
