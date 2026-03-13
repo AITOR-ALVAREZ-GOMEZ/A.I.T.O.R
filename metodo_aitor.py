@@ -8,13 +8,13 @@ import plotly.graph_objects as go
 import math
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 63.0 ROBUST SYSTEM", layout="wide")
+st.set_page_config(page_title="AITOR 64.0 FOND QUANT", layout="wide")
 
 # --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
     st.session_state['historial_lab'] = []
 
-# --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
+# --- CSS ESTILO APPLE, TDAH FRIENDLY ---
 st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap');
@@ -54,6 +54,10 @@ st.markdown("""
     .champion-title { color: #b45309; font-weight: 900; font-size: 1.4rem; margin-bottom: 10px; display: flex; align-items: center; gap: 10px;}
     .champion-stats { display: flex; gap: 20px; margin-top: 15px; flex-wrap: wrap;}
     .stat-box { background: white; padding: 10px 15px; border-radius: 10px; border: 1px solid #fcd34d; font-weight: bold; color: #78350f;}
+    
+    .radar-alert { background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%); color: white; padding: 25px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3); border: 2px solid #14532d;}
+    .radar-alert h2 { color: white !important; margin-top: 0; }
+    .radar-wait { background: #f8f9fa; border: 1px dashed #d1d5db; padding: 20px; border-radius: 15px; color: #6b7280; text-align: center; margin-bottom: 15px;}
     
     @keyframes flash-red { 0% { background-color: #ff3b30; color: white; } 50% { background-color: #ffe5e5; color: #ff3b30; } 100% { background-color: #ff3b30; color: white; } }
     @keyframes pulse-green { 0% { background-color: #34c759; color: white; } 50% { background-color: #e5fbee; color: #188038; } 100% { background-color: #34c759; color: white; } }
@@ -150,7 +154,7 @@ bono = pts_eps + (10 if c_inst else 0) + (10 if c_sect else 0)
 ev_plus = bono / 7.0
 
 # ---------------------------------------------------------------------
-# REPARACIÓN DEL BUG: CÁLCULO DE ACCIONES (n_tit)
+# CALCULADORA DE RIESGO
 # ---------------------------------------------------------------------
 st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", min_value=0.5, max_value=10.0, value=3.3, step=0.1)
@@ -158,15 +162,13 @@ p_buy = st.sidebar.number_input("Precio Compra", value=float(p_merc), key=f"buy_
 stop_sugerido_auto = p_buy - (2 * atr_val) if atr_val > 0 else p_buy * 0.95
 p_sl = st.sidebar.number_input("Stop Loss", value=float(stop_sugerido_auto), key=f"sl_{ticker}")
 
-# Matemáticas para la posición
 distancia_stop = p_buy - p_sl
 if distancia_stop > 0 and p_buy > 0:
     riesgo_euros = CAPITAL * (r_pct / 100.0)
     n_tit = math.floor(riesgo_euros / distancia_stop)
     inv_t = n_tit * p_buy
 else:
-    n_tit = 0
-    inv_t = 0
+    n_tit = 0; inv_t = 0
 
 if n_tit > 0:
     st.sidebar.markdown(f"<div style='font-size:0.8rem; color:#86868b;'>Acciones a comprar: <b>{n_tit}</b></div>", unsafe_allow_html=True)
@@ -175,7 +177,7 @@ if n_tit > 0:
 # =====================================================================
 # SISTEMA DE PESTAÑAS 
 # =====================================================================
-tab1, tab2, tab3, tab4 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo", "🧪 Laboratorio Modular"])
+tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo", "🧪 Laboratorio Quant", "📡 Radar Diario"])
 
 # ---------------------------------------------------------------------
 # PESTAÑA 1: ESCÁNER INTELIGENTE
@@ -185,9 +187,7 @@ with tab1:
     
     if tiene_adn:
         st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
-        st.caption(f"El Escáner ha mutado para **{ticker}**. Límites adaptados: Volumen > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Aceleración > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
-    else:
-        st.caption("Usando valores estándar por defecto. Usa la pestaña 'Laboratorio Modular' para encontrar reglas mejores.")
+        st.caption(f"El Escáner ha mutado para **{ticker}**. Límites: Volumen > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Aceleración > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
     
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
     cols = st.columns(5)
@@ -205,7 +205,6 @@ with tab1:
                     r_defs[idx] = float(fila[f"R{idx+1}"])
             except: pass
 
-    # CAJAS DE LOS 5 SISTEMAS
     for i in range(5):
         with cols[i]:
             st.markdown(f"**{d_defs[i]} D**")
@@ -273,9 +272,7 @@ with tab1:
         breakdown_ite = f"<div class='kpi-breakdown'>• Precio Compra: <b>{p_buy:.2f} $</b><br>• Stop Loss: <b>{p_sl:.2f} $</b><br>• Distancia de caída: <b>{distancia_stop:.2f} $</b></div>"
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
-    # ---------------------------------------------------------------------
-    # ORÁCULO DE VELOCÍMETROS Y LA MÁQUINA DEL TIEMPO 
-    # ---------------------------------------------------------------------
+    # ORÁCULO DE VELOCÍMETROS
     st.markdown("---")
     st.subheader("🔮 Oráculo Quant (Calibrado con ADN)")
     
@@ -292,7 +289,6 @@ with tab1:
             df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
             df_esc['Vol_Z_Score'] = (df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']
             
-            # MÁQUINA DEL TIEMPO
             today_naive = df_esc.index[-1].replace(tzinfo=None)
             target_dates_naive = []
             for i in range(12): 
@@ -319,11 +315,7 @@ with tab1:
                 opciones_str.append(s)
                 dict_fechas[s] = d
 
-            fecha_sel_str = st.select_slider(
-                "⏳ **Máquina del Tiempo:** Desliza para ver qué marcaba el radar ese día exacto.", 
-                options=opciones_str, 
-                value="🟢 HOY"
-            )
+            fecha_sel_str = st.select_slider("⏳ **Máquina del Tiempo:** Desliza para ver qué marcaba el radar ese día exacto.", options=opciones_str, value="🟢 HOY")
             fecha_sel = dict_fechas[fecha_sel_str]
             
             if fecha_sel_str != "🟢 HOY":
@@ -364,7 +356,6 @@ with tab1:
                     
                 fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig_ze, use_container_width=True)
-                
                 fig_b_z = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Z_Score'], marker_color=bar_c_z)])
                 fig_b_z.add_hline(y=line_z, line_dash="dash", line_color="#ff3b30")
                 fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
@@ -394,7 +385,6 @@ with tab1:
                     
                 fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig_ae, use_container_width=True)
-                
                 fig_b_a = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Accel'], marker_color=bar_c_a)])
                 fig_b_a.add_hline(y=line_acc, line_dash="solid", line_color="#1d1d1f")
                 fig_b_a.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
@@ -425,7 +415,6 @@ with tab1:
 
                 fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                 st.plotly_chart(fig_ve, use_container_width=True)
-                
                 fig_b_v = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
                 fig_b_v.add_hline(y=line_vol, line_dash="dash", line_color="#34c759")
                 fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
@@ -433,66 +422,59 @@ with tab1:
                 st.markdown("</div>", unsafe_allow_html=True)
         except: pass
 
-    # ---------------------------------------------------------------------
     # AUDITORÍA CLÍNICA DE ENTRADA
-    # ---------------------------------------------------------------------
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada (ADN Integrado)")
     
-    if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
-    elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
-    else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin confirmación fuerte.", "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_ev_out}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad):</div><div class='tdah-text'>{txt_ev_out}</div></div>", unsafe_allow_html=True)
+    if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto.", "tdah-green"
+    elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto.", "tdah-blue"
+    else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. Usa confirmación.", "tdah-red"
+    st.markdown(f"<div class='tdah-box {col_ev_out}'><div class='tdah-title'>📊 Esperanza Matemática:</div><div class='tdah-text'>{txt_ev_out}</div></div>", unsafe_allow_html=True)
 
     if net_ev >= 1.5: col_f_out = "tdah-green"
     elif net_ev >= 0: col_f_out = "tdah-yellow"
     else: col_f_out = "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_f_out}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>El empuje real del precio descontando sistemas en contra es de <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
+    st.markdown(f"<div class='tdah-box {col_f_out}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>Empuje real descontando sistemas en contra: <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
 
     if opt_z != -99:
-        if z_in > 2.5: txt_z_out, col_z_out = f"PELIGRO. Precio disparado por euforia (> 2.5σ). Riesgo altísimo de reversión.", "tdah-red"
-        elif z_in >= opt_z: txt_z_out, col_z_out = f"GATILLO ACTIVO. El precio supera el límite de {opt_z}σ establecido en tu ADN.", "tdah-green"
-        else: txt_z_out, col_z_out = f"Tensión insuficiente ({z_in:.2f}σ). No cumple el mínimo de tu ADN ({opt_z}σ).", "tdah-yellow"
-    else:
-        txt_z_out, col_z_out = "Módulo Z-Score apagado en el ADN.", "tdah-blue"
+        if z_in > 2.5: txt_z_out, col_z_out = f"PELIGRO. Precio disparado por euforia (> 2.5σ). Riesgo altísimo.", "tdah-red"
+        elif z_in >= opt_z: txt_z_out, col_z_out = f"GATILLO ACTIVO. Supera el límite de {opt_z}σ establecido en tu ADN.", "tdah-green"
+        else: txt_z_out, col_z_out = f"Tensión insuficiente ({z_in:.2f}σ). No cumple tu ADN ({opt_z}σ).", "tdah-yellow"
+    else: txt_z_out, col_z_out = "Módulo Z-Score apagado en el ADN.", "tdah-blue"
     st.markdown(f"<div class='tdah-box {col_z_out}'><div class='tdah-title'>🪢 Tensión Precio (Z-Score):</div><div class='tdah-text'>{txt_z_out}</div></div>", unsafe_allow_html=True)
 
     if opt_acc != -99:
-        if acc_in >= opt_acc: txt_a_out, col_a_out = f"GATILLO ACTIVO. Aceleración positiva ({acc_in:.2f}), superando tu límite de {opt_acc}.", "tdah-green"
+        if acc_in >= opt_acc: txt_a_out, col_a_out = f"GATILLO ACTIVO. Aceleración positiva ({acc_in:.2f}), supera tu ADN ({opt_acc}).", "tdah-green"
         else: txt_a_out, col_a_out = f"Pérdida de gas ({acc_in:.2f}). No cumple el requisito de tu ADN ({opt_acc}).", "tdah-yellow"
-    else:
-        txt_a_out, col_a_out = "Módulo de Aceleración apagado en el ADN.", "tdah-blue"
+    else: txt_a_out, col_a_out = "Módulo de Aceleración apagado en el ADN.", "tdah-blue"
     st.markdown(f"<div class='tdah-box {col_a_out}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a_out}</div></div>", unsafe_allow_html=True)
 
     if opt_vol != -99:
-        if vol_z_in >= opt_vol: txt_v_out, col_v_out = f"GATILLO ACTIVO. Volumen institucional detectado ({vol_z_in:.2f}σ), por encima de tu ADN ({opt_vol}σ).", "tdah-green"
-        else: txt_v_out, col_v_out = f"Volumen sano o insuficiente ({vol_z_in:.2f}σ). No salta la alarma de tu ADN ({opt_vol}σ).", "tdah-yellow"
-    else:
-        txt_v_out, col_v_out = "Módulo de Volumen apagado en el ADN.", "tdah-blue"
+        if vol_z_in >= opt_vol: txt_v_out, col_v_out = f"GATILLO ACTIVO. Volumen institucional ({vol_z_in:.2f}σ), por encima de tu ADN ({opt_vol}σ).", "tdah-green"
+        else: txt_v_out, col_v_out = f"Volumen sano o insuficiente ({vol_z_in:.2f}σ). No salta la alarma ADN ({opt_vol}σ).", "tdah-yellow"
+    else: txt_v_out, col_v_out = "Módulo de Volumen apagado en el ADN.", "tdah-blue"
     st.markdown(f"<div class='tdah-box {col_v_out}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v_out}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     if net_ev < 0: 
         ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: 
-        ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
+        ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa.", "tdah-red"
     else:
         cumple_z = True if opt_z == -99 else (z_in >= opt_z)
         cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
         cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
         
         if net_ev >= 1.5 and cumple_z and cumple_acc and cumple_vol: 
-            ver_txt, ver_col = "✅ LUZ VERDE TOTAL. Tu sistema clásico (Fuerza Neta) y los parámetros de tu ADN Quant están alineados. Ejecución autorizada.", "tdah-green"
+            ver_txt, ver_col = "✅ LUZ VERDE TOTAL (ADN PERFECTO). Tu sistema clásico y los parámetros Quant están alineados. Ejecución autorizada (TIER S).", "tdah-green"
         elif cumple_z and cumple_acc and cumple_vol:
             ver_txt, ver_col = "⚠️ PRECAUCIÓN. El ADN Quant da señal verde, pero tu sistema clásico (Fuerza Neta) duda. Reduce tu capital a la mitad.", "tdah-yellow"
         else: 
-            ver_txt, ver_col = "⚠️ OPERACIÓN FUERA DE ADN. Tu sistema clásico puede dar señal, pero los parámetros Quants no apoyan. Entra bajo tu propio riesgo.", "tdah-yellow"
+            ver_txt, ver_col = "⚠️ OPERACIÓN ESTÁNDAR. Tu sistema clásico da señal, pero el ADN Quant no apoya. Opera normal (TIER A).", "tdah-blue"
             
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
 
-    # ---------------------------------------------------------------------
-    # BOTONES DE ACCIÓN (CON EL BUG CORREGIDO)
-    # ---------------------------------------------------------------------
+    # BOTONES DE ACCIÓN (CON EL BUG DE N_TIT CORREGIDO)
     st.markdown("---")
     st.subheader("⚙️ Panel de Ejecución Cuantitativa")
     col_btn_save, col_btn_buy = st.columns(2)
@@ -511,7 +493,7 @@ with tab1:
                     df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="Sheet1", data=df_upd)
                     st.cache_data.clear() 
-                    st.toast("✅ Escaneo guardado correctamente en tu Auditoría.", icon="💾")
+                    st.toast("✅ Escaneo guardado correctamente.", icon="💾")
                 except Exception as e: st.error(f"Error al guardar: {e}")
 
     with col_btn_buy:
@@ -529,11 +511,11 @@ with tab1:
                     n_pos = {"Ticker": ticker, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_buy, "Num_Acciones": n_tit, "Stop_Actual": p_sl, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_buy, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_buy}
                     conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
                     st.cache_data.clear() 
-                    st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.", icon="🚀")
+                    st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones a tu Cartera en Vivo.", icon="🚀")
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 2: AUDITORÍA GLOBAL
+# PESTAÑA 2 Y 3: AUDITORIA Y CARTERA 
 # ---------------------------------------------------------------------
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
@@ -547,9 +529,6 @@ with tab2:
         df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
         st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
 
-# ---------------------------------------------------------------------
-# PESTAÑA 3: CARTERA EN VIVO
-# ---------------------------------------------------------------------
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
@@ -600,19 +579,20 @@ with tab3:
                                 st.cache_data.clear()
                                 st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
         except: pass
-    with tab_add: st.info("Registro manual en código.")
-    with tab_historial: st.info("Historial en código.")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 4: LABORATORIO MODULAR
+# PESTAÑA 4: LABORATORIO MODULAR (HORIZONTES FIBONACCI + FUERZA BRUTA)
 # ---------------------------------------------------------------------
 with tab4:
-    st.title("🧪 Laboratorio Quant y Competición Genética")
-    st.markdown(f"Experimenta con **{ticker}**. El sistema guardará y comparará todos tus intentos abajo para encontrar la mejor combinación.")
+    st.title("🧪 Laboratorio Quant y Optimizador Genético")
+    st.markdown(f"Experimenta con **{ticker}**. Usa tus propias reglas o deja que la máquina pruebe combinaciones por fuerza bruta.")
     
-    st.markdown("### 🎛️ 1. Panel Quant (Enciende/Apaga Módulos)")
+    # LA NUEVA LISTA DE HORIZONTES TIPO FIBONACCI
+    horizontes_fibo = [1, 3, 5, 8, 13, 21, 34, 55, 89]
+    str_cols_fibo = [f"Ret_{h}D" for h in horizontes_fibo]
+    
+    st.markdown("### 🎛️ 1. Panel Quant Manual")
     col_p1, col_p2, col_p3 = st.columns(3)
-    
     val_z = True if opt_z != -99 else False
     val_acc = True if opt_acc != -99 else False
     val_vol = True if opt_vol != -99 else False
@@ -645,8 +625,12 @@ with tab4:
     ], index=2)
     
     st.markdown("<br>", unsafe_allow_html=True)
+    col_run_man, col_run_auto = st.columns(2)
     
-    if st.button(f"🚀 Ejecutar Simulación y Añadir al Historial", type="primary"):
+    # -------------------------------------------------------------------------
+    # BOTÓN 1: TEST MANUAL
+    # -------------------------------------------------------------------------
+    if col_run_man.button(f"⚙️ Ejecutar Simulación Manual en {ticker}", type="primary", use_container_width=True):
         with st.spinner(f"Analizando 5 años de {ticker}..."):
             try:
                 stock_bt = yf.Ticker(ticker)
@@ -674,21 +658,16 @@ with tab4:
                         
                     df_bt['Candidato'] = cond_z & cond_acc & cond_vol & cond_mas
                     
-                    horizontes = [5, 10, 15, 20, 30]
                     fechas_registro_display = []
-                    datos_estadistica = {5: [], 10: [], 15: [], 20: [], 30: []}
+                    datos_estadistica = {h: [] for h in horizontes_fibo}
                     ultimo_dia_señal = None
                     
-                    for i in range(55, len(df_bt) - max(horizontes) - 1):
+                    for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
                         row = df_bt.iloc[i]
                         date = df_bt.index[i]
                         if row['Candidato']:
                             if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: continue 
-                            es_valida = False
-                            idx_entrada = i
-                            p_entrada = row['Close']
-                            fecha_texto_entrada = date.strftime("%Y-%m-%d")
-                            
+                            es_valida = False; idx_entrada = i; p_entrada = row['Close']; fecha_texto_entrada = date.strftime("%Y-%m-%d")
                             gatillo_name = tipo_filtro.split(" (")[0].split(":")[0] 
                             
                             if "Ninguno" in tipo_filtro: es_valida = True
@@ -700,106 +679,128 @@ with tab4:
                                     es_valida = True; idx_entrada = i + 1; p_entrada = row_next['Close']; fecha_texto_entrada = f"{df_bt.index[i+1].strftime('%Y-%m-%d')} (T+1)"
 
                             if es_valida:
-                                dict_rets_display = {}
-                                for h in horizontes:
+                                fila_diario = {"Señal Original": date.strftime("%Y-%m-%d"), "Precio": f"{p_entrada:.2f} $", "Vol (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-"}
+                                for h in horizontes_fibo:
                                     p_salida = df_bt['Close'].iloc[idx_entrada + h]
                                     ret = ((p_salida - p_entrada) / p_entrada) * 100
                                     datos_estadistica[h].append(ret)
-                                    dict_rets_display[f"{h} Días"] = f"{ret:+.2f}%"
-                                    
-                                fila_diario = {
-                                    "Señal Original": date.strftime("%Y-%m-%d"),
-                                    "Precio Compra": f"{p_entrada:.2f} $",
-                                    "Volumen (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-",
-                                    "5 Días": dict_rets_display["5 Días"],
-                                    "10 Días": dict_rets_display["10 Días"],
-                                    "15 Días": dict_rets_display["15 Días"],
-                                    "20 Días": dict_rets_display["20 Días"],
-                                    "30 Días": dict_rets_display["30 Días"]
-                                }
+                                    fila_diario[f"{h}D"] = f"{ret:+.2f}%"
                                 fechas_registro_display.append(fila_diario)
                                 ultimo_dia_señal = date 
 
                     total_señales = len(fechas_registro_display)
-                    
                     if total_señales > 0:
-                        avg_5 = np.mean(datos_estadistica[5])
-                        avg_10 = np.mean(datos_estadistica[10])
-                        avg_15 = np.mean(datos_estadistica[15])
-                        avg_20 = np.mean(datos_estadistica[20])
-                        avg_30 = np.mean(datos_estadistica[30])
-                        
-                        positivas = len([s for s in datos_estadistica[20] if s > 0])
+                        positivas = len([s for s in datos_estadistica[21] if s > 0]) # Winrate based on 21 days
                         win_rate = (positivas / total_señales) * 100
                         
                         nuevo_test = {
-                            "Ticker": ticker,
-                            "Z-Score": f"> {bt_z_precio}" if use_z else "OFF",
-                            "Accel": f"> {bt_accel}" if use_acc else "OFF",
-                            "Volumen": f"> {bt_z_vol}" if use_vol else "OFF",
-                            "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF",
-                            "Precio": gatillo_name,
-                            "Trades": total_señales,
-                            "WinRate": round(win_rate, 1),
-                            "Ret_5D": round(avg_5, 2),
-                            "Ret_10D": round(avg_10, 2),
-                            "Ret_15D": round(avg_15, 2),
-                            "Ret_20D": round(avg_20, 2),
-                            "Ret_30D": round(avg_30, 2)
+                            "Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF",
+                            "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)
                         }
+                        for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
+                        
                         st.session_state['historial_lab'].append(nuevo_test)
-                        st.success("✅ Test completado y añadido a la tabla comparativa.")
-                        
-                        with st.expander("Ver Diario Forense de esta simulación (Vela a Vela)"):
-                            df_display = pd.DataFrame(fechas_registro_display)
-                            def color_retorno(val):
-                                if isinstance(val, str) and '%' in val:
-                                    num = float(val.replace('%', '').replace('+', ''))
-                                    return 'color: #16a34a; font-weight: bold' if num > 0 else 'color: #dc2626'
-                                return ''
-                            st.dataframe(df_display.style.map(color_retorno, subset=["5 Días", "10 Días", "15 Días", "20 Días", "30 Días"]), use_container_width=True, hide_index=True)
-                    else:
-                        st.warning("No hay resultados. Tus reglas son demasiado estrictas.")
-                        
+                        st.success("✅ Test manual completado y añadido a la tabla.")
+                    else: st.warning("Tus reglas son demasiado estrictas. 0 señales.")
             except Exception as e: st.error(f"Error procesando los datos: {e}")
 
     # -------------------------------------------------------------------------
-    # LA COMPETICIÓN AUTOMÁTICA
+    # BOTÓN 2: AUTO-OPTIMIZADOR (FUERZA BRUTA)
+    # -------------------------------------------------------------------------
+    if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo (Fuerza Bruta)", type="secondary", use_container_width=True):
+        with st.spinner("Creando clones... Probando 27 combinaciones institucionales a la vez..."):
+            try:
+                stock_bt = yf.Ticker(ticker)
+                df_bt = stock_bt.history(period="5y")
+                
+                if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos.")
+                else:
+                    df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
+                    df_bt['Vol_MA55'] = df_bt['Volume'].rolling(window=55).mean()
+                    df_bt['Vol_STD55'] = df_bt['Volume'].rolling(window=55).std()
+                    df_bt['Vol_Z_Score'] = (df_bt['Volume'] - df_bt['Vol_MA55']) / df_bt['Vol_STD55']
+                    df_bt['Z_Score'] = (df_bt['Close'] - df_bt['MA55']) / df_bt['Close'].rolling(window=55).std()
+                    df_bt['ROC_10'] = df_bt['Close'].pct_change(periods=10) * 100
+                    df_bt['Accel'] = df_bt['ROC_10'].diff(periods=5)
+                    
+                    z_ranges = [0.5, 1.0, 1.5]
+                    a_ranges = [-0.5, 0.0, 0.5]
+                    v_ranges = [1.0, 1.5, 2.0]
+                    gatillo_name = "Continuación"
+                    
+                    # BUCLE DE FUERZA BRUTA
+                    for test_z in z_ranges:
+                        for test_a in a_ranges:
+                            for test_v in v_ranges:
+                                cond_z = df_bt['Z_Score'] > test_z
+                                cond_acc = df_bt['Accel'] > test_a
+                                cond_vol = df_bt['Vol_Z_Score'] > test_v
+                                df_bt['Candidato'] = cond_z & cond_acc & cond_vol
+                                
+                                datos_estadistica = {h: [] for h in horizontes_fibo}
+                                ultimo_dia_señal = None
+                                total_señales = 0
+                                
+                                for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
+                                    row = df_bt.iloc[i]
+                                    date = df_bt.index[i]
+                                    if row['Candidato']:
+                                        if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: continue 
+                                        
+                                        # Simular filtro "Continuación" (el más robusto por defecto en Auto)
+                                        row_next = df_bt.iloc[i+1]
+                                        if row_next['High'] > row['High']:
+                                            idx_entrada = i + 1; p_entrada = row_next['Close']
+                                            for h in horizontes_fibo:
+                                                p_salida = df_bt['Close'].iloc[idx_entrada + h]
+                                                datos_estadistica[h].append(((p_salida - p_entrada) / p_entrada) * 100)
+                                            total_señales += 1
+                                            ultimo_dia_señal = date 
+                                
+                                if total_señales > 0:
+                                    positivas = len([s for s in datos_estadistica[21] if s > 0])
+                                    win_rate = (positivas / total_señales) * 100
+                                    nuevo_test = {
+                                        "Ticker": ticker, "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", "Volumen": f"> {test_v}",
+                                        "Medias": "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)
+                                    }
+                                    for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
+                                    st.session_state['historial_lab'].append(nuevo_test)
+                                    
+            except Exception as e: st.error(f"Error en Auto-Optimizer: {e}")
+
+    # -------------------------------------------------------------------------
+    # LA COMPETICIÓN (EL SALÓN DE LA FAMA) Y GUARDADO DE ADN
     # -------------------------------------------------------------------------
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
         
         if not df_ticker_hist.empty:
-            st.markdown("<br><br>", unsafe_allow_html=True)
             st.markdown("---")
-            st.markdown("## ⚔️ El Coliseo Quant (Resultados Acumulados)")
+            st.markdown("## ⚔️ El Coliseo Quant (Resultados)")
             
             st.markdown("<div style='background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #22c55e; margin-bottom:20px;'>", unsafe_allow_html=True)
             objetivo_opt = st.selectbox(
-                "🏆 ¿Qué horizonte temporal define a la combinación ganadora para ti?",
-                ["5 Días", "10 Días", "15 Días", "20 Días", "30 Días"],
-                index=3
+                "🏆 ¿A cuántos días vista quieres encontrar al Campeón?",
+                [f"{h} Días" for h in horizontes_fibo],
+                index=5 # Por defecto 21 Días
             )
             st.markdown("</div>", unsafe_allow_html=True)
             
-            dict_map = {"5 Días": "Ret_5D", "10 Días": "Ret_10D", "15 Días": "Ret_15D", "20 Días": "Ret_20D", "30 Días": "Ret_30D"}
-            col_orden = dict_map[objetivo_opt]
-            
+            col_orden = f"Ret_{objetivo_opt.split(' ')[0]}D"
             df_ticker_hist = df_ticker_hist.sort_values(by=col_orden, ascending=False)
             campeon = df_ticker_hist.iloc[0]
             
             st.markdown(f"""
             <div class='champion-card'>
                 <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA MAXIMIZAR A {objetivo_opt.upper()}</div>
-                <div style='font-size: 0.9rem; color: #92400e;'>Este es el mejor test de tu sesión buscando rentabilidad a {objetivo_opt}. Si te gusta este estilo de trading, guárdalo como ADN.</div>
                 <div class='champion-stats'>
                     <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
                     <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rendimiento {objetivo_opt}: +{campeon[col_orden]}%</div>
                     <div class='stat-box'>🔍 Z-Score: {campeon['Z-Score']}</div>
                     <div class='stat-box'>🏎️ Accel: {campeon['Accel']}</div>
                     <div class='stat-box'>🐘 Volumen: {campeon['Volumen']}</div>
-                    <div class='stat-box'>🎯 Filtro Precio: {campeon['Precio']}</div>
                 </div>
             </div>
             """, unsafe_allow_html=True)
@@ -821,18 +822,91 @@ with tab4:
                         st.success("✅ ADN Modificado. El Escáner y la Auditoría ya están usando esta configuración.")
                     except Exception as e:
                         if "ADN_Quant" in str(e):
-                            st.error("""
-                            🚨 **Falta crear la carpeta en la nube.**
-                            Para poder guardar la Memoria Genética, abre tu Google Sheets, pulsa el botón **'+'** abajo a la izquierda para crear una nueva pestaña, y llámala exactamente: **`ADN_Quant`**.
-                            """)
-                        else:
-                            st.error(f"Error técnico al guardar ADN: {e}")
+                            st.error("🚨 **Falta crear la carpeta en la nube.** Abre tu Google Sheets, crea una nueva pestaña y llámala exactamente: **`ADN_Quant`**.")
+                        else: st.error(f"Error técnico: {e}")
 
             st.markdown("#### 📋 Historial de Experimentos de esta Sesión:")
             def color_history(val):
-                if isinstance(val, (int, float)):
-                    return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
+                if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
                 return ''
-            styled_df = df_ticker_hist.style.map(color_history, subset=["Ret_5D", "Ret_10D", "Ret_15D", "Ret_20D", "Ret_30D"])
+            styled_df = df_ticker_hist.style.map(color_history, subset=str_cols_fibo)
             styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[col_orden])
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
+
+# =====================================================================
+# PESTAÑA 5: EL RADAR AUTOMÁTICO DIARIO (NUEVO)
+# =====================================================================
+with tab5:
+    st.title("📡 Radar Institucional (Escáner Automático Diario)")
+    st.markdown("Esta herramienta lee todas las acciones que tienen su ADN guardado y escanea el mercado de **HOY** buscando si alguna ha activado sus propios parámetros cuánticos. Ideal para revisar a final de sesión.")
+    
+    if st.button("🔄 Lanzar Radar Diario de Mercado", type="primary", use_container_width=True):
+        if df_adn.empty:
+            st.warning("Aún no has guardado el ADN de ninguna acción en el Laboratorio Quant. No hay nada que vigilar.")
+        else:
+            with st.spinner("Escaneando el mercado en directo... Buscando tu ADN en las gráficas de hoy."):
+                tickers_adn = df_adn['Ticker'].unique().tolist()
+                alertas_encontradas = []
+                
+                for t in tickers_adn:
+                    try:
+                        # Extraer ADN del Ticker
+                        datos_adn = df_adn[df_adn['Ticker'] == t].iloc[-1]
+                        adn_z = float(datos_adn['Z_Min'])
+                        adn_acc = float(datos_adn['Acc_Min'])
+                        adn_vol = float(datos_adn['Vol_Min'])
+                        
+                        # Descargar últimos 60 días para cálculos rápidos
+                        stock_rad = yf.Ticker(t)
+                        df_rad = stock_rad.history(period="3mo")
+                        if df_rad.empty: continue
+                        
+                        # Calcular el Oráculo de hoy
+                        df_rad['MA55'] = df_rad['Close'].rolling(window=55).mean()
+                        df_rad['STD55'] = df_rad['Close'].rolling(window=55).std()
+                        df_rad['Z_Score'] = (df_rad['Close'] - df_rad['MA55']) / df_rad['STD55']
+                        df_rad['ROC_10'] = df_rad['Close'].pct_change(periods=10) * 100
+                        df_rad['Accel'] = df_rad['ROC_10'].diff(periods=5)
+                        df_rad['Vol_MA55'] = df_rad['Volume'].rolling(window=55).mean()
+                        df_rad['Vol_STD55'] = df_rad['Volume'].rolling(window=55).std()
+                        df_rad['Vol_Z_Score'] = (df_rad['Volume'] - df_rad['Vol_MA55']) / df_rad['Vol_STD55']
+                        
+                        # Extraer valores de la última vela (HOY)
+                        hoy_z = df_rad['Z_Score'].iloc[-1]
+                        hoy_acc = df_rad['Accel'].iloc[-1]
+                        hoy_vol = df_rad['Vol_Z_Score'].iloc[-1]
+                        
+                        # Chequear si cumple el ADN
+                        cumple_z = True if adn_z == -99 else (hoy_z >= adn_z)
+                        cumple_acc = True if adn_acc == -99 else (hoy_acc >= adn_acc)
+                        cumple_vol = True if adn_vol == -99 else (hoy_vol >= adn_vol)
+                        
+                        if cumple_z and cumple_acc and cumple_vol:
+                            alertas_encontradas.append({
+                                "Ticker": t,
+                                "Z-Score Hoy": f"{hoy_z:.2f}σ (Req: {adn_z})",
+                                "Accel Hoy": f"{hoy_acc:.2f} (Req: {adn_acc})",
+                                "Volumen Hoy": f"{hoy_vol:.2f}σ (Req: {adn_vol})"
+                            })
+                    except:
+                        pass
+                
+                # Mostrar Resultados
+                st.markdown("---")
+                if len(alertas_encontradas) > 0:
+                    st.markdown(f"### 🚨 ¡ALERTA! {len(alertas_encontradas)} acciones acaban de detonar su ADN Institucional HOY:")
+                    for alerta in alertas_encontradas:
+                        st.markdown(f"""
+                        <div class='radar-alert'>
+                            <h2>🚀 {alerta['Ticker']} LISTO PARA COMPRAR</h2>
+                            <b>Volumen:</b> {alerta['Volumen Hoy']} | <b>Aceleración:</b> {alerta['Accel Hoy']} | <b>Tensión:</b> {alerta['Z-Score Hoy']}
+                            <br><br><i>Vete a la pestaña 'Escáner Cuántico', pon el Ticker {alerta['Ticker']} y ejecuta la operación si tu sistema clásico (Fuerza Neta) te lo confirma.</i>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.markdown("""
+                    <div class='radar-wait'>
+                        <h2>⏳ Día de Pesca (0 Alertas)</h2>
+                        <p>Ninguna de las acciones guardadas en tu ADN cumple las condiciones el día de hoy. El mercado no ofrece ventanas claras institucionales ahora mismo. Mantén el capital a salvo y vuelve a pasar el radar mañana.</p>
+                    </div>
+                    """, unsafe_allow_html=True)
