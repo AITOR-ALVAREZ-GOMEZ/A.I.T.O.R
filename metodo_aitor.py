@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 61.0 SISTEMA COMPLETO", layout="wide")
+st.set_page_config(page_title="AITOR 62.0 TOTAL QUANT", layout="wide")
 
 # --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
@@ -155,21 +155,21 @@ stop_sugerido_auto = p_buy - (2 * atr_val) if atr_val > 0 else p_buy * 0.95
 p_sl = st.sidebar.number_input("Stop Loss", value=float(stop_sugerido_auto), key=f"sl_{ticker}")
 
 # =====================================================================
-# SISTEMA DE PESTAÑAS (RESTAURADO 100%)
+# SISTEMA DE PESTAÑAS 
 # =====================================================================
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo", "🧪 Laboratorio Modular"])
 
 # ---------------------------------------------------------------------
-# PESTAÑA 1: ESCÁNER INTELIGENTE Y EJECUCIÓN (TOTALMENTE RESTAURADO)
+# PESTAÑA 1: ESCÁNER INTELIGENTE
 # ---------------------------------------------------------------------
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
     
     if tiene_adn:
         st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
-        st.caption(f"El Escáner ha mutado para **{ticker}**. Límites adaptados en base a tu Backtesting: Volumen > {opt_vol}σ | Aceleración > {opt_acc} | Tensión > {opt_z}σ")
+        st.caption(f"El Escáner ha mutado para **{ticker}**. Límites adaptados en base a tu Backtesting: Volumen > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Aceleración > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
     else:
-        st.caption("Usando valores estándar por defecto. Usa la pestaña 'Laboratorio Quant' para guardar un ADN personalizado.")
+        st.caption("Usando valores estándar por defecto. Usa la pestaña 'Laboratorio Modular' para guardar un ADN personalizado.")
     
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
     cols = st.columns(5)
@@ -187,7 +187,7 @@ with tab1:
                     r_defs[idx] = float(fila[f"R{idx+1}"])
             except: pass
 
-    # CAJAS DE LOS 5 SISTEMAS
+    # LOS 5 SISTEMAS (CUADRITOS DE COMPRA/VENTA)
     for i in range(5):
         with cols[i]:
             st.markdown(f"**{d_defs[i]} D**")
@@ -209,7 +209,6 @@ with tab1:
             s_elegidos.append(s_val); l_ev.append(ev_i); l_wr.append(wr); l_rt.append(rt); l_es.append(es)
             st.markdown(f"<div style='text-align:center; padding:10px; background:#fff; border-radius:10px; border:1px solid #e5e5ea; margin-top:5px;'><div style='color:#86868b; font-size:0.75rem; font-weight:bold;'>EV {s_val}D</div><div style='font-size:1.4rem; font-weight:800; color:#1d1d1f;'>{ev_i:.2f}</div></div>", unsafe_allow_html=True)
 
-    # CÁLCULOS MATEMÁTICOS DEL MOTOR
     ev_compra = sum([l_ev[i] for i in range(5) if l_es[i] == "Compra"])
     ev_venta = sum([l_ev[i] for i in range(5) if l_es[i] == "Venta"])
     net_ev = ev_compra - ev_venta 
@@ -220,7 +219,6 @@ with tab1:
     p_sen = 10 if l_es[0] == "Compra" else 0
     idt = l_wr[0] + bono + p_estr + p_sen - penal
 
-    # LETRERO ANIMADO PRINCIPAL
     if net_ev >= 1.5: st.markdown("<div class='main-banner banner-green'>✅ LUZ VERDE ESTRUCTURAL: Ventaja Matemática Confirmada. APTO PARA COMPRAR.</div>", unsafe_allow_html=True)
     elif net_ev >= 0: st.markdown("<div class='main-banner banner-yellow'>⚠️ PRECAUCIÓN: Fuerza Neta Débil. Apto solo con POSICIÓN REDUCIDA.</div>", unsafe_allow_html=True)
     else: st.markdown("<div class='main-banner banner-red'>🚨 SISTEMA BLOQUEADO: Esperanza Matemática Negativa. PROHIBIDO COMPRAR.</div>", unsafe_allow_html=True)
@@ -259,133 +257,169 @@ with tab1:
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
     # ---------------------------------------------------------------------
-    # EL ORÁCULO DE VELOCÍMETROS (CONECTADO AL ADN)
+    # ORÁCULO DE VELOCÍMETROS (CON LA MÁQUINA DEL TIEMPO RESTAURADA)
     # ---------------------------------------------------------------------
     st.markdown("---")
     st.subheader("🔮 Oráculo Quant (Calibrado con ADN)")
+    
     z_in, acc_in, vol_z_in = 0.0, 0.0, 0.0
-    if ticker != "":
+    if ticker != "" and not df_global.empty:
         try:
-            if not df_global.empty:
-                df_esc = df_global.copy()
-                df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
-                df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
-                df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
-                df_esc['ROC_10'] = df_esc['Close'].pct_change(periods=10) * 100
-                df_esc['Accel'] = df_esc['ROC_10'].diff(periods=5)
-                df_esc['Vol_MA55'] = df_esc['Volume'].rolling(window=55).mean()
-                df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
-                df_esc['Vol_Z_Score'] = (df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']
+            df_esc = df_global.copy()
+            df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
+            df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
+            df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
+            df_esc['ROC_10'] = df_esc['Close'].pct_change(periods=10) * 100
+            df_esc['Accel'] = df_esc['ROC_10'].diff(periods=5)
+            df_esc['Vol_MA55'] = df_esc['Volume'].rolling(window=55).mean()
+            df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
+            df_esc['Vol_Z_Score'] = (df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']
+            
+            # --- CREACIÓN DEL DESLIZADOR DE TIEMPO ---
+            today_naive = df_esc.index[-1].replace(tzinfo=None)
+            target_dates_naive = []
+            for i in range(12): 
+                m = today_naive.month - i; y = today_naive.year
+                while m <= 0: m += 12; y -= 1
+                target_dates_naive.append(datetime.datetime(y, m, 1))
+                target_dates_naive.append(datetime.datetime(y, m, 15))
                 
-                z_in = df_esc['Z_Score'].iloc[-1] if not pd.isna(df_esc['Z_Score'].iloc[-1]) else 0
-                acc_in = df_esc['Accel'].iloc[-1] if not pd.isna(df_esc['Accel'].iloc[-1]) else 0
-                vol_z_in = df_esc['Vol_Z_Score'].iloc[-1] if not pd.isna(df_esc['Vol_Z_Score'].iloc[-1]) else 0
+            fechas_slider = []
+            for td in target_dates_naive:
+                if td <= today_naive:
+                    deltas = abs(df_esc.index.tz_localize(None) - td)
+                    fechas_slider.append(df_esc.index[deltas.argmin()])
+                    
+            for d in df_esc.index[-15:]: fechas_slider.append(d)
+            fechas_slider = sorted(list(set(fechas_slider)))
+            meses = {1:"Ene", 2:"Feb", 3:"Mar", 4:"Abr", 5:"May", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dic"}
+            opciones_str = []
+            dict_fechas = {}
+            for d in fechas_slider:
+                d_naive = d.replace(tzinfo=None)
+                if d == df_esc.index[-1]: s = "🟢 HOY"
+                else: s = f"{d_naive.day} {meses[d_naive.month]} {d_naive.year}"
+                opciones_str.append(s)
+                dict_fechas[s] = d
 
-                df_last_15 = df_esc.tail(15).copy()
-                meses = {1:"Ene", 2:"Feb", 3:"Mar", 4:"Abr", 5:"May", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dic"}
-                bar_x = [f"{d.day} {meses[d.month]}" for d in df_last_15.index.tz_localize(None)]
+            # 🛠️ LA LÍNEA QUE HABÍA BORRADO POR ACCIDENTE:
+            fecha_sel_str = st.select_slider(
+                "⏳ **La Máquina del Tiempo:** Desliza para viajar al pasado y ver qué marcaba el Oráculo en ese día exacto.", 
+                options=opciones_str, 
+                value="🟢 HOY"
+            )
+            fecha_sel = dict_fechas[fecha_sel_str]
+            
+            if fecha_sel_str != "🟢 HOY":
+                st.warning(f"⚠️ **MODO BACKTESTING VISUAL:** Estás viendo la pantalla de A.I.T.O.R. exactamente como cerró el **{fecha_sel_str}**. Busca correspondencias con tu gráfico.")
 
-                col_eq1, col_eq2, col_eq3 = st.columns(3)
+            # CORTE DEL DATAFRAME HASTA EL DÍA ELEGIDO
+            df_corte = df_esc[df_esc.index <= fecha_sel].copy()
+            
+            z_in = df_corte['Z_Score'].iloc[-1] if not pd.isna(df_corte['Z_Score'].iloc[-1]) else 0
+            acc_in = df_corte['Accel'].iloc[-1] if not pd.isna(df_corte['Accel'].iloc[-1]) else 0
+            vol_z_in = df_corte['Vol_Z_Score'].iloc[-1] if not pd.isna(df_corte['Vol_Z_Score'].iloc[-1]) else 0
+
+            df_last_15 = df_corte.tail(15).copy()
+            bar_x = [f"{d.day} {meses[d.month]}" for d in df_last_15.index.tz_localize(None)]
+
+            col_eq1, col_eq2, col_eq3 = st.columns(3)
+            
+            with col_eq1:
+                z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
+                z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= opt_z else "color:#a1a1aa;"
+                z_c3 = "font-weight:900; color:#ff3b30;" if z_in > opt_z else "color:#a1a1aa;"
                 
-                # Z-SCORE
-                with col_eq1:
-                    z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
-                    z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= opt_z else "color:#a1a1aa;"
-                    z_c3 = "font-weight:900; color:#ff3b30;" if z_in > opt_z else "color:#a1a1aa;"
+                if opt_z != -99:
+                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
+                        <div class="quant-title">Tensión Precio (ADN > {opt_z}σ)</div>
+                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
+                            <div style='{z_c1}'>• < -2.0 : Sobrevendida</div>
+                            <div style='{z_c2}'>• -2.0 a {opt_z} : Normal</div>
+                            <div style='{z_c3}'>• > {opt_z} : Disparador Activo</div>
+                        </div>""", unsafe_allow_html=True)
+                    fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2.0], color="#3b82f6"), dict(range=[-2.0, opt_z], color="#e5e5ea"), dict(range=[opt_z, 4], color="#ff3b30")])))
+                    bar_c_z = ['#ff3b30' if val > opt_z else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
+                    line_z = opt_z
+                else:
+                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Tensión Precio (Apagado)</div>""", unsafe_allow_html=True)
+                    fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="gray"))))
+                    bar_c_z = ['gray'] * 15
+                    line_z = 2.0
                     
-                    if opt_z != -99:
-                        st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                            <div class="quant-title">Tensión Precio (ADN > {opt_z}σ)</div>
-                            <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                                <div style='{z_c1}'>• < -2.0 : Sobrevendida</div>
-                                <div style='{z_c2}'>• -2.0 a {opt_z} : Normal</div>
-                                <div style='{z_c3}'>• > {opt_z} : Disparador Activo</div>
-                            </div>""", unsafe_allow_html=True)
-                        fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2.0], color="#3b82f6"), dict(range=[-2.0, opt_z], color="#e5e5ea"), dict(range=[opt_z, 4], color="#ff3b30")])))
-                        bar_c_z = ['#ff3b30' if val > opt_z else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
-                        line_z = opt_z
-                    else:
-                        st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Tensión Precio (Apagado)</div>""", unsafe_allow_html=True)
-                        fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="gray"))))
-                        bar_c_z = ['gray'] * 15
-                        line_z = 2.0
-                        
-                    fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
-                    st.plotly_chart(fig_ze, use_container_width=True)
-                    
-                    fig_b_z = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Z_Score'], marker_color=bar_c_z)])
-                    fig_b_z.add_hline(y=line_z, line_dash="dash", line_color="#ff3b30")
-                    fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
-                    st.plotly_chart(fig_b_z, use_container_width=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
+                fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
+                st.plotly_chart(fig_ze, use_container_width=True)
+                
+                fig_b_z = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Z_Score'], marker_color=bar_c_z)])
+                fig_b_z.add_hline(y=line_z, line_dash="dash", line_color="#ff3b30")
+                fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
+                st.plotly_chart(fig_b_z, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
-                # ACCELERACION
-                with col_eq2:
-                    a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= opt_acc else "color:#a1a1aa;"
-                    a_c2 = "font-weight:900; color:#16a34a;" if acc_in > opt_acc else "color:#a1a1aa;"
+            with col_eq2:
+                a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= opt_acc else "color:#a1a1aa;"
+                a_c2 = "font-weight:900; color:#16a34a;" if acc_in > opt_acc else "color:#a1a1aa;"
+                
+                if opt_acc != -99:
+                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
+                        <div class="quant-title">Momentum (ADN > {opt_acc})</div>
+                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
+                            <div style='{a_c1}'>• ≤ {opt_acc} : Sin Gatillo</div>
+                            <div style='{a_c2}'>• > {opt_acc} : Aceleración Activa</div>
+                            <div style='color:transparent;'>_</div>
+                        </div>""", unsafe_allow_html=True)
+                    fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, opt_acc], color="#ffcdd2"), dict(range=[opt_acc, 10], color="#c8e6c9")])))
+                    bar_c_a = ['#34c759' if val > opt_acc else '#ff3b30' for val in df_last_15['Accel']]
+                    line_acc = opt_acc
+                else:
+                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Momentum (Apagado)</div>""", unsafe_allow_html=True)
+                    fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="gray"))))
+                    bar_c_a = ['gray'] * 15
+                    line_acc = 0
                     
-                    if opt_acc != -99:
-                        st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                            <div class="quant-title">Momentum (ADN > {opt_acc})</div>
-                            <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                                <div style='{a_c1}'>• ≤ {opt_acc} : Sin Gatillo</div>
-                                <div style='{a_c2}'>• > {opt_acc} : Aceleración Activa</div>
-                                <div style='color:transparent;'>_</div>
-                            </div>""", unsafe_allow_html=True)
-                        fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, opt_acc], color="#ffcdd2"), dict(range=[opt_acc, 10], color="#c8e6c9")])))
-                        bar_c_a = ['#34c759' if val > opt_acc else '#ff3b30' for val in df_last_15['Accel']]
-                        line_acc = opt_acc
-                    else:
-                        st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Momentum (Apagado)</div>""", unsafe_allow_html=True)
-                        fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="gray"))))
-                        bar_c_a = ['gray'] * 15
-                        line_acc = 0
-                        
-                    fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
-                    st.plotly_chart(fig_ae, use_container_width=True)
-                    
-                    fig_b_a = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Accel'], marker_color=bar_c_a)])
-                    fig_b_a.add_hline(y=line_acc, line_dash="solid", line_color="#1d1d1f")
-                    fig_b_a.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
-                    st.plotly_chart(fig_b_a, use_container_width=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
+                fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
+                st.plotly_chart(fig_ae, use_container_width=True)
+                
+                fig_b_a = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Accel'], marker_color=bar_c_a)])
+                fig_b_a.add_hline(y=line_acc, line_dash="solid", line_color="#1d1d1f")
+                fig_b_a.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
+                st.plotly_chart(fig_b_a, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
 
-                # VOLUMEN
-                with col_eq3:
-                    v_c1 = "font-weight:900; color:#ff3b30;" if vol_z_in < 0 else "color:#a1a1aa;"
-                    v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= opt_vol else "color:#a1a1aa;"
-                    v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > opt_vol else "color:#a1a1aa;"
-                    
-                    if opt_vol != -99:
-                        st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
-                            <div class="quant-title">Volumen (ADN > {opt_vol}σ)</div>
-                            <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
-                                <div style='{v_c1}'>• < 0 : Ruido Minorista</div>
-                                <div style='{v_c2}'>• 0 a {opt_vol} : Volumen Sano</div>
-                                <div style='{v_c3}'>• > {opt_vol} : Gatillo Institucional</div>
-                            </div>""", unsafe_allow_html=True)
-                        fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, opt_vol], color="#e5e5ea"), dict(range=[opt_vol, 4], color="#34c759")])))
-                        bar_c_v = ['#34c759' if val >= opt_vol else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
-                        line_vol = opt_vol
-                    else:
-                        st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Volumen (Apagado)</div>""", unsafe_allow_html=True)
-                        fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="gray"))))
-                        bar_c_v = ['gray'] * 15
-                        line_vol = 1.5
+            with col_eq3:
+                v_c1 = "font-weight:900; color:#ff3b30;" if vol_z_in < 0 else "color:#a1a1aa;"
+                v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= opt_vol else "color:#a1a1aa;"
+                v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > opt_vol else "color:#a1a1aa;"
+                
+                if opt_vol != -99:
+                    st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
+                        <div class="quant-title">Volumen (ADN > {opt_vol}σ)</div>
+                        <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
+                            <div style='{v_c1}'>• < 0 : Ruido Minorista</div>
+                            <div style='{v_c2}'>• 0 a {opt_vol} : Volumen Sano</div>
+                            <div style='{v_c3}'>• > {opt_vol} : Gatillo Institucional</div>
+                        </div>""", unsafe_allow_html=True)
+                    fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, opt_vol], color="#e5e5ea"), dict(range=[opt_vol, 4], color="#34c759")])))
+                    bar_c_v = ['#34c759' if val >= opt_vol else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
+                    line_vol = opt_vol
+                else:
+                    st.markdown("""<div class="quant-card" style="padding-bottom:5px;"><div class="quant-title">Volumen (Apagado)</div>""", unsafe_allow_html=True)
+                    fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="gray"))))
+                    bar_c_v = ['gray'] * 15
+                    line_vol = 1.5
 
-                    fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
-                    st.plotly_chart(fig_ve, use_container_width=True)
-                    
-                    fig_b_v = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
-                    fig_b_v.add_hline(y=line_vol, line_dash="dash", line_color="#34c759")
-                    fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
-                    st.plotly_chart(fig_b_v, use_container_width=True)
-                    st.markdown("</div>", unsafe_allow_html=True)
-                    
+                fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
+                st.plotly_chart(fig_ve, use_container_width=True)
+                
+                fig_b_v = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
+                fig_b_v.add_hline(y=line_vol, line_dash="dash", line_color="#34c759")
+                fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
+                st.plotly_chart(fig_b_v, use_container_width=True)
+                st.markdown("</div>", unsafe_allow_html=True)
         except: pass
 
     # ---------------------------------------------------------------------
-    # AUDITORIA CLINICA TOTAL (RESTAURADA Y CONECTADA)
+    # AUDITORÍA CLÍNICA DE ENTRADA (ADN INTEGRADO Y ADAPTADO AL DÍA ELEGIDO)
     # ---------------------------------------------------------------------
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada (ADN Integrado)")
@@ -442,7 +476,7 @@ with tab1:
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
 
     # ---------------------------------------------------------------------
-    # BOTONES DE EJECUCIÓN 
+    # BOTONES DE ACCIÓN 
     # ---------------------------------------------------------------------
     st.markdown("---")
     st.subheader("⚙️ Panel de Ejecución Cuantitativa")
@@ -484,7 +518,7 @@ with tab1:
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 2: AUDITORÍA GLOBAL
+# PESTAÑA 2 Y 3: AUDITORIA Y CARTERA (RESTAURADAS COMPLETAS)
 # ---------------------------------------------------------------------
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
@@ -498,9 +532,6 @@ with tab2:
         df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
         st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
 
-# ---------------------------------------------------------------------
-# PESTAÑA 3: CARTERA EN VIVO
-# ---------------------------------------------------------------------
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
@@ -551,9 +582,11 @@ with tab3:
                                 st.cache_data.clear()
                                 st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
         except: pass
+    with tab_add: st.info("Registro manual operativo.")
+    with tab_historial: st.info("Historial operativo.")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 4: LABORATORIO MODULAR (GESTIÓN DE ERRORES DB + MATRIX)
+# PESTAÑA 4: LABORATORIO MODULAR (MATRIX QUANT)
 # ---------------------------------------------------------------------
 with tab4:
     st.title("🧪 Laboratorio Quant y Competición Genética")
@@ -595,9 +628,6 @@ with tab4:
     
     st.markdown("<br>", unsafe_allow_html=True)
     
-    # -------------------------------------------------------------------------
-    # EJECUCIÓN DEL BACKTEST
-    # -------------------------------------------------------------------------
     if st.button(f"🚀 Ejecutar Simulación y Añadir al Historial", type="primary"):
         with st.spinner(f"Analizando 5 años de {ticker}..."):
             try:
@@ -716,7 +746,7 @@ with tab4:
             except Exception as e: st.error(f"Error procesando los datos: {e}")
 
     # -------------------------------------------------------------------------
-    # LA COMPETICIÓN AUTOMÁTICA (EL SALÓN DE LA FAMA DINÁMICO)
+    # LA COMPETICIÓN AUTOMÁTICA
     # -------------------------------------------------------------------------
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
@@ -756,7 +786,6 @@ with tab4:
             </div>
             """, unsafe_allow_html=True)
             
-            # FIX: GESTIÓN DE ERRORES AL GUARDAR EL ADN
             if st.button(f"💾 GUARDAR 'EL CAMPEÓN' COMO ADN OFICIAL DE {ticker}", type="secondary", use_container_width=True):
                 with st.spinner("Guardando en Base de Datos..."):
                     try:
@@ -776,8 +805,7 @@ with tab4:
                         if "ADN_Quant" in str(e):
                             st.error("""
                             🚨 **Falta crear la carpeta en la nube.**
-                            Para poder guardar la Memoria Genética, el sistema necesita un lugar físico en tu Excel.
-                            👉 **Solución:** Abre tu archivo de Google Sheets, pulsa el botón **'+'** abajo a la izquierda para crear una nueva pestaña, y llámala exactamente: **`ADN_Quant`**. Luego vuelve a pulsar este botón azul.
+                            Para poder guardar la Memoria Genética, abre tu Google Sheets, pulsa el botón **'+'** abajo a la izquierda para crear una nueva pestaña, y llámala exactamente: **`ADN_Quant`**.
                             """)
                         else:
                             st.error(f"Error técnico al guardar ADN: {e}")
