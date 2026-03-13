@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 49.0 MAQUINA DEL TIEMPO", layout="wide")
+st.set_page_config(page_title="AITOR 50.0 MÁQUINA EXACTA", layout="wide")
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
 st.markdown("""
@@ -86,7 +86,7 @@ beta_val = 1.0 # Default
 if ticker != "":
     stock = yf.Ticker(ticker)
     try:
-        df_global = stock.history(period="2y") # Cargamos 2 años para poder viajar al pasado
+        df_global = stock.history(period="2y") # 2 Años para poder hacer backtesting
         if not df_global.empty: 
             p_merc = float(df_global['Close'].iloc[-1])
             high_low = df_global['High'] - df_global['Low']
@@ -159,11 +159,10 @@ if ticker != "" and not df_datos.empty and "Ticker" in df_datos.columns:
         except: pass
 
 # =====================================================================
-# SISTEMA DE PESTAÑAS PRINCIPALES
+# PESTAÑA 1: ESCÁNER INTELIGENTE
 # =====================================================================
 tab1, tab2, tab3 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo"])
 
-# --- PESTAÑA 1: ESCÁNER INTELIGENTE ---
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
@@ -213,7 +212,6 @@ with tab1:
     st.markdown("---")
     st.markdown("### 🏛️ Auditoría Matemática Central")
     c1, c2, c3 = st.columns(3)
-    
     with c1:
         h_ev = "<div class='rank-box'>"
         if ev_tot >= 10: h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
@@ -244,13 +242,10 @@ with tab1:
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
     # =====================================================================
-    # EL NUEVO ORÁCULO (MÁQUINA DEL TIEMPO + LEYENDA DINÁMICA)
+    # ORÁCULO DE MÁQUINA DEL TIEMPO 
     # =====================================================================
     st.markdown("---")
-    st.subheader("🔮 Matriz Temporal Quant (Backtesting Forense)")
-    
-    # LA MÁQUINA DEL TIEMPO
-    offset_dias = st.slider("⏳ Viajar al Pasado (Días hacia atrás): Analiza cómo estaban los indicadores de esta empresa justo antes de un techo o suelo histórico.", 0, 150, 0)
+    st.subheader("🔮 Matriz Temporal Quant (Backtesting Fijo)")
     
     z_in, acc_in, vol_z_in = 0.0, 0.0, 0.0
     if ticker != "":
@@ -258,7 +253,7 @@ with tab1:
             if not df_global.empty:
                 df_esc = df_global.copy()
                 
-                # Cálculos generales en toda la serie
+                # 1. Cálculos de toda la serie histórica para no romper las medias
                 df_esc['MA55'] = df_esc['Close'].rolling(window=55).mean()
                 df_esc['STD55'] = df_esc['Close'].rolling(window=55).std()
                 df_esc['Z_Score'] = (df_esc['Close'] - df_esc['MA55']) / df_esc['STD55']
@@ -270,118 +265,128 @@ with tab1:
                 df_esc['Vol_STD55'] = df_esc['Volume'].rolling(window=55).std()
                 df_esc['Vol_Z_Score'] = (df_esc['Volume'] - df_esc['Vol_MA55']) / df_esc['Vol_STD55']
                 
-                # APLICAR LA MÁQUINA DEL TIEMPO (Cortar el Dataframe)
-                if offset_dias > 0:
-                    df_esc = df_esc.iloc[:-offset_dias].copy()
-                    fecha_viaje = df_esc.index[-1].strftime("%d de %B de %Y")
-                    st.warning(f"⚠️ **MODO BACKTESTING:** Estás viendo los datos exactos del **{fecha_viaje}**. Todo el Oráculo refleja esa fecha.")
-                else:
-                    st.info("🟢 **MODO TIEMPO REAL:** Estás viendo los datos de la última sesión disponible.")
+                # 2. Lógica de Puntos Fijos para el Slider
+                today_naive = df_esc.index[-1].replace(tzinfo=None)
+                target_dates_naive = []
+                for i in range(12): # Últimos 12 meses (días 1 y 15)
+                    m = today_naive.month - i
+                    y = today_naive.year
+                    while m <= 0:
+                        m += 12
+                        y -= 1
+                    target_dates_naive.append(datetime.datetime(y, m, 1))
+                    target_dates_naive.append(datetime.datetime(y, m, 15))
+                    
+                fechas_slider = []
+                for td in target_dates_naive:
+                    if td <= today_naive:
+                        deltas = abs(df_esc.index.tz_localize(None) - td)
+                        fechas_slider.append(df_esc.index[deltas.argmin()])
+                        
+                # Añadir los últimos 15 días individualmente
+                for d in df_esc.index[-15:]:
+                    fechas_slider.append(d)
+                    
+                fechas_slider = sorted(list(set(fechas_slider)))
+                
+                meses = {1:"Ene", 2:"Feb", 3:"Mar", 4:"Abr", 5:"May", 6:"Jun", 7:"Jul", 8:"Ago", 9:"Sep", 10:"Oct", 11:"Nov", 12:"Dic"}
+                opciones_str = []
+                dict_fechas = {}
+                for d in fechas_slider:
+                    d_naive = d.replace(tzinfo=None)
+                    if d == df_esc.index[-1]:
+                        s = "🟢 HOY"
+                    else:
+                        s = f"{d_naive.day} {meses[d_naive.month]} {d_naive.year}"
+                    opciones_str.append(s)
+                    dict_fechas[s] = d
 
-                # Extraer valores del día analizado
-                z_in = df_esc['Z_Score'].iloc[-1] if not pd.isna(df_esc['Z_Score'].iloc[-1]) else 0
-                acc_in = df_esc['Accel'].iloc[-1] if not pd.isna(df_esc['Accel'].iloc[-1]) else 0
-                vol_z_in = df_esc['Vol_Z_Score'].iloc[-1] if not pd.isna(df_esc['Vol_Z_Score'].iloc[-1]) else 0
+                # 3. MÁQUINA DEL TIEMPO VISUAL
+                fecha_sel_str = st.select_slider("⏳ Desliza a un punto exacto para ver qué marcaban los indicadores ese día (incluye los últimos 15 días 1 a 1):", options=opciones_str, value="🟢 HOY")
+                fecha_sel = dict_fechas[fecha_sel_str]
+                
+                if fecha_sel_str != "🟢 HOY":
+                    st.warning(f"⚠️ **MODO BACKTESTING:** El Oráculo refleja exactamente cómo cerraron los indicadores el **{fecha_sel_str}**. Busca correspondencias con el precio.")
 
-                # Extraer historial de 15 días HASTA el día analizado
-                df_last_15 = df_esc.tail(15).copy()
+                # 4. CORTAR LA SERIE HASTA LA FECHA SELECCIONADA
+                df_corte = df_esc[df_esc.index <= fecha_sel].copy()
+
+                z_in = df_corte['Z_Score'].iloc[-1] if not pd.isna(df_corte['Z_Score'].iloc[-1]) else 0
+                acc_in = df_corte['Accel'].iloc[-1] if not pd.isna(df_corte['Accel'].iloc[-1]) else 0
+                vol_z_in = df_corte['Vol_Z_Score'].iloc[-1] if not pd.isna(df_corte['Vol_Z_Score'].iloc[-1]) else 0
+
+                # Gráficos de 15 días terminando en la fecha seleccionada
+                df_last_15 = df_corte.tail(15).copy()
+                bar_x = [f"{d.day} {meses[d.month]}" for d in df_last_15.index.tz_localize(None)]
 
                 col_eq1, col_eq2, col_eq3 = st.columns(3)
                 
-                # COLUMNA 1: Z-SCORE PRECIO (LEYENDA DINÁMICA)
                 with col_eq1:
                     z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
                     z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= 2.0 else "color:#a1a1aa;"
                     z_c3 = "font-weight:900; color:#ff3b30;" if z_in > 2.0 else "color:#a1a1aa;"
-                    
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
                         <div class="quant-title">Z-Score (Tensión Precio)</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
                             <div style='{z_c1}'>• < -2.0 : Sobrevendida (Rebote)</div>
                             <div style='{z_c2}'>• -2.0 a +2.0 : Tensión Normal</div>
                             <div style='{z_c3}'>• > +2.0 : Euforia (Peligro)</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
+                        </div>""", unsafe_allow_html=True)
                     fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, number=dict(valueformat='.2f', suffix='σ'), gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2.0], color="#3b82f6"), dict(range=[-2.0, 2.0], color="#e5e5ea"), dict(range=[2.0, 4], color="#ff3b30")])))
                     fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ze, use_container_width=True)
                     
                     bar_c_z = ['#ff3b30' if val > 2.0 else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
-                    fig_b_z = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Z_Score'], marker_color=bar_c_z)])
+                    fig_b_z = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Z_Score'], marker_color=bar_c_z)])
                     fig_b_z.add_hline(y=2.0, line_dash="dash", line_color="#ff3b30")
-                    fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
+                    fig_b_z.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=True, tickangle=-45, tickfont=dict(size=9)), yaxis=dict(title=""), plot_bgcolor="white")
                     st.plotly_chart(fig_b_z, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                # COLUMNA 2: MOMENTUM (LEYENDA DINÁMICA)
                 with col_eq2:
                     a_c1 = "font-weight:900; color:#ff3b30;" if acc_in <= 0 else "color:#a1a1aa;"
                     a_c2 = "font-weight:900; color:#16a34a;" if acc_in > 0 else "color:#a1a1aa;"
-                    
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
                         <div class="quant-title">Aceleración (Momentum)</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
                             <div style='{a_c1}'>• ≤ 0 : Perdiendo Gas (Frena)</div>
                             <div style='{a_c2}'>• > 0 : Entrando Dinero (Acelera)</div>
                             <div style='color:transparent;'>_</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
+                        </div>""", unsafe_allow_html=True)
                     fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, number=dict(valueformat='.2f'), gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, 0], color="#ffcdd2"), dict(range=[0, 10], color="#c8e6c9")])))
                     fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ae, use_container_width=True)
                     
                     bar_c_a = ['#34c759' if val > 0 else '#ff3b30' for val in df_last_15['Accel']]
-                    fig_b_a = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Accel'], marker_color=bar_c_a)])
+                    fig_b_a = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Accel'], marker_color=bar_c_a)])
                     fig_b_a.add_hline(y=0, line_dash="solid", line_color="#1d1d1f")
-                    fig_b_a.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
+                    fig_b_a.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=True, tickangle=-45, tickfont=dict(size=9)), yaxis=dict(title=""), plot_bgcolor="white")
                     st.plotly_chart(fig_b_a, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
 
-                # COLUMNA 3: VOLUMEN (LEYENDA DINÁMICA)
                 with col_eq3:
                     v_c1 = "font-weight:900; color:#ff3b30;" if vol_z_in < 0 else "color:#a1a1aa;"
                     v_c2 = "font-weight:900; color:#3b82f6;" if 0 <= vol_z_in <= 1.5 else "color:#a1a1aa;"
                     v_c3 = "font-weight:900; color:#34c759;" if vol_z_in > 1.5 else "color:#a1a1aa;"
-                    
                     st.markdown(f"""<div class="quant-card" style="padding-bottom:5px;">
                         <div class="quant-title">Huella Institucional</div>
                         <div style='font-size:0.8rem; background:#f8f9fa; padding:8px; border-radius:8px; margin-bottom:10px; border:1px solid #e8eaed;'>
                             <div style='{v_c1}'>• < 0 : Minoristas (Ruido)</div>
                             <div style='{v_c2}'>• 0 a +1.5 : Volumen Sano / Oculto</div>
                             <div style='{v_c3}'>• > +1.5 : Inyección Ballenas</div>
-                        </div>
-                    """, unsafe_allow_html=True)
-                    
+                        </div>""", unsafe_allow_html=True)
                     fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, number=dict(valueformat='.2f', suffix='σ'), gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, 1.5], color="#e5e5ea"), dict(range=[1.5, 4], color="#34c759")])))
                     fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ve, use_container_width=True)
                     
                     bar_c_v = ['#34c759' if val >= 1.5 else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
-                    fig_b_v = go.Figure(data=[go.Bar(x=df_last_15.index.strftime('%d %b'), y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
+                    fig_b_v = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
                     fig_b_v.add_hline(y=1.5, line_dash="dash", line_color="#34c759")
-                    fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
+                    fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=True, tickangle=-45, tickfont=dict(size=9)), yaxis=dict(title=""), plot_bgcolor="white")
                     st.plotly_chart(fig_b_v, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
                     
         except: pass
-
-    # =====================================================================
-    # DIAGNÓSTICOS DE TEXTO (AHORA SINCRONIZADOS CON LA MÁQUINA DEL TIEMPO)
-    # =====================================================================
-    if z_in > 2.5: txt_z, col_z = "PELIGRO. Precio disparado por euforia. Comprar es entrar en el techo.", "tdah-red"
-    elif z_in > 2.0: txt_z, col_z = "Goma muy tensa. Riesgo inminente de corrección.", "tdah-yellow"
-    elif z_in < -1.0: txt_z, col_z = "Goma estirada hacia abajo. Podría haber un rebote pronto.", "tdah-blue"
-    else: txt_z, col_z = "Tensión NORMAL. El precio está cerca de su media. Zona segura.", "tdah-green"
-    st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Diagnóstico Precio:</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
-
-    if vol_z_in >= 1.5: txt_v, col_v = "EXCELENTE. Hay una huella gigante de dinero institucional apoyando este movimiento.", "tdah-green"
-    elif vol_z_in >= 0: txt_v, col_v = "Volumen sano. Participación normal del mercado sin anomalías.", "tdah-blue"
-    else: txt_v, col_v = "Pobre participación. El volumen está por debajo de la media histórica.", "tdah-yellow"
-    st.markdown(f"<div class='tdah-box {col_v}'><div class='tdah-title'>🐘 Diagnóstico Volumen:</div><div class='tdah-text'>{txt_v}</div></div>", unsafe_allow_html=True)
-
-    st.markdown("<br>", unsafe_allow_html=True)
 
     # =====================================================================
     # BOTONES DE ACCIÓN 
@@ -425,7 +430,7 @@ with tab1:
                     st.toast(f"🎉 ¡OPERACIÓN REGISTRADA! {int(n_tit)} acciones de {ticker} a tu Cartera en Vivo.", icon="🚀")
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
-# --- PESTAÑA 2 Y 3 SE MANTIENEN IGUALES ---
+# --- PESTAÑA 2 Y 3 (IGUALES) ---
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
     if not df_datos.empty:
@@ -488,5 +493,5 @@ with tab3:
                                 st.cache_data.clear()
                                 st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
         except: pass
-    with tab_add: st.info("Pestaña de registro manual habilitada en código fuente.")
-    with tab_historial: st.info("Pestaña de historial habilitada en código fuente.")
+    with tab_add: st.info("Pestaña habilitada en código fuente.")
+    with tab_historial: st.info("Pestaña habilitada en código fuente.")
