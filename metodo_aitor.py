@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 56.0 AUDITORIA COMPLETA", layout="wide")
+st.set_page_config(page_title="AITOR 57.0 QUANT DEFINITIVO", layout="wide")
 
 # --- CSS ESTILO APPLE, TDAH FRIENDLY & BANNER ANIMADO ---
 st.markdown("""
@@ -84,7 +84,7 @@ ticker = ticker_manual if ticker_manual != "" else ticker_lista
 if ticker == "": ticker = "MU"
 
 # --- LECTURA DEL ADN GENÉTICO ---
-opt_z, opt_acc, opt_vol = 1.0, 0.0, 1.5 # Valores genéricos por defecto
+opt_z, opt_acc, opt_vol = 1.0, 0.0, 1.5 
 tiene_adn = False
 if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
     df_adn_ticker = df_adn[df_adn['Ticker'] == ticker]
@@ -97,6 +97,7 @@ if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
 
 nom_emp, p_merc, prev_1y, eps_base, atr_val = "Buscando...", 0.0, 0.0, 0.0, 0.0
 df_global = pd.DataFrame()
+beta_val = 1.0 
 
 if ticker != "":
     stock = yf.Ticker(ticker)
@@ -110,6 +111,16 @@ if ticker != "":
             ranges = pd.concat([high_low, high_close, low_close], axis=1)
             true_range = np.max(ranges, axis=1)
             atr_val = true_range.rolling(14).mean().iloc[-1]
+            try:
+                spy = yf.Ticker("SPY").history(period="1y")
+                ret_stock = df_global['Close'].pct_change().dropna()
+                ret_spy = spy['Close'].pct_change().dropna()
+                aligned_rets = pd.concat([ret_stock, ret_spy], axis=1, join='inner')
+                aligned_rets.columns = ['Stock', 'Market']
+                cov = aligned_rets.cov().iloc[0, 1]
+                var = aligned_rets['Market'].var()
+                beta_val = cov / var if var != 0 else 1.0
+            except: pass
     except: pass
     try:
         info = stock.info
@@ -299,7 +310,6 @@ with tab1:
 
                 col_eq1, col_eq2, col_eq3 = st.columns(3)
                 
-                # ORÁCULO MUTADO POR ADN
                 with col_eq1:
                     z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
                     z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= opt_z else "color:#a1a1aa;"
@@ -314,7 +324,6 @@ with tab1:
                     fig_ze = go.Figure(go.Indicator(mode="gauge+number", value=z_in, gauge=dict(axis=dict(range=[-4, 4]), bar=dict(color="black"), steps=[dict(range=[-4, -2.0], color="#3b82f6"), dict(range=[-2.0, opt_z], color="#e5e5ea"), dict(range=[opt_z, 4], color="#ff3b30")])))
                     fig_ze.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ze, use_container_width=True)
-                    
                     bar_c_z = ['#ff3b30' if val > opt_z else ('#3b82f6' if val < -2.0 else '#a1a1aa') for val in df_last_15['Z_Score']]
                     fig_b_z = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Z_Score'], marker_color=bar_c_z)])
                     fig_b_z.add_hline(y=opt_z, line_dash="dash", line_color="#ff3b30")
@@ -335,7 +344,6 @@ with tab1:
                     fig_ae = go.Figure(go.Indicator(mode="gauge+number", value=acc_in, gauge=dict(axis=dict(range=[-10, 10]), bar=dict(color="purple"), steps=[dict(range=[-10, opt_acc], color="#ffcdd2"), dict(range=[opt_acc, 10], color="#c8e6c9")])))
                     fig_ae.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ae, use_container_width=True)
-                    
                     bar_c_a = ['#34c759' if val > opt_acc else '#ff3b30' for val in df_last_15['Accel']]
                     fig_b_a = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Accel'], marker_color=bar_c_a)])
                     fig_b_a.add_hline(y=opt_acc, line_dash="solid", line_color="#1d1d1f")
@@ -357,67 +365,58 @@ with tab1:
                     fig_ve = go.Figure(go.Indicator(mode="gauge+number", value=vol_z_in, gauge=dict(axis=dict(range=[-2, 4]), bar=dict(color="black"), steps=[dict(range=[-2, opt_vol], color="#e5e5ea"), dict(range=[opt_vol, 4], color="#34c759")])))
                     fig_ve.update_layout(height=140, margin=dict(l=10, r=10, t=10, b=10))
                     st.plotly_chart(fig_ve, use_container_width=True)
-                    
                     bar_c_v = ['#34c759' if val >= opt_vol else '#e5e5ea' for val in df_last_15['Vol_Z_Score']]
                     fig_b_v = go.Figure(data=[go.Bar(x=bar_x, y=df_last_15['Vol_Z_Score'], marker_color=bar_c_v)])
                     fig_b_v.add_hline(y=opt_vol, line_dash="dash", line_color="#34c759")
                     fig_b_v.update_layout(height=120, margin=dict(l=0, r=0, t=10, b=0), xaxis=dict(showticklabels=False), yaxis=dict(title=""), plot_bgcolor="white")
                     st.plotly_chart(fig_b_v, use_container_width=True)
                     st.markdown("</div>", unsafe_allow_html=True)
-                    
         except: pass
 
     # =====================================================================
-    # RESTAURACIÓN COMPLETA DE LA AUDITORÍA CLÍNICA (CONECTADA AL ADN)
+    # AUDITORIA CLINICA TOTAL (RESTAURADA)
     # =====================================================================
     st.markdown("---")
     st.subheader("📋 Auditoría Clínica de Entrada (ADN Integrado)")
     
-    # 1. Esperanza EV
-    if ev_tot >= 10: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
-    elif ev_tot >= 5: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
-    else: txt_ev, col_ev = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_ev}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad):</div><div class='tdah-text'>{txt_ev}</div></div>", unsafe_allow_html=True)
+    if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto. Tienes las probabilidades a tu favor.", "tdah-green"
+    elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto para operar.", "tdah-blue"
+    else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. No se recomienda operar sin más confirmación.", "tdah-red"
+    st.markdown(f"<div class='tdah-box {col_ev_out}'><div class='tdah-title'>📊 Esperanza Matemática (Fiabilidad):</div><div class='tdah-text'>{txt_ev_out}</div></div>", unsafe_allow_html=True)
 
-    # 2. Fuerza Neta
-    if net_ev >= 1.5: col_f = "tdah-green"
-    elif net_ev >= 0: col_f = "tdah-yellow"
-    else: col_f = "tdah-red"
-    st.markdown(f"<div class='tdah-box {col_f}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>El empuje real del precio descontando sistemas en contra es de <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
+    if net_ev >= 1.5: col_f_out = "tdah-green"
+    elif net_ev >= 0: col_f_out = "tdah-yellow"
+    else: col_f_out = "tdah-red"
+    st.markdown(f"<div class='tdah-box {col_f_out}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>El empuje real del precio descontando sistemas en contra es de <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
 
-    # 3. Z-Score Adaptado al ADN
     if opt_z != -99:
-        if z_in > 2.5: txt_z, col_z = f"PELIGRO. Precio disparado por euforia (> 2.5σ). Riesgo altísimo de reversión.", "tdah-red"
-        elif z_in >= opt_z: txt_z, col_z = f"GATILLO ACTIVO. El precio supera el límite de {opt_z}σ establecido en tu ADN.", "tdah-green"
-        else: txt_z, col_z = f"Tensión insuficiente ({z_in:.2f}σ). No cumple el mínimo de tu ADN ({opt_z}σ).", "tdah-yellow"
+        if z_in > 2.5: txt_z_out, col_z_out = f"PELIGRO. Precio disparado por euforia (> 2.5σ). Riesgo altísimo de reversión.", "tdah-red"
+        elif z_in >= opt_z: txt_z_out, col_z_out = f"GATILLO ACTIVO. El precio supera el límite de {opt_z}σ establecido en tu ADN.", "tdah-green"
+        else: txt_z_out, col_z_out = f"Tensión insuficiente ({z_in:.2f}σ). No cumple el mínimo de tu ADN ({opt_z}σ).", "tdah-yellow"
     else:
-        txt_z, col_z = "Módulo Z-Score apagado en el ADN.", "tdah-blue"
-    st.markdown(f"<div class='tdah-box {col_z}'><div class='tdah-title'>🪢 Tensión Precio (Z-Score):</div><div class='tdah-text'>{txt_z}</div></div>", unsafe_allow_html=True)
+        txt_z_out, col_z_out = "Módulo Z-Score apagado en el ADN.", "tdah-blue"
+    st.markdown(f"<div class='tdah-box {col_z_out}'><div class='tdah-title'>🪢 Tensión Precio (Z-Score):</div><div class='tdah-text'>{txt_z_out}</div></div>", unsafe_allow_html=True)
 
-    # 4. Aceleracion Adaptada al ADN
     if opt_acc != -99:
-        if acc_in >= opt_acc: txt_a, col_a = f"GATILLO ACTIVO. Aceleración positiva ({acc_in:.2f}), superando tu límite de {opt_acc}.", "tdah-green"
-        else: txt_a, col_a = f"Pérdida de gas ({acc_in:.2f}). No cumple el requisito de tu ADN ({opt_acc}).", "tdah-yellow"
+        if acc_in >= opt_acc: txt_a_out, col_a_out = f"GATILLO ACTIVO. Aceleración positiva ({acc_in:.2f}), superando tu límite de {opt_acc}.", "tdah-green"
+        else: txt_a_out, col_a_out = f"Pérdida de gas ({acc_in:.2f}). No cumple el requisito de tu ADN ({opt_acc}).", "tdah-yellow"
     else:
-        txt_a, col_a = "Módulo de Aceleración apagado en el ADN.", "tdah-blue"
-    st.markdown(f"<div class='tdah-box {col_a}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a}</div></div>", unsafe_allow_html=True)
+        txt_a_out, col_a_out = "Módulo de Aceleración apagado en el ADN.", "tdah-blue"
+    st.markdown(f"<div class='tdah-box {col_a_out}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a_out}</div></div>", unsafe_allow_html=True)
 
-    # 5. Volumen Adaptado al ADN
     if opt_vol != -99:
-        if vol_z_in >= opt_vol: txt_v, col_v = f"GATILLO ACTIVO. Volumen institucional detectado ({vol_z_in:.2f}σ), por encima de tu ADN ({opt_vol}σ).", "tdah-green"
-        else: txt_v, col_v = f"Volumen sano o insuficiente ({vol_z_in:.2f}σ). No salta la alarma de tu ADN ({opt_vol}σ).", "tdah-yellow"
+        if vol_z_in >= opt_vol: txt_v_out, col_v_out = f"GATILLO ACTIVO. Volumen institucional detectado ({vol_z_in:.2f}σ), por encima de tu ADN ({opt_vol}σ).", "tdah-green"
+        else: txt_v_out, col_v_out = f"Volumen sano o insuficiente ({vol_z_in:.2f}σ). No salta la alarma de tu ADN ({opt_vol}σ).", "tdah-yellow"
     else:
-        txt_v, col_v = "Módulo de Volumen apagado en el ADN.", "tdah-blue"
-    st.markdown(f"<div class='tdah-box {col_v}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v}</div></div>", unsafe_allow_html=True)
+        txt_v_out, col_v_out = "Módulo de Volumen apagado en el ADN.", "tdah-blue"
+    st.markdown(f"<div class='tdah-box {col_v_out}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v_out}</div></div>", unsafe_allow_html=True)
 
-    # 6. Gran Veredicto Final 
     st.markdown("<br>", unsafe_allow_html=True)
     if net_ev < 0: 
         ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
     elif z_in > 2.5: 
         ver_txt, ver_col = "❌ ESPERAR. La tendencia es buena pero la goma está demasiado tensa. Espera a un retroceso.", "tdah-red"
     else:
-        # Check ADN conditions
         cumple_z = True if opt_z == -99 else (z_in >= opt_z)
         cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
         cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
@@ -427,13 +426,10 @@ with tab1:
         elif cumple_z and cumple_acc and cumple_vol:
             ver_txt, ver_col = "⚠️ PRECAUCIÓN. Los indicadores de tu ADN están en verde, pero la Fuerza Neta (Medias) es débil. Reduce tu capital a la mitad.", "tdah-yellow"
         else: 
-            ver_txt, ver_col = "⚠️ OPERACIÓN NO ALINEADA. La acción no cumple tu firma genética. Si decides entrar, es bajo tu propio riesgo (fuera de sistema).", "tdah-yellow"
+            ver_txt, ver_col = "⚠️ OPERACIÓN NO ALINEADA. La acción no cumple tu firma genética. Si decides entrar, es bajo tu propio riesgo.", "tdah-yellow"
             
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
 
-    # =====================================================================
-    # BOTONES DE ACCIÓN 
-    # =====================================================================
     st.markdown("---")
     st.subheader("⚙️ Panel de Ejecución Cuantitativa")
     col_btn_save, col_btn_buy = st.columns(2)
@@ -536,11 +532,9 @@ with tab3:
                                 st.cache_data.clear()
                                 st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
         except: pass
-    with tab_add: st.info("Registro manual en código.")
-    with tab_historial: st.info("Historial en código.")
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR CON GUARDADO DE ADN
+# PESTAÑA 4: LABORATORIO MODULAR CON GUARDADO DE ADN (VERSIÓN 57 - MATRIZ COMPLETA)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Edición de ADN")
@@ -549,7 +543,6 @@ with tab4:
     st.markdown("### 🎛️ 1. Panel Quant (Enciende/Apaga Módulos)")
     col_p1, col_p2, col_p3 = st.columns(3)
     
-    # Check si estaban deshabilitados en el ADN
     val_z = True if opt_z != -99 else False
     val_acc = True if opt_acc != -99 else False
     val_vol = True if opt_vol != -99 else False
@@ -645,7 +638,9 @@ with tab4:
                                     "Señal Original": date.strftime("%Y-%m-%d"),
                                     "Precio Compra": f"{p_entrada:.2f} $",
                                     "Volumen (σ)": f"{row['Vol_Z_Score']:.1f}" if not pd.isna(row['Vol_Z_Score']) else "-",
+                                    "5 Días": dict_rets_display["5 Días"],
                                     "10 Días": dict_rets_display["10 Días"],
+                                    "15 Días": dict_rets_display["15 Días"],
                                     "20 Días": dict_rets_display["20 Días"],
                                     "30 Días": dict_rets_display["30 Días"]
                                 }
@@ -657,11 +652,16 @@ with tab4:
                     if total_señales > 0:
                         st.markdown("---")
                         st.markdown(f"### 📊 Resultado de la Simulación ({total_señales} entradas válidas)")
-                        col_m2, col_m4, col_m5 = st.columns(3)
+                        col_m1, col_m2, col_m3, col_m4, col_m5 = st.columns(5)
+                        avg_5 = np.mean(datos_estadistica[5])
                         avg_10 = np.mean(datos_estadistica[10])
+                        avg_15 = np.mean(datos_estadistica[15])
                         avg_20 = np.mean(datos_estadistica[20])
                         avg_30 = np.mean(datos_estadistica[30])
+                        
+                        col_m1.metric("Media a 5 Días", f"{avg_5:+.2f} %")
                         col_m2.metric("Media a 10 Días", f"{avg_10:+.2f} %")
+                        col_m3.metric("Media a 15 Días", f"{avg_15:+.2f} %")
                         col_m4.metric("Media a 20 Días", f"{avg_20:+.2f} %")
                         col_m5.metric("Media a 30 Días", f"{avg_30:+.2f} %")
                         
@@ -687,7 +687,7 @@ with tab4:
                                 num = float(val.replace('%', '').replace('+', ''))
                                 return 'color: #16a34a; font-weight: bold' if num > 0 else 'color: #dc2626'
                             return ''
-                        st.dataframe(df_display.style.map(color_retorno, subset=["10 Días", "20 Días", "30 Días"]), use_container_width=True, hide_index=True)
+                        st.dataframe(df_display.style.map(color_retorno, subset=["5 Días", "10 Días", "15 Días", "20 Días", "30 Días"]), use_container_width=True, hide_index=True)
                     else:
                         st.warning("No hay resultados. Tus reglas son demasiado estrictas.")
                         
