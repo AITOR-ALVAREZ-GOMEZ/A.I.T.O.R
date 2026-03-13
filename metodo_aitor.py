@@ -7,7 +7,7 @@ import datetime
 import plotly.graph_objects as go
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 59.0 OPTIMIZADOR DINAMICO", layout="wide")
+st.set_page_config(page_title="AITOR 60.0 SAFE DATABASE", layout="wide")
 
 # --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
@@ -63,6 +63,8 @@ st.markdown("""
     .banner-green { animation: pulse-green 2s infinite; border: 2px solid #34c759; }
     .banner-yellow { animation: pulse-yellow 2s infinite; border: 2px solid #ffcc00; }
     .dna-badge { display: inline-block; background: linear-gradient(90deg, #9333ea, #ec4899); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(236, 72, 153, 0.4);}
+    
+    [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
 </style>
 """, unsafe_allow_html=True)
 
@@ -153,23 +155,23 @@ stop_sugerido_auto = p_buy - (2 * atr_val) if atr_val > 0 else p_buy * 0.95
 p_sl = st.sidebar.number_input("Stop Loss", value=float(stop_sugerido_auto), key=f"sl_{ticker}")
 
 # =====================================================================
-# PESTAÑAS PRINCIPALES
+# SISTEMA DE PESTAÑAS
 # =====================================================================
 tab1, tab2, tab3, tab4 = st.tabs(["📊 Escáner Cuántico", "📋 Auditoría Global", "💼 Cartera en Vivo", "🧪 Laboratorio Modular"])
 
-# --- PESTAÑA 1, 2 Y 3 (RESUMIDAS EN CÓDIGO POR BREVEDAD, ENFOCAMOS EN LAB 4) ---
+# --- PESTAÑA 1, 2 Y 3 (RESUMIDAS POR BREVEDAD - ENFOCAMOS EN LAB 4) ---
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
     if tiene_adn:
         st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
         st.caption(f"El Escáner ha mutado para {ticker}. Limites calibrados: Volumen > {opt_vol}σ | Aceleración > {opt_acc} | Tensión > {opt_z}σ")
-    st.info("Pestaña 1 operativa. Ve a la Pestaña 4 para ver el Optimizador Dinámico.")
+    st.info("Pestaña 1 operativa. Ve al 'Laboratorio Modular' para probar el guardado.")
 
 with tab2: st.info("Auditoría Activa")
 with tab3: st.info("Cartera Activa")
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR (CON SELECTOR DE TROFEO)
+# PESTAÑA 4: LABORATORIO MODULAR (GESTIÓN DE ERRORES DB)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Competición Genética")
@@ -291,7 +293,6 @@ with tab4:
                     total_señales = len(fechas_registro_display)
                     
                     if total_señales > 0:
-                        # Calcular promedios
                         avg_5 = np.mean(datos_estadistica[5])
                         avg_10 = np.mean(datos_estadistica[10])
                         avg_15 = np.mean(datos_estadistica[15])
@@ -301,7 +302,6 @@ with tab4:
                         positivas = len([s for s in datos_estadistica[20] if s > 0])
                         win_rate = (positivas / total_señales) * 100
                         
-                        # GUARDAR EN LA MEMORIA RAM DE SESIÓN
                         nuevo_test = {
                             "Ticker": ticker,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF",
@@ -329,7 +329,7 @@ with tab4:
                                 return ''
                             st.dataframe(df_display.style.map(color_retorno, subset=["5 Días", "10 Días", "15 Días", "20 Días", "30 Días"]), use_container_width=True, hide_index=True)
                     else:
-                        st.warning("No hay resultados. Tus reglas son demasiado estrictas. Este intento no se guardará en el historial.")
+                        st.warning("No hay resultados. Tus reglas son demasiado estrictas.")
                         
             except Exception as e: st.error(f"Error procesando los datos: {e}")
 
@@ -345,25 +345,20 @@ with tab4:
             st.markdown("---")
             st.markdown("## ⚔️ El Coliseo Quant (Resultados Acumulados)")
             
-            # EL SELECTOR DE TROFEO (LA NOVEDAD DE LA VERSIÓN 59)
             st.markdown("<div style='background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #22c55e; margin-bottom:20px;'>", unsafe_allow_html=True)
             objetivo_opt = st.selectbox(
                 "🏆 ¿Qué horizonte temporal define a la combinación ganadora para ti?",
                 ["5 Días", "10 Días", "15 Días", "20 Días", "30 Días"],
-                index=3, # Por defecto 20 Días
-                help="La tarjeta de Campeón se recalculará automáticamente para mostrarte la combinación que sacó mejor puntuación en el periodo de tiempo que elijas aquí."
+                index=3
             )
             st.markdown("</div>", unsafe_allow_html=True)
             
-            # Mapear la selección a la columna de la tabla
             dict_map = {"5 Días": "Ret_5D", "10 Días": "Ret_10D", "15 Días": "Ret_15D", "20 Días": "Ret_20D", "30 Días": "Ret_30D"}
             col_orden = dict_map[objetivo_opt]
             
-            # Ordenar dinámicamente
             df_ticker_hist = df_ticker_hist.sort_values(by=col_orden, ascending=False)
             campeon = df_ticker_hist.iloc[0]
             
-            # RENDERIZAR LA TARJETA DEL CAMPEÓN
             st.markdown(f"""
             <div class='champion-card'>
                 <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA MAXIMIZAR A {objetivo_opt.upper()}</div>
@@ -379,25 +374,33 @@ with tab4:
             </div>
             """, unsafe_allow_html=True)
             
-            # BOTÓN DE GUARDAR EL ADN (VINCULADO AL CAMPEÓN ACTUAL)
+            # --- FIX: GESTIÓN DE ERRORES AL GUARDAR EL ADN ---
             if st.button(f"💾 GUARDAR 'EL CAMPEÓN' COMO ADN OFICIAL DE {ticker}", type="secondary", use_container_width=True):
-                try:
-                    c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
-                    c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
-                    c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
-                    
-                    df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
-                    if df_adn_actual.empty: df_adn_actual = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
-                    
-                    nuevo_adn = {"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": objetivo_opt, "Rendimiento": campeon[col_orden]}
-                    df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True).drop_duplicates("Ticker", keep="last")
-                    conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
-                    st.cache_data.clear()
-                    st.success("✅ ADN Modificado. El Escáner y la Auditoría ya están usando esta configuración.")
-                except Exception as e:
-                    st.error(f"Error al guardar ADN: {e}")
+                with st.spinner("Guardando en Base de Datos..."):
+                    try:
+                        c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
+                        c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
+                        c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
+                        
+                        df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
+                        if df_adn_actual.empty: df_adn_actual = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
+                        
+                        nuevo_adn = {"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": objetivo_opt, "Rendimiento": campeon[col_orden]}
+                        df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True).drop_duplicates("Ticker", keep="last")
+                        conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
+                        st.cache_data.clear()
+                        st.success("✅ ADN Modificado. El Escáner y la Auditoría ya están usando esta configuración.")
+                    except Exception as e:
+                        # MANEJO DE ERROR ESPECÍFICO (EL FALLO DE LA CAPTURA DE PANTALLA)
+                        if "ADN_Quant" in str(e):
+                            st.error("""
+                            🚨 **Falta crear la carpeta en la nube.**
+                            Para poder guardar la Memoria Genética, el sistema necesita un lugar físico en tu Excel.
+                            👉 **Solución:** Abre tu archivo de Google Sheets, pulsa el botón **'+'** abajo a la izquierda para crear una nueva pestaña, y llámala exactamente: **`ADN_Quant`**. Luego vuelve a pulsar este botón azul.
+                            """)
+                        else:
+                            st.error(f"Error técnico al guardar ADN: {e}")
 
-            # RENDERIZAR LA TABLA COMPLETA PARA COMPARAR
             st.markdown("#### 📋 Historial de Experimentos de esta Sesión:")
             
             def color_history(val):
@@ -405,7 +408,6 @@ with tab4:
                     return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
                 return ''
                 
-            # Highlight the sorting column
             styled_df = df_ticker_hist.style.map(color_history, subset=["Ret_5D", "Ret_10D", "Ret_15D", "Ret_20D", "Ret_30D"])
             styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[col_orden])
             
