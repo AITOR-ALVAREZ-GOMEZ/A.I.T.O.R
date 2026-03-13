@@ -6,15 +6,15 @@ from streamlit_gsheets import GSheetsConnection
 import datetime
 import plotly.graph_objects as go
 import math
+import time
 
 # --- CONFIGURACION ---
-st.set_page_config(page_title="AITOR 65.0 SYNC ENGINE", layout="wide")
+st.set_page_config(page_title="AITOR 67.0 STRATEGY POOL", layout="wide")
 
 # --- MEMORIA RAM DE SESIÓN ---
 if 'historial_lab' not in st.session_state:
     st.session_state['historial_lab'] = []
 
-# Limpieza de memoria vieja por si cambian las columnas
 if len(st.session_state['historial_lab']) > 0:
     if "Ret_21D" not in st.session_state['historial_lab'][0]:
         st.session_state['historial_lab'] = []
@@ -60,21 +60,17 @@ st.markdown("""
     .champion-stats { display: flex; gap: 20px; margin-top: 15px; flex-wrap: wrap;}
     .stat-box { background: white; padding: 10px 15px; border-radius: 10px; border: 1px solid #fcd34d; font-weight: bold; color: #78350f;}
     
-    .radar-alert { background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%); color: white; padding: 25px; border-radius: 15px; margin-bottom: 20px; box-shadow: 0 10px 30px rgba(34, 197, 94, 0.3); border: 2px solid #14532d;}
-    .radar-alert h2 { color: white !important; margin-top: 0; }
+    .radar-alert { background: linear-gradient(135deg, #16a34a 0%, #22c55e 100%); color: white; padding: 15px 25px; border-radius: 15px; margin-bottom: 10px; box-shadow: 0 10px 30px rgba(34, 197, 94, 0.2); border: 2px solid #14532d;}
+    .radar-alert h2 { color: white !important; margin-top: 0; font-size: 1.5rem; margin-bottom: 5px;}
+    .radar-sys-box { background: rgba(255,255,255,0.2); padding: 10px; border-radius: 8px; margin-top: 8px; border: 1px solid rgba(255,255,255,0.4); }
     .radar-wait { background: #f8f9fa; border: 1px dashed #d1d5db; padding: 20px; border-radius: 15px; color: #6b7280; text-align: center; margin-bottom: 15px;}
     
-    @keyframes flash-red { 0% { background-color: #ff3b30; color: white; } 50% { background-color: #ffe5e5; color: #ff3b30; } 100% { background-color: #ff3b30; color: white; } }
-    @keyframes pulse-green { 0% { background-color: #34c759; color: white; } 50% { background-color: #e5fbee; color: #188038; } 100% { background-color: #34c759; color: white; } }
-    @keyframes pulse-yellow { 0% { background-color: #ffcc00; color: #1d1d1f; } 50% { background-color: #fff9e6; color: #b38f00; } 100% { background-color: #ffcc00; color: #1d1d1f; } }
-    
-    .main-banner { padding: 16px; border-radius: 12px; text-align: center; font-weight: 800; font-size: 1.25rem; margin-top: 15px; margin-bottom: 15px; text-transform: uppercase; letter-spacing: 1px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
-    .banner-red { animation: flash-red 1.5s infinite; border: 2px solid #ff3b30; }
-    .banner-green { animation: pulse-green 2s infinite; border: 2px solid #34c759; }
-    .banner-yellow { animation: pulse-yellow 2s infinite; border: 2px solid #ffcc00; }
     .dna-badge { display: inline-block; background: linear-gradient(90deg, #9333ea, #ec4899); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(236, 72, 153, 0.4);}
+    .dna-badge-mult { display: inline-block; background: linear-gradient(90deg, #2563eb, #3b82f6); color: white; padding: 4px 10px; border-radius: 20px; font-size: 0.75rem; font-weight: 800; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 10px; box-shadow: 0 2px 8px rgba(59, 130, 246, 0.4);}
     
     [data-testid="stDataFrame"] { border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.03); }
+    [data-testid="stExpander"] { border: 2px solid #e5e5ea; border-radius: 15px; background-color: white; overflow: hidden;}
+    [data-testid="stExpander"] summary p { font-weight: 800; font-size: 1.1rem; color: #1d1d1f; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -87,12 +83,19 @@ for i in range(1, 6): COL_DB.extend([f"S{i}_Dias", f"W{i}", f"R{i}"])
 
 conn = st.connection("gsheets", type=GSheetsConnection)
 
-# CACHÉ AL 0: Lectura directa sin fantasmas
 try: df_datos = conn.read(worksheet="Sheet1", ttl=0) 
 except: df_datos = pd.DataFrame(columns=COL_DB)
 
-try: df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
-except: df_adn = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
+# GESTIÓN DE LA BASE DE DATOS ADN (NUEVAS COLUMNAS MULTIDIMENSIONALES)
+try: 
+    df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
+    # Migración silenciosa si es una tabla vieja
+    if not df_adn.empty:
+        if 'Es_Default' not in df_adn.columns: df_adn['Es_Default'] = True
+        if 'ID_ADN' not in df_adn.columns: df_adn['ID_ADN'] = [str(i) for i in range(len(df_adn))]
+        if 'WinRate' not in df_adn.columns: df_adn['WinRate'] = 0.0
+except: 
+    df_adn = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento", "WinRate", "Es_Default", "ID_ADN"])
 
 # =====================================================================
 # BUSCADOR LATERAL 
@@ -104,14 +107,21 @@ ticker_lista = st.sidebar.selectbox("O cargar de Auditoría:", [""] + opciones_b
 ticker = ticker_manual if ticker_manual != "" else ticker_lista
 if ticker == "": ticker = "MU"
 
-# --- LECTURA DEL ADN GENÉTICO EN DIRECTO ---
+# --- LECTURA DEL ADN GENÉTICO POR DEFECTO PARA EL ESCÁNER ---
 opt_z, opt_acc, opt_vol = 1.0, 0.0, 1.5 
 tiene_adn = False
+total_adns = 0
+
 if ticker != "" and not df_adn.empty and "Ticker" in df_adn.columns:
     df_adn_ticker = df_adn[df_adn['Ticker'] == ticker]
+    total_adns = len(df_adn_ticker)
     if not df_adn_ticker.empty:
         tiene_adn = True
-        adn_data = df_adn_ticker.iloc[-1]
+        # Buscar el que es Por Defecto
+        df_def = df_adn_ticker[df_adn_ticker['Es_Default'] == True]
+        if not df_def.empty: adn_data = df_def.iloc[0]
+        else: adn_data = df_adn_ticker.iloc[0] # Fallback
+        
         opt_z = float(adn_data['Z_Min'])
         opt_acc = float(adn_data['Acc_Min'])
         opt_vol = float(adn_data['Vol_Min'])
@@ -161,7 +171,7 @@ bono = pts_eps + (10 if c_inst else 0) + (10 if c_sect else 0)
 ev_plus = bono / 7.0
 
 # ---------------------------------------------------------------------
-# CALCULADORA DE RIESGO (ESTABLE)
+# CALCULADORA DE RIESGO
 # ---------------------------------------------------------------------
 st.sidebar.header("Gestion Capital")
 r_pct = st.sidebar.slider("Riesgo (%)", min_value=0.5, max_value=10.0, value=3.3, step=0.1)
@@ -192,20 +202,19 @@ tab1, tab2, tab3, tab4, tab5 = st.tabs(["📊 Escáner Cuántico", "📋 Auditor
 with tab1:
     st.title("Análisis de Entrada: " + ticker)
     
-    # MENSAJE DE ÉXITO TRAS RECARGA
     if st.session_state.get('adn_saved_success', False):
-        st.success("✅ ¡ADN Sincronizado! El Escáner y los Velocímetros se han adaptado automáticamente a tu nuevo campeón.")
+        st.success("✅ ¡ADN Guardado! Se ha añadido a tu Piscina de Sistemas para esta acción.")
         st.session_state['adn_saved_success'] = False
-        
-    if st.session_state.get('scan_saved_success', False):
-        st.toast("✅ Operación guardada/enviada correctamente a la base de datos.", icon="💾")
-        st.session_state['scan_saved_success'] = False
     
     if tiene_adn:
-        st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
-        st.caption(f"El Escáner ha mutado para **{ticker}**. Límites adaptados en base a tu Backtesting: Volumen > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Aceleración > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
+        if total_adns > 1:
+            st.markdown(f"<div class='dna-badge-mult'>🧬 {total_adns} SISTEMAS VIGILANDO ESTA ACCIÓN</div>", unsafe_allow_html=True)
+            st.caption(f"El Escáner visual está mostrando tu ADN *Por Defecto*. Límites: Vol > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Accel > {opt_acc if opt_acc!=-99 else 'OFF'} | Z > {opt_z if opt_z!=-99 else 'OFF'}σ")
+        else:
+            st.markdown("<div class='dna-badge'>🧬 ADN CUANTITATIVO CARGADO</div>", unsafe_allow_html=True)
+            st.caption(f"Límites adaptados: Vol > {opt_vol if opt_vol!=-99 else 'OFF'}σ | Accel > {opt_acc if opt_acc!=-99 else 'OFF'} | Tensión > {opt_z if opt_z!=-99 else 'OFF'}σ")
     else:
-        st.caption("Usando valores estándar por defecto. Usa la pestaña 'Laboratorio Quant' para guardar un ADN personalizado.")
+        st.caption("Usando valores estándar por defecto. Usa la pestaña 'Laboratorio Quant' para guardar estrategias.")
     
     s_elegidos, l_ev, l_wr, l_rt, l_es = [], [], [], [], []
     cols = st.columns(5)
@@ -223,7 +232,6 @@ with tab1:
                     r_defs[idx] = float(fila[f"R{idx+1}"])
             except: pass
 
-    # CAJAS DE LOS 5 SISTEMAS
     for i in range(5):
         with cols[i]:
             st.markdown(f"**{d_defs[i]} D**")
@@ -262,7 +270,6 @@ with tab1:
     st.markdown("---")
     st.markdown("### 🏛️ Auditoría Matemática Central")
     c1, c2, c3 = st.columns(3)
-    
     with c1:
         h_ev = "<div class='rank-box'>"
         if ev_tot >= 10: h_ev += "<div class='tag-on' style='background:#34c759;'>TIER S</div><div class='tag-off'>TIER A</div><div class='tag-off'>DESCARTE</div>"
@@ -272,7 +279,6 @@ with tab1:
         net_color = "#16a34a" if net_ev > 0 else "#dc2626"
         breakdown_ev = f"<div class='kpi-breakdown'>• Fuerza Sistemas (Neto): <b style='color:{net_color};'>{net_ev:+.2f}</b><br>• Bonus Calidad: <b style='color:#16a34a;'>+{ev_plus:.2f}</b><br>• Desglose: <span style='color:#16a34a;'>+{ev_compra:.2f} (C)</span> / <span style='color:#dc2626;'>-{ev_venta:.2f} (V)</span></div>"
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>SCORE EV (Esperanza)</div><div class='apple-kpi-value'>{ev_tot:.2f}</div>{breakdown_ev}{h_ev}</div>", unsafe_allow_html=True)
-
     with c2:
         h_idt = "<div class='rank-box'>"
         if idt >= 100: h_idt += "<div class='tag-on' style='background:#1d1d1f;'>OBLIGATORIA</div><div class='tag-off'>TACTICA</div><div class='tag-off'>BLOQUEADA</div>"
@@ -281,7 +287,6 @@ with tab1:
         h_idt += "</div>"
         breakdown_idt = f"<div class='kpi-breakdown'>• WinRate Principal: <b>+{l_wr[0]}</b><br>• Calidad + Sistemas: <b>+{(bono + p_estr + p_sen)}</b><br>• Penalización por Stop: <b style='color:#dc2626;'>-{penal}</b></div>"
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>PUNTOS IDT (Estructura)</div><div class='apple-kpi-value'>{idt}</div>{breakdown_idt}{h_idt}</div>", unsafe_allow_html=True)
-
     with c3:
         h_ite = "<div class='rank-box'>"
         if ite <= 5: h_ite += "<div class='tag-on' style='background:#34c759;'>OPTIMO</div><div class='tag-off'>MANEJABLE</div><div class='tag-off'>PELIGROSO</div>"
@@ -292,8 +297,7 @@ with tab1:
         st.markdown(f"<div class='apple-kpi-card'><div class='apple-kpi-title'>RIESGO ITE (Vacío)</div><div class='apple-kpi-value'>{ite}%</div>{breakdown_ite}{h_ite}</div>", unsafe_allow_html=True)
 
     st.markdown("---")
-    st.subheader("🔮 Oráculo Quant (Calibrado con ADN)")
-    
+    st.subheader("🔮 Oráculo Quant (Calibrado con el ADN Principal)")
     z_in, acc_in, vol_z_in = 0.0, 0.0, 0.0
     if ticker != "" and not df_global.empty:
         try:
@@ -338,7 +342,6 @@ with tab1:
             if fecha_sel_str != "🟢 HOY": st.warning(f"⚠️ **MODO VIAJE EN EL TIEMPO:** Estás viendo la pantalla de A.I.T.O.R. exactamente como cerró el **{fecha_sel_str}**.")
 
             df_corte = df_esc[df_esc.index <= fecha_sel].copy()
-            
             z_in = df_corte['Z_Score'].iloc[-1] if not pd.isna(df_corte['Z_Score'].iloc[-1]) else 0
             acc_in = df_corte['Accel'].iloc[-1] if not pd.isna(df_corte['Accel'].iloc[-1]) else 0
             vol_z_in = df_corte['Vol_Z_Score'].iloc[-1] if not pd.isna(df_corte['Vol_Z_Score'].iloc[-1]) else 0
@@ -347,7 +350,6 @@ with tab1:
             bar_x = [f"{d.day} {meses[d.month]}" for d in df_last_15.index.tz_localize(None)]
 
             col_eq1, col_eq2, col_eq3 = st.columns(3)
-            
             with col_eq1:
                 z_c1 = "font-weight:900; color:#3b82f6;" if z_in < -2.0 else "color:#a1a1aa;"
                 z_c2 = "font-weight:900; color:#16a34a;" if -2.0 <= z_in <= opt_z else "color:#a1a1aa;"
@@ -424,36 +426,16 @@ with tab1:
         except: pass
 
     st.markdown("---")
-    st.subheader("📋 Auditoría Clínica de Entrada (ADN Integrado)")
-    
+    st.subheader("📋 Auditoría Clínica de Entrada")
     if ev_tot >= 10: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Sistema estadísticamente muy robusto.", "tdah-green"
     elif ev_tot >= 5: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad estándar. Sistema apto.", "tdah-blue"
-    else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL. Usa confirmación.", "tdah-red"
+    else: txt_ev_out, col_ev_out = f"<b>{ev_tot:.2f} Puntos</b>. Fiabilidad matemática DÉBIL.", "tdah-red"
     st.markdown(f"<div class='tdah-box {col_ev_out}'><div class='tdah-title'>📊 Esperanza Matemática:</div><div class='tdah-text'>{txt_ev_out}</div></div>", unsafe_allow_html=True)
 
     if net_ev >= 1.5: col_f_out = "tdah-green"
     elif net_ev >= 0: col_f_out = "tdah-yellow"
     else: col_f_out = "tdah-red"
     st.markdown(f"<div class='tdah-box {col_f_out}'><div class='tdah-title'>⚖️ Fuerza Estructural Neta:</div><div class='tdah-text'>Empuje real descontando sistemas en contra: <b>{net_ev:+.2f}</b>.</div></div>", unsafe_allow_html=True)
-
-    if opt_z != -99:
-        if z_in > 2.5: txt_z_out, col_z_out = f"PELIGRO. Precio disparado por euforia (> 2.5σ).", "tdah-red"
-        elif z_in >= opt_z: txt_z_out, col_z_out = f"GATILLO ACTIVO. Supera el límite de {opt_z}σ de tu ADN.", "tdah-green"
-        else: txt_z_out, col_z_out = f"Tensión insuficiente ({z_in:.2f}σ). No cumple tu ADN ({opt_z}σ).", "tdah-yellow"
-    else: txt_z_out, col_z_out = "Módulo Z-Score apagado en el ADN.", "tdah-blue"
-    st.markdown(f"<div class='tdah-box {col_z_out}'><div class='tdah-title'>🪢 Tensión Precio (Z-Score):</div><div class='tdah-text'>{txt_z_out}</div></div>", unsafe_allow_html=True)
-
-    if opt_acc != -99:
-        if acc_in >= opt_acc: txt_a_out, col_a_out = f"GATILLO ACTIVO. Aceleración positiva ({acc_in:.2f}), supera tu ADN ({opt_acc}).", "tdah-green"
-        else: txt_a_out, col_a_out = f"Pérdida de gas ({acc_in:.2f}). No cumple el requisito de tu ADN ({opt_acc}).", "tdah-yellow"
-    else: txt_a_out, col_a_out = "Módulo de Aceleración apagado en el ADN.", "tdah-blue"
-    st.markdown(f"<div class='tdah-box {col_a_out}'><div class='tdah-title'>🏎️ Aceleración (Momentum):</div><div class='tdah-text'>{txt_a_out}</div></div>", unsafe_allow_html=True)
-
-    if opt_vol != -99:
-        if vol_z_in >= opt_vol: txt_v_out, col_v_out = f"GATILLO ACTIVO. Volumen institucional ({vol_z_in:.2f}σ), por encima de tu ADN ({opt_vol}σ).", "tdah-green"
-        else: txt_v_out, col_v_out = f"Volumen sano o insuficiente ({vol_z_in:.2f}σ). No salta la alarma ADN ({opt_vol}σ).", "tdah-yellow"
-    else: txt_v_out, col_v_out = "Módulo de Volumen apagado en el ADN.", "tdah-blue"
-    st.markdown(f"<div class='tdah-box {col_v_out}'><div class='tdah-title'>🐘 Intervención Institucional (Volumen):</div><div class='tdah-text'>{txt_v_out}</div></div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
     if net_ev < 0: ver_txt, ver_col = "❌ PROHIBIDO COMPRAR. Es una trampa bajista (Fuerza Neta negativa).", "tdah-red"
@@ -463,7 +445,7 @@ with tab1:
         cumple_acc = True if opt_acc == -99 else (acc_in >= opt_acc)
         cumple_vol = True if opt_vol == -99 else (vol_z_in >= opt_vol)
         if net_ev >= 1.5 and cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "✅ LUZ VERDE TOTAL (ADN PERFECTO). Tu sistema clásico y los parámetros Quant están alineados. (TIER S).", "tdah-green"
-        elif cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "⚠️ PRECAUCIÓN. El ADN Quant da señal verde, pero tu sistema clásico (Fuerza Neta) duda. Reduce tu capital a la mitad.", "tdah-yellow"
+        elif cumple_z and cumple_acc and cumple_vol: ver_txt, ver_col = "⚠️ PRECAUCIÓN. El ADN Quant da señal verde, pero tu sistema clásico (Fuerza Neta) duda. Reduce capital.", "tdah-yellow"
         else: ver_txt, ver_col = "⚠️ OPERACIÓN ESTÁNDAR. Tu sistema clásico da señal, pero el ADN Quant no apoya. Opera normal (TIER A).", "tdah-blue"
             
     st.markdown(f"<div class='tdah-box {ver_col}' style='border-width: 4px;'><div class='tdah-title'>🎯 VEREDICTO FINAL DE LA MÁQUINA:</div><div class='tdah-text' style='font-size:1.1rem; font-weight:600;'>{ver_txt}</div></div>", unsafe_allow_html=True)
@@ -485,9 +467,7 @@ with tab1:
                     if df_fresh.empty: df_fresh = pd.DataFrame(columns=COL_DB)
                     df_upd = pd.concat([df_fresh, pd.DataFrame([d_sav])], ignore_index=True).drop_duplicates("Ticker", keep="last")
                     conn.update(worksheet="Sheet1", data=df_upd)
-                    st.cache_data.clear()
-                    st.session_state['scan_saved_success'] = True
-                    st.rerun()
+                    st.cache_data.clear(); st.session_state['scan_saved_success'] = True; st.rerun()
                 except Exception as e: st.error(f"Error al guardar: {e}")
 
     with col_btn_buy:
@@ -504,13 +484,11 @@ with tab1:
                     df_c = conn.read(worksheet="Cartera", ttl=0)
                     n_pos = {"Ticker": ticker, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_buy, "Num_Acciones": n_tit, "Stop_Actual": p_sl, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_buy, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_buy}
                     conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                    st.cache_data.clear()
-                    st.session_state['scan_saved_success'] = True
-                    st.rerun()
+                    st.cache_data.clear(); st.session_state['scan_saved_success'] = True; st.rerun()
                 except Exception as e: st.error(f"Error al enviar a cartera: {e}")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 2: AUDITORÍA GLOBAL
+# PESTAÑA 2 Y 3: AUDITORIA Y CARTERA
 # ---------------------------------------------------------------------
 with tab2: 
     st.markdown("### 🗂️ Centro de Mando (Auditoría Global)")
@@ -524,9 +502,6 @@ with tab2:
         df_display = df_display[['Ticker', 'Veredicto', 'Score_Global', 'EV_Total', 'IDT_Puntos', 'ITE_Porc']]
         st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
 
-# ---------------------------------------------------------------------
-# PESTAÑA 3: CARTERA EN VIVO
-# ---------------------------------------------------------------------
 with tab3:
     st.markdown("### Gestión Quántica de Operaciones")
     tab_vivas, tab_add, tab_historial = st.tabs(["🟢 Posiciones Vivas", "➕ Añadir a Cartera", "📚 Historial"])
@@ -576,19 +551,17 @@ with tab3:
                                 conn.update(worksheet="Cartera", data=df_c_update)
                                 st.cache_data.clear(); st.toast(f"✅ Stop actualizado a {nuevo_stop:.2f}.", icon="💾")
         except: pass
-    with tab_add: st.info("Registro manual en código.")
-    with tab_historial: st.info("Historial en código.")
 
 # ---------------------------------------------------------------------
-# PESTAÑA 4: LABORATORIO MODULAR Y OPTIMIZADOR
+# PESTAÑA 4: LABORATORIO MODULAR & PISCINA DE ADN (VERSIÓN 67)
 # ---------------------------------------------------------------------
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Genético")
-    st.markdown(f"Experimenta con **{ticker}**. Usa tus propias reglas o deja que la máquina pruebe combinaciones por fuerza bruta.")
+    st.markdown(f"Experimenta con **{ticker}**. Guarda **múltiples sistemas ganadores** para crear tu propia piscina de estrategias.")
     
     horizontes_fibo = [1, 3, 5, 8, 13, 21, 34, 55, 89]
     str_cols_fibo = [f"Ret_{h}D" for h in horizontes_fibo]
-    
+
     st.markdown("### 🎛️ 1. Panel Quant Manual")
     col_p1, col_p2, col_p3 = st.columns(3)
     val_z = True if opt_z != -99 else False
@@ -630,7 +603,6 @@ with tab4:
             try:
                 stock_bt = yf.Ticker(ticker)
                 df_bt = stock_bt.history(period="5y")
-                
                 if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos.")
                 else:
                     df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
@@ -640,21 +612,17 @@ with tab4:
                     df_bt['Z_Score'] = (df_bt['Close'] - df_bt['MA55']) / df_bt['Close'].rolling(window=55).std()
                     df_bt['ROC_10'] = df_bt['Close'].pct_change(periods=10) * 100
                     df_bt['Accel'] = df_bt['ROC_10'].diff(periods=5)
-                    
                     for ma in lista_mas: df_bt[f'MA_{ma}'] = df_bt['Close'].rolling(window=ma).mean()
-                    
                     cond_z = (df_bt['Z_Score'] > bt_z_precio) if use_z else pd.Series(True, index=df_bt.index)
                     cond_acc = (df_bt['Accel'] > bt_accel) if use_acc else pd.Series(True, index=df_bt.index)
                     cond_vol = (df_bt['Vol_Z_Score'] > bt_z_vol) if use_vol else pd.Series(True, index=df_bt.index)
                     cond_mas = pd.Series(True, index=df_bt.index)
                     for ma in mas_seleccionadas: cond_mas = cond_mas & (df_bt['Close'] > df_bt[f'MA_{ma}'])
-                        
                     df_bt['Candidato'] = cond_z & cond_acc & cond_vol & cond_mas
                     
                     fechas_registro_display = []
                     datos_estadistica = {h: [] for h in horizontes_fibo}
                     ultimo_dia_señal = None
-                    
                     for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
                         row = df_bt.iloc[i]
                         date = df_bt.index[i]
@@ -662,7 +630,6 @@ with tab4:
                             if ultimo_dia_señal is not None and (date - ultimo_dia_señal).days <= 10: continue 
                             es_valida = False; idx_entrada = i; p_entrada = row['Close']
                             gatillo_name = tipo_filtro.split(" (")[0].split(":")[0] 
-                            
                             if "Ninguno" in tipo_filtro: es_valida = True
                             elif "Fuerza Inmediata" in tipo_filtro:
                                 if row['High'] > df_bt.iloc[i-1]['High']: es_valida = True
@@ -684,22 +651,18 @@ with tab4:
                     if total_señales > 0:
                         positivas = len([s for s in datos_estadistica[21] if s > 0])
                         win_rate = (positivas / total_señales) * 100
-                        nuevo_test = {
-                            "Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF",
-                            "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)
-                        }
+                        nuevo_test = {"Ticker": ticker, "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)}
                         for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
                         st.session_state['historial_lab'].append(nuevo_test)
                         st.success("✅ Test manual completado y añadido a la tabla.")
                     else: st.warning("Tus reglas son demasiado estrictas. 0 señales.")
-            except Exception as e: st.error(f"Error procesando los datos: {e}")
+            except Exception as e: st.error(f"Error: {e}")
 
-    if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo (Fuerza Bruta)", type="secondary", use_container_width=True):
-        with st.spinner("Creando clones... Probando 27 combinaciones institucionales a la vez..."):
+    if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo", type="secondary", use_container_width=True):
+        with st.spinner("Probando decenas de combinaciones institucionales..."):
             try:
                 stock_bt = yf.Ticker(ticker)
                 df_bt = stock_bt.history(period="5y")
-                
                 if df_bt.empty or len(df_bt) < 100: st.error("No hay suficientes datos.")
                 else:
                     df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
@@ -710,23 +673,16 @@ with tab4:
                     df_bt['ROC_10'] = df_bt['Close'].pct_change(periods=10) * 100
                     df_bt['Accel'] = df_bt['ROC_10'].diff(periods=5)
                     
-                    z_ranges = [0.5, 1.0, 1.5]
-                    a_ranges = [-0.5, 0.0, 0.5]
-                    v_ranges = [1.0, 1.5, 2.0]
-                    gatillo_name = "Continuación"
-                    
-                    for test_z in z_ranges:
-                        for test_a in a_ranges:
-                            for test_v in v_ranges:
+                    for test_z in [0.5, 1.0, 1.5]:
+                        for test_a in [-0.5, 0.0, 0.5]:
+                            for test_v in [1.0, 1.5, 2.0]:
                                 cond_z = df_bt['Z_Score'] > test_z
                                 cond_acc = df_bt['Accel'] > test_a
                                 cond_vol = df_bt['Vol_Z_Score'] > test_v
                                 df_bt['Candidato'] = cond_z & cond_acc & cond_vol
-                                
                                 datos_estadistica = {h: [] for h in horizontes_fibo}
                                 ultimo_dia_señal = None
                                 total_señales = 0
-                                
                                 for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
                                     row = df_bt.iloc[i]
                                     date = df_bt.index[i]
@@ -735,25 +691,16 @@ with tab4:
                                         row_next = df_bt.iloc[i+1]
                                         if row_next['High'] > row['High']:
                                             idx_entrada = i + 1; p_entrada = row_next['Close']
-                                            for h in horizontes_fibo:
-                                                p_salida = df_bt['Close'].iloc[idx_entrada + h]
-                                                datos_estadistica[h].append(((p_salida - p_entrada) / p_entrada) * 100)
+                                            for h in horizontes_fibo: datos_estadistica[h].append(((df_bt['Close'].iloc[idx_entrada + h] - p_entrada) / p_entrada) * 100)
                                             total_señales += 1
                                             ultimo_dia_señal = date 
-                                
                                 if total_señales > 0:
-                                    positivas = len([s for s in datos_estadistica[21] if s > 0])
-                                    win_rate = (positivas / total_señales) * 100
-                                    nuevo_test = {
-                                        "Ticker": ticker, "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", "Volumen": f"> {test_v}",
-                                        "Medias": "OFF", "Precio": gatillo_name, "Trades": total_señales, "WinRate": round(win_rate, 1)
-                                    }
+                                    win_rate = (len([s for s in datos_estadistica[21] if s > 0]) / total_señales) * 100
+                                    nuevo_test = {"Ticker": ticker, "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", "Volumen": f"> {test_v}", "Medias": "OFF", "Precio": "Continuación", "Trades": total_señales, "WinRate": round(win_rate, 1)}
                                     for h in horizontes_fibo: nuevo_test[f"Ret_{h}D"] = round(np.mean(datos_estadistica[h]), 2)
                                     st.session_state['historial_lab'].append(nuevo_test)
-                                    
-            except Exception as e: st.error(f"Error en Auto-Optimizer: {e}")
+            except Exception as e: st.error(f"Error: {e}")
 
-    # LA COMPETICIÓN Y GUARDADO
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
@@ -761,7 +708,6 @@ with tab4:
         if not df_ticker_hist.empty:
             st.markdown("---")
             st.markdown("## ⚔️ El Coliseo Quant (Resultados)")
-            
             st.markdown("<div style='background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #22c55e; margin-bottom:20px;'>", unsafe_allow_html=True)
             objetivo_opt = st.selectbox("🏆 ¿A cuántos días vista quieres encontrar al Campeón?", [f"{h} Días" for h in horizontes_fibo], index=5)
             st.markdown("</div>", unsafe_allow_html=True)
@@ -772,10 +718,10 @@ with tab4:
             
             st.markdown(f"""
             <div class='champion-card'>
-                <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA MAXIMIZAR A {objetivo_opt.upper()}</div>
+                <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA {objetivo_opt.upper()}</div>
                 <div class='champion-stats'>
                     <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
-                    <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rendimiento {objetivo_opt}: +{campeon[col_orden]}%</div>
+                    <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rendimiento: +{campeon[col_orden]}%</div>
                     <div class='stat-box'>🔍 Z-Score: {campeon['Z-Score']}</div>
                     <div class='stat-box'>🏎️ Accel: {campeon['Accel']}</div>
                     <div class='stat-box'>🐘 Volumen: {campeon['Volumen']}</div>
@@ -783,35 +729,34 @@ with tab4:
             </div>
             """, unsafe_allow_html=True)
             
-            # BOTÓN DE GUARDADO DEL ADN CON AUTO-REINICIO (EL BUG CORREGIDO)
-            if st.button(f"💾 GUARDAR 'EL CAMPEÓN' COMO ADN OFICIAL DE {ticker}", type="secondary", use_container_width=True):
-                with st.spinner("Guardando en la Nube y sincronizando el Escáner..."):
+            if st.button(f"💾 GUARDAR ESTE SISTEMA EN LA PISCINA DE ADN DE {ticker}", type="primary", use_container_width=True):
+                with st.spinner("Añadiendo a la base de datos..."):
                     try:
                         c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
                         c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
                         c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
                         
                         df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
-                        if df_adn_actual.empty: df_adn_actual = pd.DataFrame(columns=["Ticker", "Z_Min", "Acc_Min", "Vol_Min", "Horizonte", "Rendimiento"])
                         
-                        # Borrar la versión antigua de este ticker para evitar duplicados residuales
-                        df_adn_actual = df_adn_actual[df_adn_actual['Ticker'] != ticker]
+                        # Generar ID único
+                        nuevo_id = str(int(datetime.datetime.now().timestamp()))
+                        # Si no hay ADNs para este ticker, este será el Default. Si hay, no lo será.
+                        es_def = True if df_adn_actual[df_adn_actual['Ticker'] == ticker].empty else False
                         
-                        nuevo_adn = {"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": objetivo_opt, "Rendimiento": campeon[col_orden]}
+                        nuevo_adn = {
+                            "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
+                            "Horizonte": objetivo_opt, "Rendimiento": campeon[col_orden], 
+                            "WinRate": campeon['WinRate'], "Es_Default": es_def, "ID_ADN": nuevo_id
+                        }
+                        
                         df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True)
-                        
                         conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
                         st.cache_data.clear()
-                        
-                        # LA MAGIA: Forzar el reinicio instantáneo
                         st.session_state['adn_saved_success'] = True
                         st.rerun()
-                    except Exception as e:
-                        if "ADN_Quant" in str(e) or "worksheet" in str(e).lower():
-                            st.error("🚨 **Falta crear la carpeta en la nube.** Abre tu archivo de Google Sheets, crea una nueva pestaña (en el botón '+' abajo a la izquierda) y llámala exactamente: **`ADN_Quant`**.")
-                        else: st.error(f"Error técnico: {e}")
+                    except Exception as e: st.error(f"Error: {e}")
 
-            st.markdown("#### 📋 Historial de Experimentos de esta Sesión:")
+            st.markdown("#### 📋 Historial de esta Sesión:")
             def color_history(val):
                 if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
                 return ''
@@ -819,27 +764,70 @@ with tab4:
             styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[col_orden])
             st.dataframe(styled_df, use_container_width=True, hide_index=True)
 
-# ---------------------------------------------------------------------
-# PESTAÑA 5: EL RADAR AUTOMÁTICO DIARIO
-# ---------------------------------------------------------------------
+    # -------------------------------------------------------------------------
+    # EL GESTOR DE ADN (NUEVA SECCIÓN DE LA VERSIÓN 67)
+    # -------------------------------------------------------------------------
+    st.markdown("---")
+    st.markdown(f"## 🧬 Tu Banco de ADN para {ticker}")
+    if tiene_adn:
+        st.markdown("Estos son los sistemas que están vigilando esta acción. **El Radar Diario buscará oportunidades en TODOS ellos a la vez.**")
+        
+        # Display saved ADNs for this ticker
+        df_display_adn = df_adn_ticker.copy()
+        
+        # Formatear para mostrar bonito
+        df_display_adn['Es_Default'] = df_display_adn['Es_Default'].apply(lambda x: "⭐ SÍ" if x else "No")
+        df_display_adn['Z_Min'] = df_display_adn['Z_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        df_display_adn['Acc_Min'] = df_display_adn['Acc_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        df_display_adn['Vol_Min'] = df_display_adn['Vol_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        
+        cols_to_show = ['ID_ADN', 'Es_Default', 'Horizonte', 'Rendimiento', 'WinRate', 'Z_Min', 'Acc_Min', 'Vol_Min']
+        st.dataframe(df_display_adn[cols_to_show], hide_index=True, use_container_width=True)
+        
+        col_m1, col_m2 = st.columns(2)
+        adn_a_gestionar = col_m1.selectbox("Selecciona la ID de un ADN para gestionarlo:", df_display_adn['ID_ADN'].tolist())
+        
+        if col_m2.button("⭐ Establecer como ADN Principal (Se verá en el Escáner)", use_container_width=True):
+            df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
+            # Quitar Default a todos los de este ticker
+            df_adn_full.loc[df_adn_full['Ticker'] == ticker, 'Es_Default'] = False
+            # Poner Default al elegido
+            df_adn_full.loc[df_adn_full['ID_ADN'] == str(adn_a_gestionar), 'Es_Default'] = True
+            conn.update(worksheet="ADN_Quant", data=df_adn_full)
+            st.cache_data.clear(); st.rerun()
+            
+        if col_m2.button("🗑️ Borrar este ADN", use_container_width=True):
+            df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
+            df_adn_full = df_adn_full[df_adn_full['ID_ADN'] != str(adn_a_gestionar)]
+            # Si borramos el default y quedan otros, hacer el primero default
+            quedan = df_adn_full[df_adn_full['Ticker'] == ticker]
+            if not quedan.empty and not quedan['Es_Default'].any():
+                df_adn_full.loc[quedan.index[0], 'Es_Default'] = True
+            conn.update(worksheet="ADN_Quant", data=df_adn_full)
+            st.cache_data.clear(); st.rerun()
+
+    else:
+        st.info("Aún no tienes ningún sistema guardado para esta acción.")
+
+# =====================================================================
+# PESTAÑA 5: EL RADAR DIARIO (BÚSQUEDA MULTIDIMENSIONAL)
+# =====================================================================
 with tab5:
-    st.title("📡 Radar Institucional (Escáner Automático Diario)")
-    st.markdown("Esta herramienta lee todas las acciones que tienen su ADN guardado y escanea el mercado de **HOY** buscando si alguna ha activado sus propios parámetros cuánticos.")
+    st.title("📡 Radar Institucional (El Centro de Mando)")
+    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY. Las alertas te dirán exactamente qué ADN (Corto, Medio o Largo plazo) acaba de detonar.")
     
     if st.button("🔄 Lanzar Radar Diario de Mercado", type="primary", use_container_width=True):
         if df_adn.empty:
             st.warning("Aún no has guardado el ADN de ninguna acción en el Laboratorio Quant. No hay nada que vigilar.")
         else:
-            with st.spinner("Escaneando el mercado en directo... Buscando tu ADN en las gráficas de hoy."):
+            with st.spinner("Escaneando el multiverso del mercado en directo..."):
                 tickers_adn = df_adn['Ticker'].unique().tolist()
                 alertas_encontradas = []
                 
                 for t in tickers_adn:
                     try:
-                        datos_adn = df_adn[df_adn['Ticker'] == t].iloc[-1]
-                        adn_z = float(datos_adn['Z_Min'])
-                        adn_acc = float(datos_adn['Acc_Min'])
-                        adn_vol = float(datos_adn['Vol_Min'])
+                        adns_del_ticker = df_adn[df_adn['Ticker'] == t]
+                        if adns_del_ticker.empty: continue
                         
                         stock_rad = yf.Ticker(t)
                         df_rad = stock_rad.history(period="3mo")
@@ -854,35 +842,83 @@ with tab5:
                         df_rad['Vol_STD55'] = df_rad['Volume'].rolling(window=55).std()
                         df_rad['Vol_Z_Score'] = (df_rad['Volume'] - df_rad['Vol_MA55']) / df_rad['Vol_STD55']
                         
+                        atr_rad = np.max(pd.concat([df_rad['High'] - df_rad['Low'], np.abs(df_rad['High'] - df_rad['Close'].shift()), np.abs(df_rad['Low'] - df_rad['Close'].shift())], axis=1), axis=1).rolling(14).mean().iloc[-1]
+                        
                         hoy_z = df_rad['Z_Score'].iloc[-1]
                         hoy_acc = df_rad['Accel'].iloc[-1]
                         hoy_vol = df_rad['Vol_Z_Score'].iloc[-1]
+                        precio_hoy = df_rad['Close'].iloc[-1]
                         
-                        cumple_z = True if adn_z == -99 else (hoy_z >= adn_z)
-                        cumple_acc = True if adn_acc == -99 else (hoy_acc >= adn_acc)
-                        cumple_vol = True if adn_vol == -99 else (hoy_vol >= adn_vol)
+                        # CHEQUEAR TODOS LOS SISTEMAS GUARDADOS PARA ESE TICKER
+                        sistemas_disparados = []
+                        for _, sys_adn in adns_del_ticker.iterrows():
+                            adn_z = float(sys_adn['Z_Min'])
+                            adn_acc = float(sys_adn['Acc_Min'])
+                            adn_vol = float(sys_adn['Vol_Min'])
+                            
+                            c_z = True if adn_z == -99 else (hoy_z >= adn_z)
+                            c_a = True if adn_acc == -99 else (hoy_acc >= adn_acc)
+                            c_v = True if adn_vol == -99 else (hoy_vol >= adn_vol)
+                            
+                            if c_z and c_a and c_v:
+                                sistemas_disparados.append(f"🔥 Sistema <b>{sys_adn['Horizonte']}</b> (Histórico: +{float(sys_adn['Rendimiento']):.2f}% | WinRate: {float(sys_adn['WinRate']):.1f}%)")
                         
-                        if cumple_z and cumple_acc and cumple_vol:
+                        if len(sistemas_disparados) > 0:
                             alertas_encontradas.append({
-                                "Ticker": t, "Z-Score Hoy": f"{hoy_z:.2f}σ (Req: {adn_z})", "Accel Hoy": f"{hoy_acc:.2f} (Req: {adn_acc})", "Volumen Hoy": f"{hoy_vol:.2f}σ (Req: {adn_vol})"
+                                "Ticker": t, "Z_Hoy": hoy_z, "A_Hoy": hoy_acc, "V_Hoy": hoy_vol,
+                                "Precio": precio_hoy, "ATR": atr_rad, "Sistemas": sistemas_disparados
                             })
                     except: pass
                 
                 st.markdown("---")
                 if len(alertas_encontradas) > 0:
-                    st.markdown(f"### 🚨 ¡ALERTA! {len(alertas_encontradas)} acciones acaban de detonar su ADN Institucional HOY:")
+                    st.markdown(f"### 🚨 ¡ALERTA MULTIDIMENSIONAL! {len(alertas_encontradas)} acciones acaban de detonar hoy:")
+                    
                     for alerta in alertas_encontradas:
-                        st.markdown(f"""
-                        <div class='radar-alert'>
-                            <h2>🚀 {alerta['Ticker']} LISTO PARA COMPRAR</h2>
-                            <b>Volumen:</b> {alerta['Volumen Hoy']} | <b>Aceleración:</b> {alerta['Accel Hoy']} | <b>Tensión:</b> {alerta['Z-Score Hoy']}
-                            <br><br><i>Vete a la pestaña 'Escáner Cuántico', pon el Ticker {alerta['Ticker']} y ejecuta la operación si tu sistema clásico te lo confirma.</i>
-                        </div>
-                        """, unsafe_allow_html=True)
+                        t_alert = alerta['Ticker']
+                        sistemas_html = "<br>".join([f"<div class='radar-sys-box'>{s}</div>" for s in alerta['Sistemas']])
+                        
+                        with st.expander(f"🎯 {t_alert} | Vol: {alerta['V_Hoy']:.2f}σ | Accel: {alerta['A_Hoy']:.2f} ➡️ ABRIR CALCULADORA DE DISPARO"):
+                            st.markdown(f"### Plan de Vuelo: {t_alert}")
+                            st.markdown(f"**ADNs Activados en esta vela:**<br>{sistemas_html}", unsafe_allow_html=True)
+                            st.markdown("<br>", unsafe_allow_html=True)
+                            
+                            col_calc1, col_calc2 = st.columns(2)
+                            with col_calc1:
+                                p_compra_rad = st.number_input(f"Precio Compra ({t_alert})", value=float(alerta['Precio']), key=f"buy_rad_{t_alert}")
+                                stop_sug_rad = alerta['Precio'] - (2 * alerta['ATR']) if alerta['ATR'] > 0 else alerta['Precio'] * 0.95
+                                p_stop_rad = st.number_input(f"Stop Loss ({t_alert})", value=float(stop_sug_rad), key=f"sl_rad_{t_alert}")
+                            
+                            with col_calc2:
+                                r_pct_rad = st.slider(f"Riesgo % ({t_alert})", 0.5, 10.0, 3.3, 0.1, key=f"r_rad_{t_alert}")
+                                dist_stop_rad = p_compra_rad - p_stop_rad
+                                
+                                if dist_stop_rad > 0 and p_compra_rad > 0:
+                                    riesgo_eur_rad = CAPITAL * (r_pct_rad / 100.0)
+                                    acciones_rad = math.floor(riesgo_eur_rad / dist_stop_rad)
+                                    inv_rad = acciones_rad * p_compra_rad
+                                    st.success(f"**Posición recomendada:** {acciones_rad} acciones")
+                                    st.info(f"**Inversión total:** {inv_rad:,.2f} $")
+                                else:
+                                    acciones_rad = 0
+                                    st.error("⚠️ El Stop Loss debe ser menor al precio de compra.")
+                            
+                            if st.button(f"🚀 EJECUTAR OPERACIÓN: Enviar {t_alert} a Cartera", key=f"btn_send_{t_alert}", type="primary"):
+                                if acciones_rad > 0:
+                                    with st.spinner("Enviando a Cartera en Vivo..."):
+                                        try:
+                                            df_c = conn.read(worksheet="Cartera", ttl=0)
+                                            n_pos = {"Ticker": t_alert, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_compra_rad, "Num_Acciones": acciones_rad, "Stop_Actual": p_stop_rad, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_compra_rad, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_compra_rad}
+                                            conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
+                                            st.cache_data.clear()
+                                            st.success(f"✅ ¡Operación en {t_alert} registrada con éxito! (Pestaña Cartera)")
+                                        except Exception as e: st.error(f"Error en base de datos: {e}")
+                                else:
+                                    st.error("Calcula bien el riesgo antes de disparar.")
                 else:
                     st.markdown("""
                     <div class='radar-wait'>
                         <h2>⏳ Día de Pesca (0 Alertas)</h2>
-                        <p>Ninguna de las acciones guardadas en tu ADN cumple las condiciones el día de hoy. El mercado no ofrece ventanas claras institucionales ahora mismo. Mantén el capital a salvo y vuelve a pasar el radar mañana.</p>
+                        <p>Ninguna de las acciones en tu Piscina de ADN cumple las condiciones hoy. Mantén el capital a salvo.</p>
                     </div>
                     """, unsafe_allow_html=True)
