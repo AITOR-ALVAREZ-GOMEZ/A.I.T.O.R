@@ -602,7 +602,8 @@ with tab4:
     compresion = col_c1.selectbox("Velas (Test Manual):", opciones_compresion, index=3)
     anos_test = col_c2.selectbox("Historia a testear:", ["5y", "10y", "15y", "max"], index=1)
     capital_trade = col_c3.number_input("Capital/Trade (€):", value=10000, step=1000)
-    min_trades = col_c4.number_input("Mínimo Trades exigidos:", value=10, step=1)
+    # EL NUEVO FILTRO BASE FRACTAL
+    min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1, help="La máquina reducirá esta exigencia automáticamente en velas lentas (ej. en 21d pedirá solo 3 o 4 trades).")
 
     # 2. PANEL QUANT MANUAL
     st.markdown("### 🎛️ 2. Panel Quant Manual (Solo para el botón azul)")
@@ -632,7 +633,7 @@ with tab4:
     col_run_man, col_run_auto = st.columns(2)
     
     # -------------------------------------------------------------------------
-    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA) - BLINDADO CONTRA CERO (BUG 1980s)
+    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA)
     # -------------------------------------------------------------------------
     def calcular_kama(series, n=10, fast=2, slow=30):
         n_eff = max(2, n) 
@@ -653,7 +654,7 @@ with tab4:
         return pd.Series(kama, index=series.index)
 
     # -------------------------------------------------------------------------
-    # FRACTAL ENGINE (ANCLAJE INVERSO PRT) + TRIBUNAL
+    # FRACTAL ENGINE
     # -------------------------------------------------------------------------
     def procesar_datos_fractales(ticker_str, comp, periodo):
         df_raw = yf.Ticker(ticker_str).history(period=periodo)
@@ -710,7 +711,7 @@ with tab4:
         return df_b
 
     # -------------------------------------------------------------------------
-    # MOTOR DE BACKTEST (MÍNIMOS INTRADÍA)
+    # MOTOR DE BACKTEST
     # -------------------------------------------------------------------------
     def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp):
         cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
@@ -786,11 +787,17 @@ with tab4:
         st.session_state['historial_lab'] = [] 
         with st.spinner(f"Testeando..."):
             try:
+                # Calculo dinámico de trades mínimos para el test manual (Raíz Cuadrada inversa)
+                min_trades_real = max(3, int(min_trades_base * (1 / (compresion ** 0.5))))
+                
                 df_bt = procesar_datos_fractales(ticker, compresion, anos_test)
                 if not df_bt.empty:
                     sys_name = tipo_sistema.split(":")[0]
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     if len(log_for) > 0:
+                        if len(log_for) < min_trades_real:
+                            st.warning(f"⚠️ Operaciones ({len(log_for)}) por debajo del umbral de robustez dinámico para {compresion}d (mínimo exigido: {min_trades_real}).")
+                        
                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                         nuevo_test = {
                             "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": sys_name,
@@ -805,15 +812,18 @@ with tab4:
                     else: st.warning("Cero operaciones cerradas.")
             except Exception as e: st.error(f"Error: {e}")
 
-    # --- MODO DIOS: MAPEADO FRACTAL ABSOLUTO ---
+    # --- MODO DIOS: MAPEADO FRACTAL CON FILTRO DINÁMICO ---
     if col_run_auto.button(f"🤖 MODO DIOS: Buscar el Campeón de cada Fractal", type="secondary", use_container_width=True):
         st.session_state['historial_lab'] = [] 
-        with st.spinner(f"Analizando los 15 marcos temporales para {ticker}. Esto puede tardar 20-30 segundos..."):
+        with st.spinner(f"Analizando los 15 marcos temporales para {ticker} con límite de trades adaptativo..."):
             try:
                 resultados_campeones = []
                 todos_los_fractales = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
                 
                 for cmp in todos_los_fractales: 
+                    # El Filtro Inteligente: Reduce la exigencia cuantas más días tenga la vela
+                    min_trades_real = max(3, int(min_trades_base * (1 / (cmp ** 0.5))))
+                    
                     df_bt = procesar_datos_fractales(ticker, cmp, anos_test)
                     if df_bt.empty: continue
                     
@@ -821,16 +831,15 @@ with tab4:
                     mejor_sistema_cmp = None
                     
                     for s_type in ["PURO", "HÍBRIDO", "TENDENCIAL"]:
-                        # Reducimos un poco el Grid para que no colapse el servidor
                         for test_z in [None, 0.5, 1.0, 1.5]:
                             for test_v in [None, 0.5, 1.0]:
                                 for test_a in [None, 0.0]:
                                     
                                     log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, test_a if test_a else 0, test_v if test_v else 0, test_z is not None, test_a is not None, test_v is not None, cmp)
                                     
-                                    if len(log_for) >= min_trades: 
+                                    # APLICAMOS EL FILTRO REDUCIDO PARA QUE LAS VELAS LENTAS RESPIRREN
+                                    if len(log_for) >= min_trades_real: 
                                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
-                                        # Guardamos SOLO el que tenga la mayor Esperanza Matemática para esta compresión
                                         if ev_eur > mejor_ev_cmp:
                                             mejor_ev_cmp = ev_eur
                                             mejor_sistema_cmp = {
@@ -848,12 +857,11 @@ with tab4:
                 
                 if resultados_campeones:
                     df_temp = pd.DataFrame(resultados_campeones)
-                    # Ordenamos de menor a mayor compresión (1d, 2d... 89d)
                     df_temp['Orden'] = df_temp['Compresión'].str.replace('d','').astype(int)
                     df_temp = df_temp.sort_values(by="Orden").drop(columns=['Orden'])
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Topografía Fractal completada. Aquí tienes el mejor sistema para cada vela.")
-                else: st.warning(f"Ninguna compresión generó el mínimo de {min_trades} operaciones.")
+                    st.success("✅ Topografía Fractal completada. Los marcos de largo plazo (13d, 21d...) ya no están ocultos.")
+                else: st.warning(f"Ninguna compresión generó suficientes operaciones bajo el filtro de robustez dinámico.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
     # =========================================================================
@@ -885,10 +893,10 @@ with tab4:
             # --- LA REVOLUCIÓN: GUARDAR LOS 5 FRACTALES PARA EL ESCÁNER ---
             st.markdown("---")
             st.markdown("### 💾 Inyectar ADN en el Escáner (Tus 5 Espacios)")
-            st.info("Selecciona exactamente los 5 marcos temporales que quieres que A.I.T.O.R. vigile diariamente para esta acción.")
+            st.info("Selecciona exactamente los marcos temporales que quieres que A.I.T.O.R. vigile diariamente para esta acción.")
             
             lista_compresiones = df_hist['Compresión'].tolist()
-            seleccion_fractales = st.multiselect("Elige tus 5 espacios temporales:", lista_compresiones, default=lista_compresiones[:5] if len(lista_compresiones)>=5 else lista_compresiones)
+            seleccion_fractales = st.multiselect("Elige tus fractales:", lista_compresiones, default=lista_compresiones[:5] if len(lista_compresiones)>=5 else lista_compresiones)
             
             if st.button("💾 GUARDAR ESTOS FRACTALES EN EL ESCÁNER", type="primary"):
                 if len(seleccion_fractales) == 0:
@@ -896,14 +904,11 @@ with tab4:
                 else:
                     with st.spinner("Borrando memoria vieja y grabando el nuevo ADN múltiple..."):
                         try:
-                            # 1. Leer Base de Datos
                             df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
                             
-                            # 2. Borrar todos los registros viejos de este Ticker
                             if not df_adn_act.empty:
                                 df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
                             
-                            # 3. Preparar las nuevas filas
                             nuevas_filas = []
                             for comp_elegida in seleccion_fractales:
                                 fila_sistema = df_hist[df_hist['Compresión'] == comp_elegida].iloc[0]
@@ -921,7 +926,6 @@ with tab4:
                                     "WinRate": fila_sistema['WinRate'], "Es_Default": True, "ID_ADN": n_id
                                 })
                             
-                            # 4. Inyectar todo de golpe
                             df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
                             conn.update(worksheet="ADN_Quant", data=df_final)
                             st.cache_data.clear()
