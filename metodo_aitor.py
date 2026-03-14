@@ -589,11 +589,11 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (EL TRIBUNAL DE LOS 3 JUECES)
+# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (TRIBUNAL + OPERACIONES ABIERTAS)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
-    st.markdown(f"Experimenta con **{ticker}**. El sistema usa tu Tribunal de 3 Indicadores (Mayoría 2/3) cruzado con el ADN Quant.")
+    st.markdown(f"Experimenta con **{ticker}**. El sistema usa tu Tribunal de 3 Indicadores cruzado con el ADN Quant.")
     
     # 1. COMPRESIÓN TEMPORAL
     st.markdown("### ⏳ 1. Compresión Temporal (Motor Fractal)")
@@ -625,18 +625,18 @@ with tab4:
         
     # 3. LA TRINIDAD DE SISTEMAS (MEDIAS + TRIBUNAL)
     st.markdown("### 🏛️ 3. Arquitectura del Sistema (Entradas y Salidas)")
-    st.info("⚖️ **El Tribunal (Siempre Activo):** MACD(3,5,3), Combo Stoch/Boll(3,2), CCI(2). Exige 2/3 Azul para Entrar + Superar Máximo. Exige 2/3 Rojo para Salir + Perder Mínimo.")
+    st.info("⚖️ **El Tribunal:** MACD(3,5,3), Combo Stoch/Boll(3,2), CCI(2). Exige 2/3 Azul para Entrar. Exige 2/3 Rojo para Salir.")
     tipo_sistema = st.radio("Añade el filtro de Medias Adaptativas (AMA Cierre 2, AMA Apertura 3):", [
-        "1️⃣ Sistema PURO: Ignorar las medias. Entrar y salir solo con el Tribunal (Acción del Precio).",
-        "2️⃣ Sistema HÍBRIDO: Tribunal + Exigir AMA Rápida > Lenta para ENTRAR. Salir normal por Tribunal.",
-        "3️⃣ Sistema TENDENCIAL: Tribunal + Exigir AMA Rápida > Lenta para ENTRAR. Salir SOLO si hay Cruce Bajista de Medias + Tribunal Rojo."
+        "1️⃣ Sistema PURO: Ignorar medias. Entrar con Tribunal Azul + Romper Máximo. Salir con Tribunal Rojo + Perder Mínimo.",
+        "2️⃣ Sistema HÍBRIDO: Entrar SOLO si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.",
+        "3️⃣ Sistema TENDENCIAL: Entrar SOLO si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."
     ], index=1)
     
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
     
     # -------------------------------------------------------------------------
-    # FRACTAL ENGINE + CÁLCULO DEL TRIBUNAL DE 3 JUECES
+    # FRACTAL ENGINE + TRIBUNAL
     # -------------------------------------------------------------------------
     def procesar_datos_fractales(ticker_str, comp):
         df_raw = yf.Ticker(ticker_str).history(period="max")
@@ -652,7 +652,6 @@ with tab4:
             
         if len(df_b) < 100: return pd.DataFrame()
             
-        # 1. Velocímetros Quant (Base 55 fractal)
         df_b['MA55'] = df_b['Close'].rolling(window=55).mean()
         df_b['Vol_MA55'] = df_b['Volume'].rolling(window=55).mean()
         df_b['Vol_STD55'] = df_b['Volume'].rolling(window=55).std()
@@ -661,106 +660,94 @@ with tab4:
         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
         
-        # 2. Medias Adaptativas (Aproximación por EMA)
         df_b['AMA_Rápida'] = df_b['Close'].ewm(span=2, adjust=False).mean()
         df_b['AMA_Lenta'] = df_b['Open'].ewm(span=3, adjust=False).mean()
         
-        # 3. EL TRIBUNAL DE LOS 3 JUECES
-        # Juez 1: MACD (3, 5, 3)
-        ema3 = df_b['Close'].ewm(span=3, adjust=False).mean()
-        ema5 = df_b['Close'].ewm(span=5, adjust=False).mean()
-        macd_line = ema3 - ema5
-        macd_signal = macd_line.ewm(span=3, adjust=False).mean()
-        df_b['J1_Azul'] = macd_line > macd_signal
-        df_b['J1_Rojo'] = macd_line < macd_signal
+        # Juez 1: MACD
+        macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
+        macd_sig = macd_line.ewm(span=3, adjust=False).mean()
+        df_b['J1_Azul'] = macd_line > macd_sig
+        df_b['J1_Rojo'] = macd_line < macd_sig
         
-        # Juez 2: Combo Bollinger (2) + StochRSI (3)
+        # Juez 2: Stoch/Boll
         sma2 = df_b['Close'].rolling(window=2).mean()
         delta = df_b['Close'].diff()
         gain = delta.clip(lower=0).rolling(window=3).mean()
         loss = -delta.clip(upper=0).rolling(window=3).mean()
-        rs = np.where(loss == 0, 100, gain / loss)
-        rsi3 = 100 - (100 / (1 + rs))
-        rsi3_series = pd.Series(rsi3, index=df_b.index)
-        min_rsi = rsi3_series.rolling(3).min()
-        max_rsi = rsi3_series.rolling(3).max()
-        stoch_rsi = (rsi3_series - min_rsi) / (max_rsi - min_rsi + 0.0001) # Evitar div by 0
+        rsi3_s = pd.Series(100 - (100 / (1 + np.where(loss == 0, 100, gain / loss))), index=df_b.index)
+        min_rsi = rsi3_s.rolling(3).min()
+        stoch_rsi = (rsi3_s - min_rsi) / (rsi3_s.rolling(3).max() - min_rsi + 0.0001)
         df_b['J2_Azul'] = (stoch_rsi > 0.5) & (df_b['Close'] > sma2)
         df_b['J2_Rojo'] = (stoch_rsi < 0.5) & (df_b['Close'] < sma2)
         
-        # Juez 3: CCI (2)
+        # Juez 3: CCI
         tp = (df_b['High'] + df_b['Low'] + df_b['Close']) / 3
         sma2_tp = tp.rolling(window=2).mean()
-        mad = tp.rolling(window=2).apply(lambda x: np.abs(x - x.mean()).mean())
-        cci = (tp - sma2_tp) / (0.015 * mad + 0.0001)
+        cci = (tp - sma2_tp) / (0.015 * tp.rolling(window=2).apply(lambda x: np.abs(x - x.mean()).mean()) + 0.0001)
         df_b['J3_Azul'] = cci > 0
         df_b['J3_Rojo'] = cci < 0
         
-        # Votación del Tribunal (Suma de votos)
         df_b['Votos_Azul'] = df_b['J1_Azul'].astype(int) + df_b['J2_Azul'].astype(int) + df_b['J3_Azul'].astype(int)
         df_b['Votos_Rojo'] = df_b['J1_Rojo'].astype(int) + df_b['J2_Rojo'].astype(int) + df_b['J3_Rojo'].astype(int)
         
         return df_b
 
     # -------------------------------------------------------------------------
-    # MOTOR DE BACKTEST (VOTACIÓN + PRICE ACTION)
+    # MOTOR DE BACKTEST (CON CORRECCIÓN DE OPERACIONES ABIERTAS)
     # -------------------------------------------------------------------------
-    def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v):
-        # 1. Filtros Cuantitativos (Los Velocímetros)
+    def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp):
         cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
         cond_acc = (df_bt['Accel'] > t_a) if b_a else pd.Series(True, index=df_bt.index)
         cond_vol = (df_bt['Vol_Z_Score'] > t_v) if b_v else pd.Series(True, index=df_bt.index)
-        
-        # 2. Filtro de Medias para Sistemas 2 y 3 (Entrada)
-        cond_medias_ent = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "1️⃣" not in sys_type else pd.Series(True, index=df_bt.index)
+        cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "1️⃣" not in sys_type else pd.Series(True, index=df_bt.index)
             
-        # CONDICIÓN DE PRE-ENTRADA: 2 de 3 votos Azules + Filtros Quant + Filtro Medias
-        df_bt['Candidato_Entrada'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias_ent
+        df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias
         
         log_forense = []
-        i = 55 # Empezamos con histórico cargado
+        i = 55 
         
         while i < len(df_bt) - 1:
-            if df_bt.iloc[i]['Candidato_Entrada']:
-                # GATILLO: La vela siguiente debe superar el máximo de esta vela
+            if df_bt.iloc[i]['Candidato_Ent']:
                 if df_bt.iloc[i+1]['High'] > df_bt.iloc[i]['High']:
                     idx_ent = i + 1
                     p_ent = df_bt.iloc[idx_ent]['Close'] 
                     
-                    # BUCLE DE SALIDA (Pérdida de Mínimos + 2/3 Votos Rojos)
                     idx_salida = -1
                     for j in range(idx_ent + 1, len(df_bt)):
-                        
-                        # CONDICIÓN BASE DE SALIDA: 2 de 3 votos Rojos
-                        tribunal_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
-                        pierde_minimo = df_bt['Close'].iloc[j] < df_bt['Low'].iloc[j-1]
+                        trib_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
+                        pierde_min = df_bt['Close'].iloc[j] < df_bt['Low'].iloc[j-1]
                         
                         if "3️⃣" in sys_type:
-                            # Sistema 3: Cruce Bajista + Perder Mínimo
-                            cruce_bajista = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
-                            if cruce_bajista and pierde_minimo:
-                                idx_salida = j; break
+                            cruce_b = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
+                            if cruce_b and pierde_min: idx_salida = j; break
                         else:
-                            # Sistemas 1 y 2: Tribunal Rojo + Perder Mínimo
-                            if tribunal_rojo and pierde_minimo:
-                                idx_salida = j; break
+                            if trib_rojo and pierde_min: idx_salida = j; break
                                 
                     if idx_salida != -1:
+                        # LA OPERACIÓN SE CERRÓ EN EL PASADO
                         p_sal = df_bt['Close'].iloc[idx_salida]
-                        retorno = ((p_sal - p_ent) / p_ent) * 100
-                        duracion_velas = idx_salida - idx_ent
+                        f_sal = pd.to_datetime(df_bt.index[idx_salida]).strftime("%Y-%m-%d")
+                        velas_in = idx_salida - idx_ent
+                    else:
+                        # LA OPERACIÓN SIGUE ABIERTA HOY (El Bug que cazaste)
+                        idx_salida = len(df_bt) - 1
+                        p_sal = df_bt['Close'].iloc[idx_salida]
+                        f_sal = "🟢 ABIERTA ACTUAL"
+                        velas_in = idx_salida - idx_ent
                         
-                        min_durante_trade = df_bt['Low'].iloc[idx_ent:idx_salida+1].min()
-                        max_dd = ((min_durante_trade - p_ent) / p_ent) * 100
-                        
-                        log_forense.append({
-                            "Fecha Entrada": pd.to_datetime(df_bt.index[idx_ent]).strftime("%Y-%m-%d"),
-                            "Fecha Salida": pd.to_datetime(df_bt.index[idx_salida]).strftime("%Y-%m-%d"),
-                            "Velas Dentro": duracion_velas,
-                            "Precio Ent": p_ent, "Precio Sal": p_sal,
-                            "Max Drawdown": max_dd, "Rendimiento Real": retorno
-                        })
-                        i = idx_salida 
+                    ret = ((p_sal - p_ent) / p_ent) * 100
+                    min_dd_v = df_bt['Low'].iloc[idx_ent:idx_salida+1].min()
+                    max_dd = ((min_dd_v - p_ent) / p_ent) * 100
+                    
+                    log_forense.append({
+                        "Fecha Entrada": pd.to_datetime(df_bt.index[idx_ent]).strftime("%Y-%m-%d"),
+                        "Fecha Salida": f_sal,
+                        "Velas Dentro": velas_in,
+                        "Días Reales": velas_in * comp,
+                        "Precio Ent": p_ent, "Precio Sal": p_sal,
+                        "Max Drawdown": max_dd, "Rendimiento Real": ret
+                    })
+                    i = idx_salida 
             i += 1
             
         return log_forense
@@ -772,7 +759,7 @@ with tab4:
             try:
                 df_bt = procesar_datos_fractales(ticker, compresion)
                 if not df_bt.empty:
-                    log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol)
+                    log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     
                     if len(log_for) > 0:
                         rets = [f["Rendimiento Real"] for f in log_for]
@@ -783,12 +770,13 @@ with tab4:
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", 
                             "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
                             "Trades": len(log_for), "WinRate": round(wr, 1), 
-                            "Rend Medio %": round(np.mean(rets), 2), "Velas Medias": round(np.mean([f["Velas Dentro"] for f in log_for]), 1),
+                            "Rend Medio %": round(np.mean(rets), 2), 
+                            "Velas Medias": round(np.mean([f["Velas Dentro"] for f in log_for]), 1),
                             "Logs": log_for
                         }
                         st.session_state['historial_lab'].append(nuevo_test)
-                        st.success(f"✅ Análisis completado. Se han encontrado {len(log_for)} operaciones.")
-                    else: st.warning("Cero operaciones cerradas. Las reglas del Tribunal no dieron señal de entrada o salida completas.")
+                        st.success(f"✅ Análisis completado. {len(log_for)} operaciones encontradas (incluyendo abiertas).")
+                    else: st.warning("Cero operaciones cerradas. Las reglas no dieron señal.")
             except Exception as e: st.error(f"Error: {e}")
 
     # --- MODO DIOS ---
@@ -804,29 +792,28 @@ with tab4:
                     for s_type in ["1️⃣ Sistema PURO", "2️⃣ Sistema HÍBRIDO", "3️⃣ Sistema TENDENCIAL"]:
                         for test_z in [None, 0.5, 1.0]:
                             for test_v in [None, 0.5, 1.0]:
-                                log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None)
+                                log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp)
                                 
                                 if len(log_for) >= 4: 
                                     rets = [f["Rendimiento Real"] for f in log_for]
                                     wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
-                                    
                                     nuevo_test = {
                                         "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type.split(" ")[1],
                                         "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
                                         "Volumen": f"> {test_v}" if test_v is not None else "OFF", "Accel": "OFF",
                                         "Trades": len(log_for), "WinRate": round(wr, 1), 
-                                        "Rend Medio %": round(np.mean(rets), 2), "Velas Medias": round(np.mean([f["Velas Dentro"] for f in log_for]), 1),
+                                        "Rend Medio %": round(np.mean(rets), 2), 
+                                        "Velas Medias": round(np.mean([f["Velas Dentro"] for f in log_for]), 1),
                                         "Logs": log_for
                                     }
                                     resultados_temp.append(nuevo_test)
                 
                 if resultados_temp:
                     df_temp = pd.DataFrame(resultados_temp)
-                    # Ordenar priorizando la Esperanza Matemática Real (WinRate x Rendimiento)
                     df_temp['EV_Proxy'] = df_temp['WinRate'] * df_temp['Rend Medio %']
                     df_temp = df_temp.sort_values(by="EV_Proxy", ascending=False).drop(columns=['EV_Proxy']).head(8)
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Modo Dios Finalizado. Aquí están los 8 ecosistemas más rentables históricamente.")
+                    st.success("✅ Modo Dios Finalizado.")
                 else: st.warning("Ninguna combinación generó operaciones viables.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
@@ -836,9 +823,7 @@ with tab4:
         if not df_hist.empty:
             st.markdown("---")
             st.markdown("## ⚔️ El Coliseo Quant (Resultados del Tribunal)")
-            
             campeon = df_hist.iloc[0]
-            
             st.markdown(f"""
             <div class='champion-card'>
                 <div class='champion-title'>👑 CAMPEÓN ABSOLUTO ({campeon['Sistema']})</div>
@@ -846,7 +831,7 @@ with tab4:
                     <div class='stat-box'>⏱️ Velas: {campeon['Compresión']}</div>
                     <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
                     <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rend Medio: +{campeon['Rend Medio %']}%</div>
-                    <div class='stat-box'>⌛ Duración Media: {campeon['Velas Medias']} Velas</div>
+                    <div class='stat-box'>⌛ Duración: {campeon['Velas Medias']} Velas</div>
                     <div class='stat-box'>🔍 Z: {campeon['Z-Score']} | 🐘 Vol: {campeon['Volumen']}</div>
                 </div>
             </div>
@@ -854,7 +839,6 @@ with tab4:
             
             st.markdown("#### 📋 Top Rankings de Sistemas:")
             def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
-            
             df_disp = df_hist.drop(columns=["Logs"])
             styled = df_disp.style.map(c_hist, subset=['Rend Medio %'])
             st.dataframe(styled, use_container_width=True, hide_index=True)
@@ -862,7 +846,7 @@ with tab4:
             # --- INSPECTOR FORENSE ---
             st.markdown("---")
             st.markdown("### 🔍 Inspección Forense (Auditoría de Trades)")
-            st.markdown("Aquí puedes auditar cada compra/venta ejecutada bajo las reglas de tu Tribunal y las Medias Adaptativas.")
+            st.markdown("Revisa exactamente cuánto tiempo ha estado retenido el capital (Velas vs Días Reales).")
             tests_vis = df_hist.to_dict('records')
             opc_insp = [f"Top {i+1} | {t['Sistema']} {t['Compresión']} | Z {t['Z-Score']} | Vol {t['Volumen']} ({t['Trades']} trades)" for i, t in enumerate(tests_vis)]
             idx_el = st.selectbox("Abre la caja negra del Test:", range(len(opc_insp)), format_func=lambda x: opc_insp[x])
@@ -870,6 +854,9 @@ with tab4:
             
             if datos_for:
                 df_for = pd.DataFrame(datos_for)
+                # Ordenar para que las operaciones Abiertas o más recientes salgan arriba
+                df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
+                
                 def f_pct(val): return f"{val:+.2f}%" if isinstance(val, (int, float)) else val
                 def f_dol(val): return f"{val:.2f} $" if isinstance(val, (int, float)) else val
                 def c_for(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
@@ -878,8 +865,9 @@ with tab4:
                         if val < -15: return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold'
                         elif val < -8: return 'background-color: #fff9c4; color: #e65100; font-weight: bold'
                     return ''
+                def c_salida(val): return 'background-color: #dcfce7; color: #166534; font-weight: bold' if "ABIERTA" in str(val) else ''
                     
-                styled_f = df_for.style.format(f_pct, subset=['Rendimiento Real', 'Max Drawdown']).format(f_dol, subset=['Precio Ent', 'Precio Sal']).map(c_for, subset=['Rendimiento Real']).map(c_dd, subset=['Max Drawdown'])
+                styled_f = df_for.style.format(f_pct, subset=['Rendimiento Real', 'Max Drawdown']).format(f_dol, subset=['Precio Ent', 'Precio Sal']).map(c_for, subset=['Rendimiento Real']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
                 st.dataframe(styled_f, use_container_width=True, hide_index=True)
 # =====================================================================
 # PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
