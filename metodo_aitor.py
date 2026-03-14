@@ -539,7 +539,7 @@ with tab2:
         st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
 
 # =====================================================================
-# PESTAÑA 3: CENTRO DE MANDO (CARTERA EN VIVO Y FECHAS DE AUDITORÍA)
+# PESTAÑA 3: CENTRO DE MANDO (CARTERA EN VIVO Y LÁSER PRT)
 # =====================================================================
 with tab3:
     st.title("💼 Centro de Mando: Posiciones Vivas")
@@ -552,8 +552,40 @@ with tab3:
     fecha_compra = col_v3.date_input("Fecha de Compra:")
     cap_invertido = col_v4.number_input("Capital Invertido (€):", value=10000, step=1000)
 
+    # ⏳ EL RELOJ ATÓMICO DE PROREALTIME
+    anclas_prt = {
+        1: "2026-03-16", 2: "2026-03-17", 3: "2026-03-18", 5: "2026-03-16",
+        6: "2026-03-23", 7: "2026-03-17", 8: "2026-03-19", 11: "2026-03-30",
+        13: "2026-04-01", 14: "2026-03-17", 17: "2026-03-17", 21: "2026-03-26",
+        34: "2026-03-17", 55: "2026-03-30", 89: "2026-06-08"
+    }
+
+    # 🎯 EL LÁSER KAMA EXACTO DE PROREALTIME
+    def calcular_kama_prt(series, n, fast, slow):
+        n = int(n)
+        change = series.diff(n).abs()
+        volatility = series.diff(1).abs().rolling(n).sum()
+        er = np.where(volatility == 0, 0.0, change / volatility)
+        er = pd.Series(er, index=series.index).fillna(0.0)
+        
+        fast_c = 2.0 / (fast + 1.0)
+        slow_c = 2.0 / (slow + 1.0)
+        sc = (er * (fast_c - slow_c) + slow_c) ** 2
+        
+        kama = np.zeros(len(series))
+        kama[:] = np.nan
+        
+        for i in range(len(series)):
+            if i == 0 or np.isnan(series.iloc[i]):
+                kama[i] = series.iloc[i]
+            else:
+                prev_kama = kama[i-1] if not np.isnan(kama[i-1]) else series.iloc[i-1]
+                if np.isnan(prev_kama): prev_kama = series.iloc[i]
+                kama[i] = prev_kama + sc.iloc[i] * (series.iloc[i] - prev_kama)
+        return pd.Series(kama, index=series.index)
+
     if st.button("🔍 AUDITAR POSICIÓN Y CALCULAR SALIDAS", type="primary", use_container_width=True):
-        with st.spinner(f"Rastreando el histórico de {ticker_vivo}. Sincronizando medias rápidas..."):
+        with st.spinner(f"Sincronizando Láser KAMA con ProRealTime para {ticker_vivo}..."):
             try:
                 df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
                 adn_ticker = df_adn[df_adn['Ticker'] == ticker_vivo]
@@ -570,8 +602,7 @@ with tab3:
                     fecha_inicio_datos = datetime.datetime.now() - datetime.timedelta(days=3650) 
                     df_real = yf.Ticker(ticker_vivo).history(start=fecha_inicio_datos)
                     
-                    if df_real.index.tz is not None:
-                        df_real.index = df_real.index.tz_localize(None)
+                    if df_real.index.tz is not None: df_real.index = df_real.index.tz_localize(None)
 
                     precio_actual = df_real['Close'].iloc[-1]
                     rendimiento_abierto = ((precio_actual - precio_compra) / precio_compra) * 100
@@ -580,10 +611,8 @@ with tab3:
                     votos_mantener_ev = 0.0
                     votos_vender_ev = 0.0
                     detalles_sistemas = []
-                    
                     max_ev_absoluto = adn_ticker['Rendimiento'].astype(float).max()
 
-                    # 3. RASTREADOR HISTÓRICO PARA CADA SISTEMA
                     for index, row in adn_ticker.iterrows():
                         horizonte = row['Horizonte']
                         comp_str = horizonte.split('_')[0]
@@ -596,8 +625,21 @@ with tab3:
                         c_v = float(row.get('Vol_Min', -99))
                         
                         if comp_int > 1:
-                            n = len(df_real)
-                            groups = (n - 1 - np.arange(n)) // comp_int
+                            fecha_ancla = anclas_prt.get(comp_int, None)
+                            if fecha_ancla:
+                                ultimo_dia = df_real.index[-1].date()
+                                ancla_dt = pd.to_datetime(fecha_ancla).date()
+                                delta = np.busday_count(ancla_dt, ultimo_dia)
+                                days_in = delta % comp_int
+                                m_dias = comp_int - 1 - days_in
+                            else:
+                                m_dias = 0
+                                
+                            n_real = len(df_real)
+                            n_total = n_real + m_dias
+                            groups_total = (n_total - 1 - np.arange(n_total)) // comp_int
+                            groups = groups_total[:n_real] 
+                            
                             df_temp = df_real.copy()
                             df_temp['Grupo'] = groups
                             df_temp['Grupo'] = df_temp['Grupo'].max() - df_temp['Grupo']
@@ -617,9 +659,11 @@ with tab3:
                         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
                         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
 
-                        # VUELTA A TUS MEDIAS ORIGINALES RÁPIDAS (Adiós al error de KAMA)
-                        df_b['AMA_Rápida'] = df_b['Close'].ewm(span=2, adjust=False).mean()
-                        df_b['AMA_Lenta'] = df_b['Open'].ewm(span=3, adjust=False).mean()
+                        # 🚀 RÉPLICA EXACTA DE TUS CAPTURAS DE PROREALTIME
+                        # AMA Rápida: Periodo 1, Rápida 2, Lenta 1 -> Cierre
+                        df_b['AMA_Rápida'] = calcular_kama_prt(df_b['Close'], n=1, fast=2, slow=1)
+                        # AMA Lenta: Periodo 1, Rápida 3, Lenta 1 -> Apertura
+                        df_b['AMA_Lenta'] = calcular_kama_prt(df_b['Open'], n=1, fast=3, slow=1)
                         
                         macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
                         macd_sig = macd_line.ewm(span=3, adjust=False).mean()
@@ -627,9 +671,9 @@ with tab3:
                         df_b['J1_Rojo'] = macd_line < macd_sig
                         
                         sma2 = df_b['Close'].rolling(window=2).mean()
-                        delta = df_b['Close'].diff()
-                        gain = delta.clip(lower=0).rolling(window=3).mean()
-                        loss = -delta.clip(upper=0).rolling(window=3).mean()
+                        delta_p = df_b['Close'].diff()
+                        gain = delta_p.clip(lower=0).rolling(window=3).mean()
+                        loss = -delta_p.clip(upper=0).rolling(window=3).mean()
                         rsi3_s = pd.Series(100 - (100 / (1 + np.where(loss == 0, 100, gain / loss))), index=df_b.index)
                         min_rsi = rsi3_s.rolling(3).min()
                         stoch_rsi = (rsi3_s - min_rsi) / (rsi3_s.rolling(3).max() - min_rsi + 0.0001)
@@ -650,7 +694,6 @@ with tab3:
                         cond_v = (df_b['Vol_Z_Score'] > c_v) if c_v != -99 else pd.Series(True, index=df_b.index)
                         cond_medias = (df_b['AMA_Rápida'] > df_b['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_b.index)
                         
-                        # Separamos Técnico de Quant para el diagnóstico
                         df_b['Tech_OK'] = (df_b['Votos_Azul'] >= 2) & cond_medias
                         df_b['Quant_OK'] = cond_z & cond_a & cond_v
                         df_b['Candidato_Ent'] = df_b['Tech_OK'] & df_b['Quant_OK']
@@ -716,7 +759,6 @@ with tab3:
                             fecha_ent_final = "---"
                             fecha_sal_final = memoria_sal_str
                             
-                            # DIAGNÓSTICO DE BLOQUEO QUANT
                             if df_b['Tech_OK'].iloc[-2] and not df_b['Quant_OK'].iloc[-2]:
                                 gatillo_texto = "Técnico OK -> Bloqueado por Quant (Z/Vol)"
                             elif df_b['Candidato_Ent'].iloc[-2]:
@@ -812,6 +854,328 @@ with tab3:
 
             except Exception as e:
                 st.error(f"Error al procesar la posición viva: {e}")
+
+# =====================================================================
+# PESTAÑA 4: LABORATORIO QUANT (ESTABILIDAD INSTITUCIONAL ABSOLUTA)
+# =====================================================================
+with tab4:
+    if 'resultados_quant_definitivos' not in st.session_state:
+        st.session_state['resultados_quant_definitivos'] = []
+
+    st.title("🧪 Laboratorio Quant y Optimizador Fractal")
+    st.markdown(f"Escaneando topografía adaptativa para **{ticker}**.")
+    
+    st.markdown("### ⏳ 1. Configuración del Motor")
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
+    opciones_compresion = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
+    compresion = col_c1.selectbox("Velas (Test Manual):", opciones_compresion, index=3)
+    anos_test = col_c2.selectbox("Historia a testear:", ["5y", "10y", "15y", "max"], index=1)
+    capital_trade = col_c3.number_input("Capital/Trade (€):", value=10000, step=1000)
+    min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1)
+
+    st.markdown("### 🎛️ 2. Panel Quant Manual")
+    col_p1, col_p2, col_p3 = st.columns(3)
+    val_z = True if opt_z != -99 else False
+    val_acc = True if opt_acc != -99 else False
+    val_vol = True if opt_vol != -99 else False
+    
+    with col_p1:
+        use_z = st.checkbox("🟢 Usar Z-Score", value=val_z)
+        bt_z_precio = st.number_input("Z-Score Mínimo (>)", value=float(opt_z) if opt_z != -99 else 1.0, step=0.1, disabled=not use_z)
+    with col_p2:
+        use_acc = st.checkbox("🟢 Usar Momentum (Accel)", value=val_acc)
+        bt_accel = st.number_input("Aceleración Mínima (>)", value=float(opt_acc) if opt_acc != -99 else 0.0, step=0.5, disabled=not use_acc)
+    with col_p3:
+        use_vol = st.checkbox("🟢 Usar Huella Volumen", value=val_vol)
+        bt_z_vol = st.number_input("Volumen Mínimo (>)", value=float(opt_vol) if opt_vol != -99 else 1.5, step=0.1, disabled=not use_vol)
+        
+    st.markdown("### 🏛️ 3. Tipo de Sistema")
+    tipo_sistema = st.radio("Filtro de Medias Adaptativas Kaufman (AMA):", ["PURO: Sin medias. Entrar con Tribunal Azul. Salir con Tribunal Rojo + Perder Mínimo.", "HÍBRIDO: Entrar si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.", "TENDENCIAL: Entrar si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."], index=1)
+    
+    st.markdown("<br>", unsafe_allow_html=True)
+    col_run_man, col_run_auto = st.columns(2)
+
+    # 🎯 EL LÁSER KAMA EXACTO EN EL LABORATORIO TAMBIÉN
+    def calcular_kama_prt_lab(series, n, fast, slow):
+        n = int(n)
+        change = series.diff(n).abs()
+        volatility = series.diff(1).abs().rolling(n).sum()
+        er = np.where(volatility == 0, 0.0, change / volatility)
+        er = pd.Series(er, index=series.index).fillna(0.0)
+        fast_c = 2.0 / (fast + 1.0)
+        slow_c = 2.0 / (slow + 1.0)
+        sc = (er * (fast_c - slow_c) + slow_c) ** 2
+        kama = np.zeros(len(series))
+        kama[:] = np.nan
+        for i in range(len(series)):
+            if i == 0 or np.isnan(series.iloc[i]):
+                kama[i] = series.iloc[i]
+            else:
+                prev_kama = kama[i-1] if not np.isnan(kama[i-1]) else series.iloc[i-1]
+                if np.isnan(prev_kama): prev_kama = series.iloc[i]
+                kama[i] = prev_kama + sc.iloc[i] * (series.iloc[i] - prev_kama)
+        return pd.Series(kama, index=series.index)
+    
+    def procesar_datos_fractales(ticker_str, comp, periodo):
+        df_raw = yf.Ticker(ticker_str).history(period=periodo)
+        if df_raw.empty: return pd.DataFrame()
+        
+        anclas_prt_lab = {1: "2026-03-16", 2: "2026-03-17", 3: "2026-03-18", 5: "2026-03-16", 6: "2026-03-23", 7: "2026-03-17", 8: "2026-03-19", 11: "2026-03-30", 13: "2026-04-01", 14: "2026-03-17", 17: "2026-03-17", 21: "2026-03-26", 34: "2026-03-17", 55: "2026-03-30", 89: "2026-06-08"}
+        
+        if comp > 1:
+            fecha_ancla = anclas_prt_lab.get(comp, None)
+            if fecha_ancla:
+                ultimo_dia = df_raw.index[-1].date()
+                ancla_dt = pd.to_datetime(fecha_ancla).date()
+                delta = np.busday_count(ancla_dt, ultimo_dia)
+                days_in = delta % comp
+                m_dias = comp - 1 - days_in
+            else:
+                m_dias = 0
+                
+            n_real = len(df_raw)
+            n_total = n_real + m_dias
+            groups_total = (n_total - 1 - np.arange(n_total)) // comp
+            groups = groups_total[:n_real]
+            
+            df_temp = df_raw.copy()
+            df_temp['Grupo'] = groups
+            df_temp['Grupo'] = df_temp['Grupo'].max() - df_temp['Grupo']
+            fechas_agrupadas = df_temp.reset_index().groupby('Grupo')['Date'].last().values
+            df_b = df_temp.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
+            df_b.index = fechas_agrupadas
+        else: df_b = df_raw.copy()
+            
+        if len(df_b) < 55: return pd.DataFrame()
+            
+        df_b['MA55'] = df_b['Close'].rolling(window=55).mean()
+        df_b['Vol_MA55'] = df_b['Volume'].rolling(window=55).mean()
+        df_b['Vol_STD55'] = df_b['Volume'].rolling(window=55).std()
+        df_b['Vol_Z_Score'] = (df_b['Volume'] - df_b['Vol_MA55']) / df_b['Vol_STD55']
+        df_b['Z_Score'] = (df_b['Close'] - df_b['MA55']) / df_b['Close'].rolling(window=55).std()
+        df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
+        df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
+
+        # 🚀 LÁSER PRT (Laboratorio)
+        df_b['AMA_Rápida'] = calcular_kama_prt_lab(df_b['Close'], 1, 2, 1)
+        df_b['AMA_Lenta'] = calcular_kama_prt_lab(df_b['Open'], 1, 3, 1)
+        
+        macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
+        macd_sig = macd_line.ewm(span=3, adjust=False).mean()
+        df_b['J1_Azul'] = macd_line > macd_sig
+        df_b['J1_Rojo'] = macd_line < macd_sig
+        
+        sma2 = df_b['Close'].rolling(window=2).mean()
+        delta = df_b['Close'].diff()
+        gain = delta.clip(lower=0).rolling(window=3).mean()
+        loss = -delta.clip(upper=0).rolling(window=3).mean()
+        rsi3_s = pd.Series(100 - (100 / (1 + np.where(loss == 0, 100, gain / loss))), index=df_b.index)
+        min_rsi = rsi3_s.rolling(3).min()
+        stoch_rsi = (rsi3_s - min_rsi) / (rsi3_s.rolling(3).max() - min_rsi + 0.0001)
+        df_b['J2_Azul'] = (stoch_rsi > 0.5) & (df_b['Close'] > sma2)
+        df_b['J2_Rojo'] = (stoch_rsi < 0.5) & (df_b['Close'] < sma2)
+        
+        tp = (df_b['High'] + df_b['Low'] + df_b['Close']) / 3
+        sma2_tp = tp.rolling(window=2).mean()
+        cci = (tp - sma2_tp) / (0.015 * tp.rolling(window=2).apply(lambda x: np.abs(x - x.mean()).mean()) + 0.0001)
+        df_b['J3_Azul'] = cci > 0
+        df_b['J3_Rojo'] = cci < 0
+        df_b['Votos_Azul'] = df_b['J1_Azul'].astype(int) + df_b['J2_Azul'].astype(int) + df_b['J3_Azul'].astype(int)
+        df_b['Votos_Rojo'] = df_b['J1_Rojo'].astype(int) + df_b['J2_Rojo'].astype(int) + df_b['J3_Rojo'].astype(int)
+        
+        return df_b
+
+    def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp):
+        cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
+        cond_acc = (df_bt['Accel'] > t_a) if b_a else pd.Series(True, index=df_bt.index)
+        cond_vol = (df_bt['Vol_Z_Score'] > t_v) if b_v else pd.Series(True, index=df_bt.index)
+        cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_bt.index)
+            
+        df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias
+        
+        log_forense = []
+        i = 55 
+        while i < len(df_bt) - 1:
+            if df_bt.iloc[i]['Candidato_Ent']:
+                if df_bt.iloc[i+1]['High'] > df_bt.iloc[i]['High']:
+                    idx_ent = i + 1
+                    p_ent = max(df_bt.iloc[idx_ent]['Open'], df_bt.iloc[i]['High'])
+                    
+                    idx_salida = -1
+                    for j in range(idx_ent + 1, len(df_bt)):
+                        trib_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
+                        pierde_min = df_bt['Low'].iloc[j] < df_bt['Low'].iloc[j-1]
+                        if "TENDENCIAL" in sys_type:
+                            cruce_b = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
+                            if cruce_b and pierde_min: idx_salida = j; break
+                        else:
+                            if trib_rojo and pierde_min: idx_salida = j; break
+                                
+                    if idx_salida != -1:
+                        p_sal = min(df_bt.iloc[idx_salida]['Open'], df_bt.iloc[idx_salida-1]['Low'])
+                        f_sal = pd.to_datetime(df_bt.index[idx_salida]).strftime("%Y-%m-%d")
+                        velas_in = idx_salida - idx_ent
+                    else:
+                        idx_salida = len(df_bt) - 1
+                        p_sal = df_bt['Close'].iloc[idx_salida]
+                        f_sal = "🟢 ABIERTA ACTUAL"
+                        velas_in = idx_salida - idx_ent
+                        
+                    ret = ((p_sal - p_ent) / p_ent) * 100
+                    min_dd_v = df_bt['Low'].iloc[idx_ent:idx_salida+1].min()
+                    max_dd = ((min_dd_v - p_ent) / p_ent) * 100
+                    
+                    log_forense.append({"Fecha Entrada": pd.to_datetime(df_bt.index[idx_ent]).strftime("%Y-%m-%d"), "Fecha Salida": f_sal, "Velas Dentro": velas_in, "Días Reales": velas_in * comp, "Precio Ent": p_ent, "Precio Sal": p_sal, "Max Drawdown": max_dd, "Rendimiento Real": ret})
+                    i = idx_salida 
+            i += 1
+        return log_forense
+
+    def compilar_metricas(log_for, cap_trade):
+        if not log_for: return 0, 0, 0, 0, 0
+        rets = [f["Rendimiento Real"] for f in log_for]
+        wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
+        ev_pct = np.mean(rets)
+        ganancias = sum([r for r in rets if r > 0])
+        perdidas = abs(sum([r for r in rets if r < 0]))
+        profit_factor = (ganancias / perdidas) if perdidas != 0 else 99.9
+        ev_eur = (ev_pct / 100) * cap_trade
+        velas_med = np.mean([f["Velas Dentro"] for f in log_for])
+        return wr, ev_pct, profit_factor, ev_eur, velas_med
+
+    if col_run_man.button(f"⚙️ Test Manual ({compresion}d)", type="primary", use_container_width=True):
+        with st.spinner(f"Testeando..."):
+            try:
+                min_trades_real = max(3, int(min_trades_base * (1 / (compresion ** 0.5))))
+                df_bt = procesar_datos_fractales(ticker, compresion, anos_test)
+                if not df_bt.empty:
+                    sys_name = tipo_sistema.split(":")[0]
+                    log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
+                    if len(log_for) > 0:
+                        wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
+                        st.session_state['resultados_quant_definitivos'] = [{
+                            "Compresión": f"{compresion}d", "Sistema": sys_name,
+                            "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
+                            "Trades": len(log_for), "WinRate": round(wr, 1), "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2), "Velas Medias": round(v_med, 1), "Logs": log_for
+                        }]
+                    else: st.warning("Cero operaciones cerradas.")
+            except Exception as e: st.error(f"Error: {e}")
+
+    if col_run_auto.button(f"🤖 MODO DIOS: Buscar Campeones", type="secondary", use_container_width=True):
+        with st.spinner(f"Analizando topografía para {ticker}..."):
+            try:
+                resultados_campeones = []
+                for cmp in [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]: 
+                    min_trades_real = max(3, int(min_trades_base * (1 / (cmp ** 0.5))))
+                    df_bt = procesar_datos_fractales(ticker, cmp, anos_test)
+                    if df_bt.empty: continue
+                    mejor_ev_cmp = -999999
+                    mejor_sistema_cmp = None
+                    for s_type in ["PURO", "HÍBRIDO", "TENDENCIAL"]:
+                        for test_z in [None, 0.5, 1.0, 1.5]:
+                            for test_v in [None, 0.5, 1.0]:
+                                for test_a in [None, 0.0]:
+                                    log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, test_a if test_a else 0, test_v if test_v else 0, test_z is not None, test_a is not None, test_v is not None, cmp)
+                                    if len(log_for) >= min_trades_real: 
+                                        wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
+                                        if ev_eur > mejor_ev_cmp:
+                                            mejor_ev_cmp = ev_eur
+                                            mejor_sistema_cmp = {
+                                                "Compresión": f"{cmp}d", "Sistema": s_type, "Z-Score": f"> {test_z}" if test_z is not None else "OFF", "Accel": f"> {test_a}" if test_a is not None else "OFF", "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
+                                                "Trades": len(log_for), "WinRate": round(wr, 1), "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2), "Velas Medias": round(v_med, 1), "Logs": log_for
+                                            }
+                    if mejor_sistema_cmp is not None: resultados_campeones.append(mejor_sistema_cmp)
+                if resultados_campeones:
+                    df_temp = pd.DataFrame(resultados_campeones)
+                    df_temp = df_temp.sort_values(by=["EV (€)", "Profit Factor"], ascending=[False, False])
+                    st.session_state['resultados_quant_definitivos'] = df_temp.to_dict('records')
+                else: st.warning(f"Ninguna compresión generó suficientes operaciones.")
+            except Exception as e: st.error(f"Error en Modo Dios: {e}")
+
+    if len(st.session_state['resultados_quant_definitivos']) > 0:
+        import plotly.graph_objects as go
+        
+        st.markdown("---")
+        st.markdown("## 🗺️ Topografía Fractal de Campeones")
+        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner.")
+        
+        df_hist = pd.DataFrame(st.session_state['resultados_quant_definitivos'])
+        if "⭐" not in df_hist.columns: df_hist.insert(0, "⭐", False)
+            
+        cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"]
+        
+        edited_df = st.data_editor(
+            df_hist[cols_visibles],
+            column_config={
+                "⭐": st.column_config.CheckboxColumn("⭐ Favorito", default=False),
+                "WinRate": st.column_config.NumberColumn("WinRate", format="%.1f%%"),
+                "Profit Factor": st.column_config.NumberColumn("Profit", format="%.2f"),
+                "EV (%)": st.column_config.NumberColumn("EV (%)", format="%+.2f%%"),
+                "EV (€)": st.column_config.NumberColumn("EV (€)", format="%+.2f €"),
+                "Velas Medias": st.column_config.NumberColumn("Velas", format="%.1f")
+            },
+            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"],
+            hide_index=True, use_container_width=True, key="tabla_favoritos_intocable" 
+        )
+
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary", use_container_width=True):
+            sistemas_marcados = edited_df[edited_df["⭐"] == True]
+            indices_marcados = sistemas_marcados.index.tolist()
+            if len(indices_marcados) == 0: st.warning("⚠️ No has marcado ninguna estrella.")
+            else:
+                with st.spinner(f"Inyectando {len(indices_marcados)} sistemas en tu ADN Quant..."):
+                    try:
+                        df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
+                        if not df_adn_act.empty: df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
+                        
+                        nuevas_filas = []
+                        for idx in indices_marcados:
+                            sys = df_hist.iloc[idx] 
+                            c_z = float(sys['Z-Score'].replace("> ", "")) if sys['Z-Score'] != "OFF" else -99
+                            c_acc = float(sys['Accel'].replace("> ", "")) if sys['Accel'] != "OFF" else -99
+                            c_vol = float(sys['Volumen'].replace("> ", "")) if sys['Volumen'] != "OFF" else -99
+                            horizonte = f"{sys['Compresión']}_{sys['Sistema']}" 
+                            n_id = str(int(datetime.datetime.now().timestamp())) + "_" + sys['Compresión']
+                            nuevas_filas.append({"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": horizonte, "Rendimiento": sys['EV (€)'], "WinRate": sys['WinRate'], "Es_Default": True, "ID_ADN": n_id})
+                        
+                        df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
+                        conn.update(worksheet="ADN_Quant", data=df_final)
+                        st.cache_data.clear()
+                        st.success(f"✅ ¡Éxito! Has inyectado el ADN de {len(indices_marcados)} fractales para {ticker}.")
+                    except Exception as e: st.error(f"Error al guardar: {e}")
+
+        st.markdown("---")
+        st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
+        opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['EV (€)']:+.2f} €" for i, row in df_hist.iterrows()]
+        
+        idx_sel = st.selectbox("🎯 Elige un campeón para auditar:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="visor_detalle_operaciones")
+        sistema_activo = df_hist.iloc[idx_sel]
+        
+        col_v1, col_v2, col_v3 = st.columns(3)
+        fig_wr = go.Figure(go.Indicator(mode = "gauge+number", value = sistema_activo['WinRate'], number = {'suffix': "%", 'font': {'size': 40, 'color': '#1d1d1f'}}, title = {'text': "% de Acierto", 'font': {'size': 18}}, gauge = {'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"}, 'bar': {'color': "#16a34a" if sistema_activo['WinRate'] >= 50 else "#dc2626"}, 'bgcolor': "white", 'steps': [{'range': [0, 50], 'color': "#fee2e2"}, {'range': [50, 100], 'color': "#dcfce7"}], 'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 50}}))
+        fig_wr.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
+        col_v1.plotly_chart(fig_wr, use_container_width=True)
+
+        pf_val = sistema_activo['Profit Factor']
+        pf_max = 5 if pf_val < 5 else pf_val + 1 
+        fig_pf = go.Figure(go.Indicator(mode = "gauge+number", value = pf_val, number = {'font': {'size': 40, 'color': '#1d1d1f'}}, title = {'text': "Profit Factor", 'font': {'size': 18}}, gauge = {'axis': {'range': [0, pf_max], 'tickwidth': 1, 'tickcolor': "darkblue"}, 'bar': {'color': "#16a34a" if pf_val >= 1.5 else ("#eab308" if pf_val >= 1.0 else "#dc2626")}, 'bgcolor': "white", 'steps': [{'range': [0, 1], 'color': "#fee2e2"}, {'range': [1, 2], 'color': "#fef9c3"}, {'range': [2, pf_max], 'color': "#dcfce7"}], 'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 1}}))
+        fig_pf.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
+        col_v2.plotly_chart(fig_pf, use_container_width=True)
+
+        color_eur = "#16a34a" if sistema_activo['EV (€)'] > 0 else "#dc2626"
+        col_v3.markdown(f"<div style='text-align: center; padding: 20px; background-color: white; border-radius: 10px; border: 1px solid #e8eaed; height: 100%; display: flex; flex-direction: column; justify-content: center;'><h3 style='color: gray; margin:0; font-size:1.1rem;'>Esperanza Matemática (EV)</h3><h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{sistema_activo['EV (€)']:+,.2f} €</h1><p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{sistema_activo['EV (%)']:+,.2f} %</p></div>", unsafe_allow_html=True)
+        
+        datos_for = sistema_activo["Logs"]
+        if datos_for:
+            df_for = pd.DataFrame(datos_for)
+            df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
+            df_for['Ganancia €'] = (df_for['Rendimiento Real'] / 100) * capital_trade
+            cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
+            df_for = df_for[cols_order]
+            def c_dd(val): return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold' if isinstance(val, (int, float)) and val < -15 else ('background-color: #fff9c4; color: #e65100; font-weight: bold' if isinstance(val, (int, float)) and val < -8 else '')
+            def c_salida(val): return 'background-color: #dcfce7; color: #166534; font-weight: bold' if "ABIERTA" in str(val) else ''
+            styled_f = df_for.style.format({"Rendimiento Real": "{:+.2f}%", "Max Drawdown": "{:.2f}%", "Precio Ent": "{:.2f} $", "Precio Sal": "{:.2f} $", "Ganancia €": "{:+.2f} €"}).map(lambda x: 'color: #16a34a; font-weight: bold' if x > 0 else ('color: #dc2626' if x < 0 else ''), subset=['Rendimiento Real', 'Ganancia €']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
+            st.dataframe(styled_f, use_container_width=True, hide_index=True)
 # =====================================================================
 # PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
 # =====================================================================
