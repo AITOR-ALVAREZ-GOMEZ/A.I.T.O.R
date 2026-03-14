@@ -939,33 +939,52 @@ with tab4:
 # FIN DE LA PESTAÑA 4 (EL CÓDIGO SIGUE CON `with tab5:`)
 # =====================================================================
 # =====================================================================
-# PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN
+# PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
 # =====================================================================
 with tab5:
     st.title("📡 Radar Institucional (El Centro de Mando)")
-    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY. Las alertas te dirán exactamente qué ADN acaba de detonar.")
+    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY.")
     
-    # --- VISOR GLOBAL DE LA PISCINA DE ADN ---
-    st.markdown("### 🌐 Tu Piscina de ADN Global")
+    # --- VISOR GLOBAL: MAPA DE CALOR TREEMAP ---
+    st.markdown("### 🗺️ Mapa de Calor de tu ADN Global")
     if not df_adn.empty:
-        df_global_view = df_adn.copy()
+        import plotly.express as px
         
-        # Formateo visual de la tabla global
-        df_global_view['Es_Default'] = df_global_view['Es_Default'].apply(lambda x: "⭐ SÍ" if x else "No")
-        df_global_view['Z_Min'] = df_global_view['Z_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
-        df_global_view['Acc_Min'] = df_global_view['Acc_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
-        df_global_view['Vol_Min'] = df_global_view['Vol_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        df_mapa = df_adn.copy()
+        # Limpieza de datos por si hay errores en Sheets
+        df_mapa['WinRate'] = pd.to_numeric(df_mapa['WinRate'], errors='coerce').fillna(1)
+        df_mapa['Rendimiento'] = pd.to_numeric(df_mapa['Rendimiento'], errors='coerce').fillna(0)
         
-        cols_visor = ['Ticker', 'Horizonte', 'WinRate', 'Rendimiento', 'Z_Min', 'Acc_Min', 'Vol_Min', 'Es_Default']
-        cols_visor = [c for c in cols_visor if c in df_global_view.columns] # Seguridad por si falta alguna columna
+        # Crear el Treemap (Mapa de Calor)
+        fig_tree = px.treemap(
+            df_mapa, 
+            path=[px.Constant("Mercado Vigilado"), 'Ticker', 'Horizonte'],
+            values='WinRate',  # TAMAÑO: Cuanto mayor WinRate, más grande el cuadro
+            color='Rendimiento', # COLOR: Verde si gana mucho, Rojo si pierde
+            color_continuous_scale=['#ff3b30', '#1d1d1f', '#34c759'], # Rojo -> Negro -> Verde Apple
+            color_continuous_midpoint=0,
+            custom_data=['WinRate', 'Rendimiento', 'Z_Min', 'Acc_Min', 'Vol_Min']
+        )
         
-        # Mostrar la tabla ordenada por Ticker para que sea fácil de leer
-        st.dataframe(df_global_view[cols_visor].sort_values(by=['Ticker', 'Horizonte']), hide_index=True, use_container_width=True)
+        # Formatear el texto que sale dentro de los cuadros y al pasar el ratón
+        fig_tree.update_traces(
+            hovertemplate="<b>%{label}</b><br>WinRate: %{customdata[0]:.1f}%<br>Rendimiento: +%{customdata[1]:.2f}%<br>Filtros: Z>%{customdata[2]} | Acc>%{customdata[3]} | Vol>%{customdata[4]}<extra></extra>",
+            textfont=dict(size=14, family="Inter", color="white"),
+            marker=dict(line=dict(width=1, color="#f5f5f7"))
+        )
+        fig_tree.update_layout(margin=dict(t=20, l=10, r=10, b=10), height=500, paper_bgcolor="rgba(0,0,0,0)")
+        
+        # Mostrar el gráfico
+        st.plotly_chart(fig_tree, use_container_width=True)
         
         # Resumen rápido de tropas
-        total_activos = df_global_view['Ticker'].nunique()
-        total_sistemas_guardados = len(df_global_view)
-        st.markdown(f"<div style='font-size:0.9rem; color:#86868b; margin-bottom:20px; text-align:right;'>Vigilando <b>{total_sistemas_guardados} sistemas</b> distribuidos en <b>{total_activos} activos</b>.</div>", unsafe_allow_html=True)
+        total_activos = df_mapa['Ticker'].nunique()
+        total_sistemas_guardados = len(df_mapa)
+        st.markdown(f"<div style='font-size:0.95rem; color:#86868b; margin-bottom:20px; text-align:right;'>Vigilando <b>{total_sistemas_guardados} sistemas</b> distribuidos en <b>{total_activos} activos</b>. El tamaño del cuadro representa la fiabilidad (WinRate).</div>", unsafe_allow_html=True)
+        
+        with st.expander("Ver tabla de datos crudos"):
+            st.dataframe(df_mapa[['Ticker', 'Horizonte', 'WinRate', 'Rendimiento', 'Z_Min', 'Acc_Min', 'Vol_Min']].sort_values(by=['Ticker', 'Horizonte']), hide_index=True, use_container_width=True)
+
     else:
         st.info("Tu piscina de ADN está vacía. Ve al Laboratorio Quant, busca un Ticker y guarda tu primer sistema ganador.")
 
@@ -1005,7 +1024,7 @@ with tab5:
                         hoy_vol = df_rad['Vol_Z_Score'].iloc[-1]
                         precio_hoy = df_rad['Close'].iloc[-1]
                         
-                        # CHEQUEAR TODOS LOS SISTEMAS GUARDADOS PARA ESE TICKER
+                        # CHEQUEAR TODOS LOS SISTEMAS GUARDADOS
                         sistemas_disparados = []
                         for _, sys_adn in adns_del_ticker.iterrows():
                             adn_z = float(sys_adn['Z_Min'])
@@ -1034,7 +1053,7 @@ with tab5:
                         t_alert = alerta['Ticker']
                         sistemas_html = "<br>".join([f"<div class='radar-sys-box'>{s}</div>" for s in alerta['Sistemas']])
                         
-                        with st.expander(f"🎯 {t_alert} | Vol: {alerta['V_Hoy']:.2f}σ | Accel: {alerta['A_Hoy']:.2f} ➡️ ABRIR CALCULADORA DE DISPARO"):
+                        with st.expander(f"🎯 {t_alert} | Vol: {alerta['V_Hoy']:.2f}σ | Accel: {alerta['A_Hoy']:.2f} ➡️ ABRIR CALCULADORA"):
                             st.markdown(f"### Plan de Vuelo: {t_alert}")
                             st.markdown(f"**ADNs Activados en esta vela:**<br>{sistemas_html}", unsafe_allow_html=True)
                             st.markdown("<br>", unsafe_allow_html=True)
