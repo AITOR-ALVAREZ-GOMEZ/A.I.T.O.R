@@ -854,7 +854,8 @@ with tab4:
         if "⭐" not in df_hist.columns:
             df_hist.insert(0, "⭐", False)
             
-        cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
+        # AQUÍ AÑADIMOS "Accel" PARA QUE APAREZCA LA ACELERACIÓN EN LA TABLA
+        cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"]
         
         # LA TABLA INTERACTIVA BLINDADA
         edited_df = st.data_editor(
@@ -867,16 +868,16 @@ with tab4:
                 "EV (€)": st.column_config.NumberColumn("EV (€)", format="%+.2f €"),
                 "Velas Medias": st.column_config.NumberColumn("Velas", format="%.1f")
             },
-            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"],
+            # AÑADIMOS "Accel" TAMBIÉN AQUÍ PARA QUE NO SE PUEDA EDITAR A MANO
+            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"],
             hide_index=True,
             use_container_width=True,
-            key="tabla_favoritos_intocable" # Nombre nuevo para evitar caché corrompida
+            key="tabla_favoritos_intocable" 
         )
 
-        # --- BOTÓN PARA INYECTAR ADN AL ESCÁNER ---
+        # --- 4. BOTÓN PARA INYECTAR ADN AL ESCÁNER ---
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary", use_container_width=True):
-            # Leemos directamente de la tabla que el usuario acaba de tocar
             sistemas_marcados = edited_df[edited_df["⭐"] == True]
             indices_marcados = sistemas_marcados.index.tolist()
             
@@ -891,7 +892,7 @@ with tab4:
                         
                         nuevas_filas = []
                         for idx in indices_marcados:
-                            sys = df_hist.iloc[idx] # Extraemos los datos completos del original
+                            sys = df_hist.iloc[idx] 
                             
                             c_z = float(sys['Z-Score'].replace("> ", "")) if sys['Z-Score'] != "OFF" else -99
                             c_acc = float(sys['Accel'].replace("> ", "")) if sys['Accel'] != "OFF" else -99
@@ -913,12 +914,11 @@ with tab4:
                     except Exception as e:
                         st.error(f"Error al guardar: {e}")
 
-        # --- AUDITORÍA PROFUNDA (ANALIZADOR DE CAMPEONES) ---
+        # --- 5. AUDITORÍA PROFUNDA (ANALIZADOR DE CAMPEONES) ---
         st.markdown("---")
         st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
         opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['EV (€)']:+.2f} €" for i, row in df_hist.iterrows()]
         
-        # CANDADO DEL SELECTOR
         idx_sel = st.selectbox("🎯 Elige un campeón para auditar sus operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="visor_detalle_operaciones")
         
         sistema_activo = df_hist.iloc[idx_sel]
