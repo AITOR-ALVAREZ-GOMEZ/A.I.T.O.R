@@ -899,7 +899,6 @@ with tab4:
                 
                 if resultados_campeones:
                     df_temp = pd.DataFrame(resultados_campeones)
-                    # BLINDAJE: Ordenamos por EV de mayor a menor y lo dejamos FIJO para siempre.
                     df_temp = df_temp.sort_values(by=["EV (€)", "Profit Factor"], ascending=[False, False])
                     st.session_state['resultados_quant_definitivos'] = df_temp.to_dict('records')
                 else: st.warning(f"Ninguna compresión generó suficientes operaciones.")
@@ -913,19 +912,15 @@ with tab4:
         
         st.markdown("---")
         st.markdown("## 🗺️ Topografía Fractal de Campeones")
-        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner. Ordenado por Esperanza Matemática (€).")
+        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner.")
         
-        # Leemos de la memoria inamovible
         df_hist = pd.DataFrame(st.session_state['resultados_quant_definitivos'])
         
-        # Insertamos la columna de estrellas vacía solo para mostrarla
         if "⭐" not in df_hist.columns:
             df_hist.insert(0, "⭐", False)
             
-        # AQUÍ AÑADIMOS "Accel" PARA QUE APAREZCA LA ACELERACIÓN EN LA TABLA
         cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"]
         
-        # LA TABLA INTERACTIVA BLINDADA
         edited_df = st.data_editor(
             df_hist[cols_visibles],
             column_config={
@@ -936,14 +931,13 @@ with tab4:
                 "EV (€)": st.column_config.NumberColumn("EV (€)", format="%+.2f €"),
                 "Velas Medias": st.column_config.NumberColumn("Velas", format="%.1f")
             },
-            # AÑADIMOS "Accel" TAMBIÉN AQUÍ PARA QUE NO SE PUEDA EDITAR A MANO
             disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"],
             hide_index=True,
             use_container_width=True,
             key="tabla_favoritos_intocable" 
         )
 
-        # --- 4. BOTÓN PARA INYECTAR ADN AL ESCÁNER ---
+        # --- BOTÓN PARA INYECTAR ADN AL ESCÁNER ---
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary", use_container_width=True):
             sistemas_marcados = edited_df[edited_df["⭐"] == True]
@@ -982,7 +976,7 @@ with tab4:
                     except Exception as e:
                         st.error(f"Error al guardar: {e}")
 
-        # --- 5. AUDITORÍA PROFUNDA (ANALIZADOR DE CAMPEONES) ---
+        # --- AUDITORÍA PROFUNDA (ANALIZADOR DE CAMPEONES) ---
         st.markdown("---")
         st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
         opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['EV (€)']:+.2f} €" for i, row in df_hist.iterrows()]
