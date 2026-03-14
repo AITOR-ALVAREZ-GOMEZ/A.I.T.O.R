@@ -589,12 +589,12 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO QUANT (TOPOGRAFÍA FRACTAL + MEMORIA BLINDADA)
+# PESTAÑA 4: LABORATORIO QUANT (ESTABILIDAD INSTITUCIONAL ABSOLUTA)
 # =====================================================================
 with tab4:
-    # 🔒 EL CANDADO DE MEMORIA (Evita que se borren los resultados al hacer clic)
-    if 'historial_lab' not in st.session_state:
-        st.session_state['historial_lab'] = []
+    # 🔒 CANDADO MAESTRO DE MEMORIA (Aislado de reinicios)
+    if 'resultados_quant_definitivos' not in st.session_state:
+        st.session_state['resultados_quant_definitivos'] = []
 
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
     st.markdown(f"Escaneando topografía adaptativa para **{ticker}**.")
@@ -636,7 +636,7 @@ with tab4:
     col_run_man, col_run_auto = st.columns(2)
     
     # -------------------------------------------------------------------------
-    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA)
+    # FUNCIONES MATEMÁTICAS
     # -------------------------------------------------------------------------
     def calcular_kama(series, n=10, fast=2, slow=30):
         n_eff = max(2, n) 
@@ -656,9 +656,6 @@ with tab4:
                 else: kama[i] = kama[i-1] + sc.iloc[i] * (series.iloc[i] - kama[i-1])
         return pd.Series(kama, index=series.index)
 
-    # -------------------------------------------------------------------------
-    # FRACTAL ENGINE
-    # -------------------------------------------------------------------------
     def procesar_datos_fractales(ticker_str, comp, periodo):
         df_raw = yf.Ticker(ticker_str).history(period=periodo)
         if df_raw.empty: return pd.DataFrame()
@@ -720,6 +717,7 @@ with tab4:
         cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_bt.index)
             
         df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias
+        
         log_forense = []
         i = 55 
         
@@ -733,6 +731,7 @@ with tab4:
                     for j in range(idx_ent + 1, len(df_bt)):
                         trib_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
                         pierde_min = df_bt['Low'].iloc[j] < df_bt['Low'].iloc[j-1]
+                        
                         if "TENDENCIAL" in sys_type:
                             cruce_b = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
                             if cruce_b and pierde_min: idx_salida = j; break
@@ -785,22 +784,20 @@ with tab4:
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     if len(log_for) > 0:
                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
-                        st.session_state['historial_lab'] = [{
-                            "⭐": False, # LA ESTRELLA EN MEMORIA
-                            "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": sys_name,
+                        st.session_state['resultados_quant_definitivos'] = [{
+                            "Compresión": f"{compresion}d", "Sistema": sys_name,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", 
                             "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
                             "Trades": len(log_for), "WinRate": round(wr, 1), 
                             "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2),
                             "Velas Medias": round(v_med, 1), "Logs": log_for
                         }]
-                        st.success(f"✅ Análisis completado. {len(log_for)} operaciones.")
                     else: st.warning("Cero operaciones cerradas.")
             except Exception as e: st.error(f"Error: {e}")
 
     # --- MODO DIOS: MAPEADO FRACTAL ---
     if col_run_auto.button(f"🤖 MODO DIOS: Buscar el Campeón de cada Fractal", type="secondary", use_container_width=True):
-        with st.spinner(f"Analizando los 15 marcos temporales para {ticker}..."):
+        with st.spinner(f"Analizando topografía para {ticker}..."):
             try:
                 resultados_campeones = []
                 for cmp in [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]: 
@@ -821,8 +818,7 @@ with tab4:
                                         if ev_eur > mejor_ev_cmp:
                                             mejor_ev_cmp = ev_eur
                                             mejor_sistema_cmp = {
-                                                "⭐": False, # LA ESTRELLA EN MEMORIA
-                                                "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
+                                                "Compresión": f"{cmp}d", "Sistema": s_type,
                                                 "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
                                                 "Accel": f"> {test_a}" if test_a is not None else "OFF",
                                                 "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
@@ -835,48 +831,36 @@ with tab4:
                 
                 if resultados_campeones:
                     df_temp = pd.DataFrame(resultados_campeones)
-                    df_temp['Orden'] = df_temp['Compresión'].str.replace('d','').astype(int)
-                    df_temp = df_temp.sort_values(by="Orden").drop(columns=['Orden'])
-                    st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Topografía Fractal completada.")
+                    # BLINDAJE: Ordenamos por EV de mayor a menor y lo dejamos FIJO para siempre.
+                    df_temp = df_temp.sort_values(by=["EV (€)", "Profit Factor"], ascending=[False, False])
+                    st.session_state['resultados_quant_definitivos'] = df_temp.to_dict('records')
                 else: st.warning(f"Ninguna compresión generó suficientes operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
-# =========================================================================
-    # EL COLISEO QUANT: TABLA DE FAVORITOS INTERACTIVA (MEMORIA BLINDADA)
     # =========================================================================
-    if len(st.session_state['historial_lab']) > 0:
+    # EL COLISEO QUANT: TABLA DE FAVORITOS INTERACTIVA
+    # =========================================================================
+    if len(st.session_state['resultados_quant_definitivos']) > 0:
         import plotly.graph_objects as go
         
         st.markdown("---")
         st.markdown("## 🗺️ Topografía Fractal de Campeones")
+        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner. Ordenado por Esperanza Matemática (€).")
         
-        # 1. Cargamos la memoria sin borrarla
-        df_hist = pd.DataFrame(st.session_state['historial_lab'])
+        # Leemos de la memoria inamovible
+        df_hist = pd.DataFrame(st.session_state['resultados_quant_definitivos'])
         
-        col_ord1, col_ord2 = st.columns([1, 2])
-        criterio = col_ord1.selectbox("🏆 Ordenar Ranking por:", ["Esperanza Mat. (€)", "WinRate", "Profit Factor", "Compresión (Tiempo)"], key="orden_ranking")
-        
-        # 2. Ordenamos solo para visualización
-        if "Esperanza" in criterio: df_hist = df_hist.sort_values(by=["EV (€)", "Profit Factor"], ascending=[False, False])
-        elif "WinRate" in criterio: df_hist = df_hist.sort_values(by=["WinRate", "EV (€)"], ascending=[False, False])
-        elif "Profit" in criterio: df_hist = df_hist.sort_values(by=["Profit Factor", "EV (€)"], ascending=[False, False])
-        else:
-            df_hist['Orden'] = df_hist['Compresión'].str.replace('d','').astype(int)
-            df_hist = df_hist.sort_values(by="Orden").drop(columns=['Orden'])
+        # Insertamos la columna de estrellas vacía solo para mostrarla
+        if "⭐" not in df_hist.columns:
+            df_hist.insert(0, "⭐", False)
             
-        df_hist = df_hist.reset_index(drop=True)
-
-        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner. No se borrará la pantalla.")
-        
-        # 3. Dibujamos el Editor de Datos
         cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
-        df_disp = df_hist[cols_visibles]
         
+        # LA TABLA INTERACTIVA BLINDADA
         edited_df = st.data_editor(
-            df_disp,
+            df_hist[cols_visibles],
             column_config={
-                "⭐": st.column_config.CheckboxColumn("⭐ Favorito", help="Selecciona los sistemas a vigilar", default=False),
+                "⭐": st.column_config.CheckboxColumn("⭐ Favorito", help="Selecciona los sistemas a inyectar", default=False),
                 "WinRate": st.column_config.NumberColumn("WinRate", format="%.1f%%"),
                 "Profit Factor": st.column_config.NumberColumn("Profit", format="%.2f"),
                 "EV (%)": st.column_config.NumberColumn("EV (%)", format="%+.2f%%"),
@@ -886,30 +870,29 @@ with tab4:
             disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"],
             hide_index=True,
             use_container_width=True,
-            key="editor_adn_quant" 
+            key="tabla_favoritos_intocable" # Nombre nuevo para evitar caché corrompida
         )
-
-        # 4. TRUCO DE MAGIA: Guardamos solo la columna de estrellas de vuelta a la memoria
-        df_hist["⭐"] = edited_df["⭐"]
-        st.session_state['historial_lab'] = df_hist.to_dict('records')
 
         # --- BOTÓN PARA INYECTAR ADN AL ESCÁNER ---
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary", use_container_width=True):
-            # Filtramos los que tienen la estrella marcada
-            sistemas_marcados = df_hist[df_hist["⭐"] == True].to_dict('records')
+            # Leemos directamente de la tabla que el usuario acaba de tocar
+            sistemas_marcados = edited_df[edited_df["⭐"] == True]
+            indices_marcados = sistemas_marcados.index.tolist()
             
-            if len(sistemas_marcados) == 0:
+            if len(indices_marcados) == 0:
                 st.warning("⚠️ No has marcado ninguna estrella. Haz clic en al menos una casilla de la tabla.")
             else:
-                with st.spinner(f"Inyectando {len(sistemas_marcados)} sistemas en tu ADN Quant..."):
+                with st.spinner(f"Inyectando {len(indices_marcados)} sistemas en tu ADN Quant..."):
                     try:
                         df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
                         if not df_adn_act.empty:
                             df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
                         
                         nuevas_filas = []
-                        for sys in sistemas_marcados:
+                        for idx in indices_marcados:
+                            sys = df_hist.iloc[idx] # Extraemos los datos completos del original
+                            
                             c_z = float(sys['Z-Score'].replace("> ", "")) if sys['Z-Score'] != "OFF" else -99
                             c_acc = float(sys['Accel'].replace("> ", "")) if sys['Accel'] != "OFF" else -99
                             c_vol = float(sys['Volumen'].replace("> ", "")) if sys['Volumen'] != "OFF" else -99
@@ -926,16 +909,17 @@ with tab4:
                         df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
                         conn.update(worksheet="ADN_Quant", data=df_final)
                         st.cache_data.clear()
-                        st.success(f"✅ ¡Éxito! Has inyectado el ADN de {len(sistemas_marcados)} fractales para {ticker}.")
+                        st.success(f"✅ ¡Éxito! Has inyectado el ADN de {len(indices_marcados)} fractales para {ticker}.")
                     except Exception as e:
                         st.error(f"Error al guardar: {e}")
 
-        # --- AUDITORÍA PROFUNDA ---
+        # --- AUDITORÍA PROFUNDA (ANALIZADOR DE CAMPEONES) ---
         st.markdown("---")
         st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
         opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['EV (€)']:+.2f} €" for i, row in df_hist.iterrows()]
         
-        idx_sel = st.selectbox("🎯 Elige un campeón para auditar sus operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="selector_detalle_campeon")
+        # CANDADO DEL SELECTOR
+        idx_sel = st.selectbox("🎯 Elige un campeón para auditar sus operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="visor_detalle_operaciones")
         
         sistema_activo = df_hist.iloc[idx_sel]
         
