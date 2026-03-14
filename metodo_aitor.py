@@ -589,9 +589,13 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO QUANT (TOPOGRAFÍA FRACTAL + FAVORITOS)
+# PESTAÑA 4: LABORATORIO QUANT (TOPOGRAFÍA FRACTAL + MEMORIA BLINDADA)
 # =====================================================================
 with tab4:
+    # 🔒 EL CANDADO DE MEMORIA (Evita que se borren los resultados al hacer clic)
+    if 'historial_lab' not in st.session_state:
+        st.session_state['historial_lab'] = []
+
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
     st.markdown(f"Escaneando topografía adaptativa para **{ticker}**.")
     
@@ -602,10 +606,10 @@ with tab4:
     compresion = col_c1.selectbox("Velas (Test Manual):", opciones_compresion, index=3)
     anos_test = col_c2.selectbox("Historia a testear:", ["5y", "10y", "15y", "max"], index=1)
     capital_trade = col_c3.number_input("Capital/Trade (€):", value=10000, step=1000)
-    min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1, help="El límite bajará automáticamente para velas más lentas.")
+    min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1)
 
     # 2. PANEL QUANT MANUAL
-    st.markdown("### 🎛️ 2. Panel Quant Manual (Solo para el botón azul)")
+    st.markdown("### 🎛️ 2. Panel Quant Manual")
     col_p1, col_p2, col_p3 = st.columns(3)
     val_z = True if opt_z != -99 else False
     val_acc = True if opt_acc != -99 else False
@@ -709,9 +713,6 @@ with tab4:
         
         return df_b
 
-    # -------------------------------------------------------------------------
-    # MOTOR DE BACKTEST
-    # -------------------------------------------------------------------------
     def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp):
         cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
         cond_acc = (df_bt['Accel'] > t_a) if b_a else pd.Series(True, index=df_bt.index)
@@ -719,7 +720,6 @@ with tab4:
         cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_bt.index)
             
         df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias
-        
         log_forense = []
         i = 55 
         
@@ -733,7 +733,6 @@ with tab4:
                     for j in range(idx_ent + 1, len(df_bt)):
                         trib_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
                         pierde_min = df_bt['Low'].iloc[j] < df_bt['Low'].iloc[j-1]
-                        
                         if "TENDENCIAL" in sys_type:
                             cruce_b = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
                             if cruce_b and pierde_min: idx_salida = j; break
@@ -756,15 +755,11 @@ with tab4:
                     
                     log_forense.append({
                         "Fecha Entrada": pd.to_datetime(df_bt.index[idx_ent]).strftime("%Y-%m-%d"),
-                        "Fecha Salida": f_sal,
-                        "Velas Dentro": velas_in,
-                        "Días Reales": velas_in * comp,
-                        "Precio Ent": p_ent, "Precio Sal": p_sal,
-                        "Max Drawdown": max_dd, "Rendimiento Real": ret
+                        "Fecha Salida": f_sal, "Velas Dentro": velas_in, "Días Reales": velas_in * comp,
+                        "Precio Ent": p_ent, "Precio Sal": p_sal, "Max Drawdown": max_dd, "Rendimiento Real": ret
                     })
                     i = idx_salida 
             i += 1
-            
         return log_forense
 
     def compilar_metricas(log_for, cap_trade):
@@ -772,55 +767,44 @@ with tab4:
         rets = [f["Rendimiento Real"] for f in log_for]
         wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
         ev_pct = np.mean(rets)
-        
         ganancias = sum([r for r in rets if r > 0])
         perdidas = abs(sum([r for r in rets if r < 0]))
         profit_factor = (ganancias / perdidas) if perdidas != 0 else 99.9
-        
         ev_eur = (ev_pct / 100) * cap_trade
         velas_med = np.mean([f["Velas Dentro"] for f in log_for])
         return wr, ev_pct, profit_factor, ev_eur, velas_med
 
     # --- TEST MANUAL ---
     if col_run_man.button(f"⚙️ Test Manual ({compresion}d)", type="primary", use_container_width=True):
-        st.session_state['historial_lab'] = [] 
         with st.spinner(f"Testeando..."):
             try:
                 min_trades_real = max(3, int(min_trades_base * (1 / (compresion ** 0.5))))
-                
                 df_bt = procesar_datos_fractales(ticker, compresion, anos_test)
                 if not df_bt.empty:
                     sys_name = tipo_sistema.split(":")[0]
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     if len(log_for) > 0:
-                        if len(log_for) < min_trades_real:
-                            st.warning(f"⚠️ Operaciones ({len(log_for)}) por debajo del umbral de robustez para {compresion}d (mínimo: {min_trades_real}).")
-                        
                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
-                        nuevo_test = {
+                        st.session_state['historial_lab'] = [{
+                            "⭐": False, # LA ESTRELLA EN MEMORIA
                             "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": sys_name,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", 
                             "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
                             "Trades": len(log_for), "WinRate": round(wr, 1), 
-                            "Esperanza Mat. (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "Esperanza Mat. (€)": round(ev_eur, 2),
+                            "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2),
                             "Velas Medias": round(v_med, 1), "Logs": log_for
-                        }
-                        st.session_state['historial_lab'].append(nuevo_test)
+                        }]
                         st.success(f"✅ Análisis completado. {len(log_for)} operaciones.")
                     else: st.warning("Cero operaciones cerradas.")
             except Exception as e: st.error(f"Error: {e}")
 
-    # --- MODO DIOS: MAPEADO FRACTAL CON FILTRO DINÁMICO ---
+    # --- MODO DIOS: MAPEADO FRACTAL ---
     if col_run_auto.button(f"🤖 MODO DIOS: Buscar el Campeón de cada Fractal", type="secondary", use_container_width=True):
-        st.session_state['historial_lab'] = [] 
-        with st.spinner(f"Analizando los 15 marcos temporales para {ticker} con límite de trades adaptativo..."):
+        with st.spinner(f"Analizando los 15 marcos temporales para {ticker}..."):
             try:
                 resultados_campeones = []
-                todos_los_fractales = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
-                
-                for cmp in todos_los_fractales: 
+                for cmp in [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]: 
                     min_trades_real = max(3, int(min_trades_base * (1 / (cmp ** 0.5))))
-                    
                     df_bt = procesar_datos_fractales(ticker, cmp, anos_test)
                     if df_bt.empty: continue
                     
@@ -831,23 +815,21 @@ with tab4:
                         for test_z in [None, 0.5, 1.0, 1.5]:
                             for test_v in [None, 0.5, 1.0]:
                                 for test_a in [None, 0.0]:
-                                    
                                     log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, test_a if test_a else 0, test_v if test_v else 0, test_z is not None, test_a is not None, test_v is not None, cmp)
-                                    
                                     if len(log_for) >= min_trades_real: 
                                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                                         if ev_eur > mejor_ev_cmp:
                                             mejor_ev_cmp = ev_eur
                                             mejor_sistema_cmp = {
+                                                "⭐": False, # LA ESTRELLA EN MEMORIA
                                                 "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
                                                 "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
                                                 "Accel": f"> {test_a}" if test_a is not None else "OFF",
                                                 "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
                                                 "Trades": len(log_for), "WinRate": round(wr, 1), 
-                                                "Esperanza Mat. (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "Esperanza Mat. (€)": round(ev_eur, 2),
+                                                "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2),
                                                 "Velas Medias": round(v_med, 1), "Logs": log_for
                                             }
-                    
                     if mejor_sistema_cmp is not None:
                         resultados_campeones.append(mejor_sistema_cmp)
                 
@@ -861,162 +843,150 @@ with tab4:
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
     # =========================================================================
-    # EL NUEVO COLISEO QUANT CON TABLA INTERACTIVA DE ESTRELLAS
+    # EL COLISEO QUANT: TABLA DE FAVORITOS INTERACTIVA
     # =========================================================================
     if len(st.session_state['historial_lab']) > 0:
         import plotly.graph_objects as go
+        
+        st.markdown("---")
+        st.markdown("## 🗺️ Topografía Fractal de Campeones")
+        
+        # Ordenación manual que actualiza el Session State directamente
+        col_ord1, col_ord2 = st.columns([1, 2])
+        criterio = col_ord1.selectbox("🏆 Ordenar Ranking por:", ["Esperanza Mat. (€)", "WinRate", "Profit Factor", "Compresión (Tiempo)"], key="orden_ranking")
+        
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         
-        if not df_hist.empty:
-            st.markdown("---")
-            st.markdown("## 🗺️ Topografía Fractal de Campeones")
-            st.markdown("Marca la casilla **⭐ Favorito** en los 5 sistemas que quieras enviar a tu Escáner Diario.")
+        if "Esperanza" in criterio: df_hist = df_hist.sort_values(by=["EV (€)", "Profit Factor"], ascending=[False, False])
+        elif "WinRate" in criterio: df_hist = df_hist.sort_values(by=["WinRate", "EV (€)"], ascending=[False, False])
+        elif "Profit" in criterio: df_hist = df_hist.sort_values(by=["Profit Factor", "EV (€)"], ascending=[False, False])
+        else:
+            df_hist['Orden'] = df_hist['Compresión'].str.replace('d','').astype(int)
+            df_hist = df_hist.sort_values(by="Orden").drop(columns=['Orden'])
+            
+        df_hist = df_hist.reset_index(drop=True)
+        st.session_state['historial_lab'] = df_hist.to_dict('records') # Guardamos el orden
 
-            df_hist = df_hist.reset_index(drop=True)
-            
-            # 1. Preparamos el DataFrame para la edición interactiva
-            cols_visibles = ["Compresión", "Sistema", "WinRate", "Profit Factor", "Esperanza Mat. (%)", "Esperanza Mat. (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
-            df_disp = df_hist[cols_visibles].copy()
-            
-            # Insertamos la columna booleana de las estrellas al principio
-            df_disp.insert(0, "⭐ Favorito", False)
-            
-            # Aplicamos los colores al DataFrame base
-            def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
-            
-            styled_df = df_disp.style.format({
-                "WinRate": "{:.1f}%", "Profit Factor": "{:.2f}", "Esperanza Mat. (%)": "{:+.2f}%", 
-                "Esperanza Mat. (€)": "{:+.2f} €", "Velas Medias": "{:.1f}"
-            }).map(c_hist, subset=['Esperanza Mat. (%)', 'Esperanza Mat. (€)'])
-            
-            # Renderizamos la tabla editable donde SOLO se puede tocar la estrella
-            edited_df = st.data_editor(
-                styled_df,
-                column_config={
-                    "⭐ Favorito": st.column_config.CheckboxColumn("⭐ Favorito", help="Selecciona los 5 que quieras guardar", default=False)
-                },
-                disabled=cols_visibles, # Deshabilita la edición del resto de columnas
-                hide_index=True,
-                use_container_width=True,
-                key="editor_estrellas_adn" # Este Key evita que la tabla se borre
-            )
+        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner. Tus clics se guardarán automáticamente.")
+        
+        # TABLA NATIVA INTERACTIVA (SIN BUG DE REINICIO)
+        cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
+        df_disp = df_hist[cols_visibles]
+        
+        edited_df = st.data_editor(
+            df_disp,
+            column_config={
+                "⭐": st.column_config.CheckboxColumn("⭐ Favorito", help="Selecciona los sistemas a vigilar", default=False),
+                "WinRate": st.column_config.NumberColumn("WinRate", format="%.1f%%"),
+                "Profit Factor": st.column_config.NumberColumn("Profit", format="%.2f"),
+                "EV (%)": st.column_config.NumberColumn("EV (%)", format="%+.2f%%"),
+                "EV (€)": st.column_config.NumberColumn("EV (€)", format="%+.2f €"),
+                "Velas Medias": st.column_config.NumberColumn("Velas", format="%.1f")
+            },
+            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"],
+            hide_index=True,
+            use_container_width=True,
+            key="editor_adn_quant" # CANDADO DE TABLA
+        )
 
-            # Extraemos cuáles ha marcado el usuario
-            indices_elegidos = edited_df.index[edited_df["⭐ Favorito"] == True].tolist()
+        # Guardar en memoria qué estrellas has marcado
+        for i, val in enumerate(edited_df["⭐"]):
+            st.session_state['historial_lab'][i]["⭐"] = val
 
-            # --- BOTÓN PARA GUARDAR LAS ESTRELLAS MARCADAS ---
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("💾 GUARDAR LOS SISTEMAS MARCADOS (⭐) EN EL ESCÁNER", type="primary"):
-                if len(indices_elegidos) == 0:
-                    st.warning("⚠️ No has marcado ninguna estrella. Marca al menos una casilla en la tabla arriba.")
-                elif len(indices_elegidos) > 5:
-                    st.warning(f"⚠️ Has marcado {len(indices_elegidos)} sistemas. Te recomendamos guardar un máximo de 5 para no saturar el escáner.")
-                else:
-                    with st.spinner(f"Borrando memoria vieja y grabando el nuevo ADN para {ticker}..."):
-                        try:
-                            df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
-                            if not df_adn_act.empty:
-                                df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
+        # --- BOTÓN PARA INYECTAR ADN AL ESCÁNER ---
+        if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary"):
+            sistemas_marcados = [sys for sys in st.session_state['historial_lab'] if sys["⭐"] == True]
+            
+            if len(sistemas_marcados) == 0:
+                st.warning("⚠️ No has marcado ninguna estrella. Marca al menos una en la tabla superior.")
+            else:
+                with st.spinner(f"Inyectando {len(sistemas_marcados)} sistemas en tu ADN Quant..."):
+                    try:
+                        df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
+                        if not df_adn_act.empty:
+                            df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
+                        
+                        nuevas_filas = []
+                        for sys in sistemas_marcados:
+                            c_z = float(sys['Z-Score'].replace("> ", "")) if sys['Z-Score'] != "OFF" else -99
+                            c_acc = float(sys['Accel'].replace("> ", "")) if sys['Accel'] != "OFF" else -99
+                            c_vol = float(sys['Volumen'].replace("> ", "")) if sys['Volumen'] != "OFF" else -99
                             
-                            nuevas_filas = []
-                            for idx in indices_elegidos:
-                                fila_sistema = df_hist.iloc[idx]
-                                
-                                c_z = float(fila_sistema['Z-Score'].replace("> ", "")) if fila_sistema['Z-Score'] != "OFF" else -99
-                                c_acc = float(fila_sistema['Accel'].replace("> ", "")) if fila_sistema['Accel'] != "OFF" else -99
-                                c_vol = float(fila_sistema['Volumen'].replace("> ", "")) if fila_sistema['Volumen'] != "OFF" else -99
-                                
-                                horizonte_inteligente = f"{fila_sistema['Compresión']}_{fila_sistema['Sistema']}" 
-                                n_id = str(int(datetime.datetime.now().timestamp())) + "_" + fila_sistema['Compresión']
-                                
-                                nuevas_filas.append({
-                                    "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
-                                    "Horizonte": horizonte_inteligente, "Rendimiento": fila_sistema['Esperanza Mat. (€)'], 
-                                    "WinRate": fila_sistema['WinRate'], "Es_Default": True, "ID_ADN": n_id
-                                })
+                            horizonte = f"{sys['Compresión']}_{sys['Sistema']}" 
+                            n_id = str(int(datetime.datetime.now().timestamp())) + "_" + sys['Compresión']
                             
-                            df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
-                            conn.update(worksheet="ADN_Quant", data=df_final)
-                            st.cache_data.clear()
-                            st.success(f"✅ ¡ADN Grabado! Has inyectado {len(indices_elegidos)} sistemas ganadores para {ticker}.")
-                        except Exception as e:
-                            st.error(f"Error al guardar: {e}")
+                            nuevas_filas.append({
+                                "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
+                                "Horizonte": horizonte, "Rendimiento": sys['EV (€)'], 
+                                "WinRate": sys['WinRate'], "Es_Default": True, "ID_ADN": n_id
+                            })
+                        
+                        df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
+                        conn.update(worksheet="ADN_Quant", data=df_final)
+                        st.cache_data.clear()
+                        st.success(f"✅ ¡Éxito! Has inyectado el ADN de {len(sistemas_marcados)} fractales para {ticker}.")
+                    except Exception as e:
+                        st.error(f"Error al guardar: {e}")
 
-            # --- ANALIZADOR DETALLE CON CANDADO (Soluciona el reinicio) ---
-            st.markdown("---")
-            st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
-            opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['Esperanza Mat. (€)']:+.2f} €" for i, row in df_hist.iterrows()]
-            
-            # EL CANDADO (key="selector_detalle") evita el reinicio fantasma
-            idx_sel = st.selectbox("🎯 Elige un campeón para ver sus métricas y operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="selector_detalle")
-            
-            sistema_activo = df_hist.iloc[idx_sel]
-            
-            col_v1, col_v2, col_v3 = st.columns(3)
-            
-            fig_wr = go.Figure(go.Indicator(
-                mode = "gauge+number", value = sistema_activo['WinRate'],
-                number = {'suffix': "%", 'font': {'size': 40, 'color': '#1d1d1f'}},
-                title = {'text': "% de Acierto", 'font': {'size': 18}},
-                gauge = {
-                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                    'bar': {'color': "#16a34a" if sistema_activo['WinRate'] >= 50 else "#dc2626"},
-                    'bgcolor': "white",
-                    'steps': [{'range': [0, 50], 'color': "#fee2e2"}, {'range': [50, 100], 'color': "#dcfce7"}],
-                    'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 50}
-                }
-            ))
-            fig_wr.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
-            col_v1.plotly_chart(fig_wr, use_container_width=True)
+        # --- AUDITORÍA PROFUNDA ---
+        st.markdown("---")
+        st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
+        opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['EV (€)']:+.2f} €" for i, row in df_hist.iterrows()]
+        
+        # CANDADO DEL SELECTOR (Evita que la pantalla se borre al cambiar de sistema)
+        idx_sel = st.selectbox("🎯 Elige un campeón para auditar sus operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="selector_detalle_campeon")
+        
+        sistema_activo = df_hist.iloc[idx_sel]
+        
+        col_v1, col_v2, col_v3 = st.columns(3)
+        fig_wr = go.Figure(go.Indicator(
+            mode = "gauge+number", value = sistema_activo['WinRate'],
+            number = {'suffix': "%", 'font': {'size': 40, 'color': '#1d1d1f'}}, title = {'text': "% de Acierto", 'font': {'size': 18}},
+            gauge = {'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"}, 'bar': {'color': "#16a34a" if sistema_activo['WinRate'] >= 50 else "#dc2626"}, 'bgcolor': "white", 'steps': [{'range': [0, 50], 'color': "#fee2e2"}, {'range': [50, 100], 'color': "#dcfce7"}], 'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 50}}
+        ))
+        fig_wr.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
+        col_v1.plotly_chart(fig_wr, use_container_width=True)
 
-            pf_val = sistema_activo['Profit Factor']
-            pf_max = 5 if pf_val < 5 else pf_val + 1 
-            fig_pf = go.Figure(go.Indicator(
-                mode = "gauge+number", value = pf_val,
-                number = {'font': {'size': 40, 'color': '#1d1d1f'}},
-                title = {'text': "Profit Factor", 'font': {'size': 18}},
-                gauge = {
-                    'axis': {'range': [0, pf_max], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                    'bar': {'color': "#16a34a" if pf_val >= 1.5 else ("#eab308" if pf_val >= 1.0 else "#dc2626")},
-                    'bgcolor': "white",
-                    'steps': [{'range': [0, 1], 'color': "#fee2e2"}, {'range': [1, 2], 'color': "#fef9c3"}, {'range': [2, pf_max], 'color': "#dcfce7"}],
-                    'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 1}
-                }
-            ))
-            fig_pf.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
-            col_v2.plotly_chart(fig_pf, use_container_width=True)
+        pf_val = sistema_activo['Profit Factor']
+        pf_max = 5 if pf_val < 5 else pf_val + 1 
+        fig_pf = go.Figure(go.Indicator(
+            mode = "gauge+number", value = pf_val,
+            number = {'font': {'size': 40, 'color': '#1d1d1f'}}, title = {'text': "Profit Factor", 'font': {'size': 18}},
+            gauge = {'axis': {'range': [0, pf_max], 'tickwidth': 1, 'tickcolor': "darkblue"}, 'bar': {'color': "#16a34a" if pf_val >= 1.5 else ("#eab308" if pf_val >= 1.0 else "#dc2626")}, 'bgcolor': "white", 'steps': [{'range': [0, 1], 'color': "#fee2e2"}, {'range': [1, 2], 'color': "#fef9c3"}, {'range': [2, pf_max], 'color': "#dcfce7"}], 'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 1}}
+        ))
+        fig_pf.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
+        col_v2.plotly_chart(fig_pf, use_container_width=True)
 
-            color_eur = "#16a34a" if sistema_activo['Esperanza Mat. (€)'] > 0 else "#dc2626"
-            col_v3.markdown(f"""
-            <div style='text-align: center; padding: 20px; background-color: white; border-radius: 10px; border: 1px solid #e8eaed; height: 100%; display: flex; flex-direction: column; justify-content: center;'>
-                <h3 style='color: gray; margin:0; font-size:1.1rem;'>Esperanza Matemática (EV)</h3>
-                <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{sistema_activo['Esperanza Mat. (€)']:+,.2f} €</h1>
-                <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{sistema_activo['Esperanza Mat. (%)']:+,.2f} %</p>
-            </div>
-            """, unsafe_allow_html=True)
+        color_eur = "#16a34a" if sistema_activo['EV (€)'] > 0 else "#dc2626"
+        col_v3.markdown(f"""
+        <div style='text-align: center; padding: 20px; background-color: white; border-radius: 10px; border: 1px solid #e8eaed; height: 100%; display: flex; flex-direction: column; justify-content: center;'>
+            <h3 style='color: gray; margin:0; font-size:1.1rem;'>Esperanza Matemática (EV)</h3>
+            <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{sistema_activo['EV (€)']:+,.2f} €</h1>
+            <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{sistema_activo['EV (%)']:+,.2f} %</p>
+        </div>
+        """, unsafe_allow_html=True)
+        
+        datos_for = sistema_activo["Logs"]
+        if datos_for:
+            df_for = pd.DataFrame(datos_for)
+            df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
+            df_for['Ganancia €'] = (df_for['Rendimiento Real'] / 100) * capital_trade
             
-            datos_for = sistema_activo["Logs"]
-            if datos_for:
-                df_for = pd.DataFrame(datos_for)
-                df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
-                df_for['Ganancia €'] = (df_for['Rendimiento Real'] / 100) * capital_trade
+            cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
+            df_for = df_for[cols_order]
+            
+            def c_dd(val):
+                if isinstance(val, (int, float)):
+                    if val < -15: return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold'
+                    elif val < -8: return 'background-color: #fff9c4; color: #e65100; font-weight: bold'
+                return ''
+            def c_salida(val): return 'background-color: #dcfce7; color: #166534; font-weight: bold' if "ABIERTA" in str(val) else ''
                 
-                cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
-                df_for = df_for[cols_order]
-                
-                def f_pct(val): return f"{val:+.2f}%" if isinstance(val, (int, float)) else val
-                def f_dol(val): return f"{val:,.2f}" if isinstance(val, (int, float)) else val
-                def c_for(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
-                def c_dd(val):
-                    if isinstance(val, (int, float)):
-                        if val < -15: return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold'
-                        elif val < -8: return 'background-color: #fff9c4; color: #e65100; font-weight: bold'
-                    return ''
-                def c_salida(val): return 'background-color: #dcfce7; color: #166534; font-weight: bold' if "ABIERTA" in str(val) else ''
-                    
-                styled_f = df_for.style.format(f_pct, subset=['Rendimiento Real', 'Max Drawdown']).format(f_dol, subset=['Precio Ent', 'Precio Sal', 'Ganancia €']).map(c_for, subset=['Rendimiento Real', 'Ganancia €']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
-                
-                st.dataframe(styled_f, use_container_width=True, hide_index=True)
+            styled_f = df_for.style.format({
+                "Rendimiento Real": "{:+.2f}%", "Max Drawdown": "{:.2f}%", "Precio Ent": "{:.2f} $", "Precio Sal": "{:.2f} $", "Ganancia €": "{:+.2f} €"
+            }).map(lambda x: 'color: #16a34a; font-weight: bold' if x > 0 else ('color: #dc2626' if x < 0 else ''), subset=['Rendimiento Real', 'Ganancia €']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
+            
+            st.dataframe(styled_f, use_container_width=True, hide_index=True)
 # =====================================================================
 # PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
 # =====================================================================
