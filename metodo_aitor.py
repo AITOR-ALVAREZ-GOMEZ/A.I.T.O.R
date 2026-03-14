@@ -553,6 +553,24 @@ with tab3:
     fecha_compra = col_v3.date_input("Fecha de Compra:")
     cap_invertido = col_v4.number_input("Capital Invertido (€):", value=10000, step=1000)
 
+    # Motor KAMA exacto al del Laboratorio
+    def calcular_kama_vivo(series, n=10, fast=2, slow=30):
+        n_eff = max(2, n) 
+        change = series.diff(n_eff).abs()
+        volatility = series.diff().abs().rolling(n_eff).sum()
+        er = np.where(volatility == 0, 0, change / volatility)
+        er = pd.Series(er, index=series.index).fillna(0)
+        sc = (er * (2/(fast+1) - 2/(slow+1)) + 2/(slow+1)) ** 2
+        kama = np.full_like(series, np.nan, dtype=float)
+        valid_idx = np.where(~np.isnan(sc))[0]
+        if len(valid_idx) > 0:
+            first_valid = valid_idx[0]
+            kama[first_valid - 1] = series.iloc[first_valid - 1]
+            for i in range(first_valid, len(series)):
+                if np.isnan(sc.iloc[i]): kama[i] = kama[i-1]
+                else: kama[i] = kama[i-1] + sc.iloc[i] * (series.iloc[i] - kama[i-1])
+        return pd.Series(kama, index=series.index)
+
     if st.button("🔍 AUDITAR POSICIÓN Y CALCULAR SALIDAS", type="primary", use_container_width=True):
         with st.spinner(f"Analizando la estructura de {ticker_vivo}. Calculando Gatillos de Salida..."):
             try:
@@ -568,9 +586,14 @@ with tab3:
                     import plotly.graph_objects as go
                     import datetime
                     
-                    # 2. DESCARGAR DATOS
+                    # 2. DESCARGAR DATOS Y PURGAR ZONAS HORARIAS (Evita el Error Rojo)
                     fecha_inicio_datos = fecha_compra - datetime.timedelta(days=150) 
                     df_real = yf.Ticker(ticker_vivo).history(start=fecha_inicio_datos)
+                    
+                    # Eliminamos la zona horaria para que no choque con Streamlit
+                    if df_real.index.tz is not None:
+                        df_real.index = df_real.index.tz_localize(None)
+
                     precio_actual = df_real['Close'].iloc[-1]
                     rendimiento_abierto = ((precio_actual - precio_compra) / precio_compra) * 100
                     ganancia_viva_eur = (rendimiento_abierto / 100) * cap_invertido
@@ -581,7 +604,7 @@ with tab3:
                     
                     max_ev_absoluto = adn_ticker['Rendimiento'].astype(float).max()
 
-                    # 3. RECREAR LA MATEMÁTICA
+                    # 3. RECREAR LA MATEMÁTICA EXACTA DEL LABORATORIO
                     for index, row in adn_ticker.iterrows():
                         horizonte = row['Horizonte']
                         comp_str = horizonte.split('_')[0]
@@ -601,8 +624,9 @@ with tab3:
                         else:
                             df_b = df_real.copy()
 
-                        df_b['AMA_Rápida'] = df_b['Close'].ewm(span=2, adjust=False).mean()
-                        df_b['AMA_Lenta'] = df_b['Open'].ewm(span=3, adjust=False).mean()
+                        # MATEMÁTICA INSTITUCIONAL (KAMA + Tribunal)
+                        df_b['AMA_Rápida'] = calcular_kama_vivo(df_b['Close'], n=2, fast=2, slow=3)
+                        df_b['AMA_Lenta'] = calcular_kama_vivo(df_b['Open'], n=2, fast=3, slow=5)
                         
                         macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
                         macd_sig = macd_line.ewm(span=3, adjust=False).mean()
@@ -624,7 +648,7 @@ with tab3:
                         
                         votos_rojo = j1_rojo.astype(int) + j2_rojo.astype(int) + j3_rojo.astype(int)
                         
-                        # EVALUAR EL ESTADO
+                        # EVALUAR EL ESTADO (Vela actual vs Vela anterior)
                         vela_actual = df_b.iloc[-1]
                         vela_anterior = df_b.iloc[-2]
                         
@@ -699,23 +723,31 @@ with tab3:
                     st.dataframe(styled_votos, use_container_width=True, hide_index=True)
 
                     st.markdown("#### 📉 Gráfico Táctico desde la Compra")
-                    df_grafico = df_real[df_real.index >= pd.to_datetime(fecha_compra)]
                     
-                    fig = go.Figure()
-                    fig.add_trace(go.Candlestick(x=df_grafico.index, open=df_grafico['Open'], high=df_grafico['High'], low=df_grafico['Low'], close=df_grafico['Close'], name='Precio'))
-                    fig.add_hline(y=precio_compra, line_dash="dot", line_color="blue", annotation_text="Precio Compra", annotation_position="bottom right")
+                    # Filtramos los datos desde la fecha de compra
+                    fecha_c_dt = pd.to_datetime(fecha_compra)
+                    df_grafico = df_real[df_real.index >= fecha_c_dt]
                     
-                    lider = df_votos.iloc[0]
-                    comp_lider = int(lider['Fractal'].replace('d',''))
-                    df_grafico['Trailing_Stop'] = df_grafico['Low'].rolling(window=comp_lider).min().shift(1)
-                    
-                    fig.add_trace(go.Scatter(x=df_grafico.index, y=df_grafico['Trailing_Stop'], mode='lines', line=dict(color='red', width=1.5, dash='dot'), name=f"Stop Dinámico ({lider['Fractal']})"))
-                    fig.update_layout(height=500, margin=dict(l=10, r=10, t=10, b=10), template="plotly_white", xaxis_rangeslider_visible=False)
-                    st.plotly_chart(fig, use_container_width=True)
+                    if df_grafico.empty:
+                        st.warning("⚠️ Espera al menos un día desde la fecha de compra para ver el gráfico táctico.")
+                    else:
+                        fig = go.Figure()
+                        fig.add_trace(go.Candlestick(x=df_grafico.index, open=df_grafico['Open'], high=df_grafico['High'], low=df_grafico['Low'], close=df_grafico['Close'], name='Precio'))
+                        fig.add_hline(y=precio_compra, line_dash="dot", line_color="blue", annotation_text="Precio Compra", annotation_position="bottom right")
+                        
+                        lider = df_votos.iloc[0]
+                        comp_lider = int(lider['Fractal'].replace('d',''))
+                        
+                        # Stop dinámico calculado sobre el gráfico diario visual
+                        df_real['Trailing_Stop'] = df_real['Low'].rolling(window=comp_lider).min().shift(1)
+                        df_stop_grafico = df_real[df_real.index >= fecha_c_dt]
+                        
+                        fig.add_trace(go.Scatter(x=df_stop_grafico.index, y=df_stop_grafico['Trailing_Stop'], mode='lines', line=dict(color='red', width=2, dash='dot'), name=f"Stop Dinámico ({lider['Fractal']})"))
+                        fig.update_layout(height=500, margin=dict(l=10, r=10, t=10, b=10), template="plotly_white", xaxis_rangeslider_visible=False)
+                        st.plotly_chart(fig, use_container_width=True)
 
             except Exception as e:
                 st.error(f"Error al procesar la posición viva: {e}")
-
 # =====================================================================
 # PESTAÑA 4: LABORATORIO QUANT (ESTABILIDAD INSTITUCIONAL ABSOLUTA)
 # =====================================================================
