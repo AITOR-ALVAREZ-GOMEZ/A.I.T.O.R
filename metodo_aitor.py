@@ -589,7 +589,7 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (DASHBOARD MAESTRO-DETALLE)
+# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (DASHBOARD MAESTRO-DETALLE + EV)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
@@ -774,21 +774,25 @@ with tab4:
         return log_forense
 
     # -------------------------------------------------------------------------
-    # FUNCIÓN MÉTRICAS PRT
+    # FUNCIÓN MÉTRICAS PRT (AHORA LLAMADA ESPERANZA MATEMÁTICA / EV)
     # -------------------------------------------------------------------------
     def compilar_metricas(log_for, cap_trade):
         if not log_for: return 0, 0, 0, 0, 0
         rets = [f["Rendimiento Real"] for f in log_for]
         wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
-        rend_medio = np.mean(rets)
+        
+        # EV = Promedio total de retornos de TODAS las operaciones (ganadoras y perdedoras)
+        ev_pct = np.mean(rets)
         
         ganancias = sum([r for r in rets if r > 0])
         perdidas = abs(sum([r for r in rets if r < 0]))
         profit_factor = (ganancias / perdidas) if perdidas != 0 else 99.9
         
-        euros_medio = (rend_medio / 100) * cap_trade
+        # EV Monetario = Capital * (EV% / 100)
+        ev_eur = (ev_pct / 100) * cap_trade
+        
         velas_med = np.mean([f["Velas Dentro"] for f in log_for])
-        return wr, rend_medio, profit_factor, euros_medio, velas_med
+        return wr, ev_pct, profit_factor, ev_eur, velas_med
 
     # --- TEST MANUAL ---
     if col_run_man.button(f"⚙️ Ejecutar Tribunal en {ticker}", type="primary", use_container_width=True):
@@ -804,14 +808,14 @@ with tab4:
                         if len(log_for) < min_trades:
                             st.warning(f"⚠️ El test arrojó {len(log_for)} operaciones. Por debajo de tu límite de robustez ({min_trades}).")
                         
-                        wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
+                        wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                         
                         nuevo_test = {
                             "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": sys_name,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", 
                             "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
                             "Trades": len(log_for), "WinRate": round(wr, 1), 
-                            "Rend Medio %": round(r_med, 2), "Profit Factor": round(pf, 2), "Euros Medio": round(eur_med, 2),
+                            "Esperanza Mat. (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "Esperanza Mat. (€)": round(ev_eur, 2),
                             "Velas Medias": round(v_med, 1), "Logs": log_for
                         }
                         st.session_state['historial_lab'].append(nuevo_test)
@@ -835,22 +839,23 @@ with tab4:
                                 log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp)
                                 
                                 if len(log_for) >= min_trades: 
-                                    wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
+                                    wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                                     nuevo_test = {
                                         "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
                                         "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
                                         "Volumen": f"> {test_v}" if test_v is not None else "OFF", "Accel": "OFF",
                                         "Trades": len(log_for), "WinRate": round(wr, 1), 
-                                        "Rend Medio %": round(r_med, 2), "Profit Factor": round(pf, 2), "Euros Medio": round(eur_med, 2),
+                                        "Esperanza Mat. (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "Esperanza Mat. (€)": round(ev_eur, 2),
                                         "Velas Medias": round(v_med, 1), "Logs": log_for
                                     }
                                     resultados_temp.append(nuevo_test)
                 
                 if resultados_temp:
                     df_temp = pd.DataFrame(resultados_temp)
-                    df_temp = df_temp.sort_values(by="Euros Medio", ascending=False).head(15)
+                    # El Modo Dios ahora ordena inicialmente por el Santo Grial: La Esperanza Matemática (€)
+                    df_temp = df_temp.sort_values(by="Esperanza Mat. (€)", ascending=False).head(15)
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Modo Dios Finalizado.")
+                    st.success("✅ Modo Dios Finalizado. Clasificado por Esperanza Matemática.")
                 else: st.warning(f"Ninguna combinación generó el mínimo exigido de {min_trades} operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
@@ -866,47 +871,46 @@ with tab4:
             st.markdown("## ⚔️ El Coliseo Quant (Dashboard Interactivo)")
             
             # --- 1. SECCIÓN MAESTRA (LA TABLA DE RANKING) ---
+            # Ahora la Esperanza Matemática (EV) es el criterio principal por defecto
             criterio_orden = st.selectbox("🏆 ¿Qué métrica define el Ranking Oficial?", [
-                "Ganancia Media (€)", "Mayor Profit Factor", "Mayor % Acierto (WinRate)", "Robustez (Mayor nº Trades)"
+                "Esperanza Matemática (EV)", "Mayor Profit Factor", "Mayor % Acierto (WinRate)", "Robustez (Mayor nº Trades)"
             ])
             
-            if "Ganancia" in criterio_orden:
-                df_hist = df_hist.sort_values(by=["Euros Medio", "Profit Factor"], ascending=[False, False])
+            if "Esperanza" in criterio_orden:
+                df_hist = df_hist.sort_values(by=["Esperanza Mat. (€)", "Profit Factor"], ascending=[False, False])
             elif "Profit" in criterio_orden:
-                df_hist = df_hist.sort_values(by=["Profit Factor", "Euros Medio"], ascending=[False, False])
+                df_hist = df_hist.sort_values(by=["Profit Factor", "Esperanza Mat. (€)"], ascending=[False, False])
             elif "WinRate" in criterio_orden:
-                df_hist = df_hist.sort_values(by=["WinRate", "Euros Medio"], ascending=[False, False])
+                df_hist = df_hist.sort_values(by=["WinRate", "Esperanza Mat. (€)"], ascending=[False, False])
             else:
-                df_hist = df_hist.sort_values(by=["Trades", "Euros Medio"], ascending=[False, False])
+                df_hist = df_hist.sort_values(by=["Trades", "Esperanza Mat. (€)"], ascending=[False, False])
 
-            # Resetear índice para que coincida perfectamente con el selector
             df_hist = df_hist.reset_index(drop=True)
 
             st.markdown("#### 📋 Ranking Oficial de Sistemas")
             
             def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
             
-            # Forzamos las columnas exactas que queremos ver
-            cols_visibles = ["Compresión", "Sistema", "WinRate", "Profit Factor", "Rend Medio %", "Euros Medio", "Trades", "Velas Medias", "Z-Score", "Volumen"]
+            # Mostramos el nombre correcto en las columnas de la tabla
+            cols_visibles = ["Compresión", "Sistema", "WinRate", "Profit Factor", "Esperanza Mat. (%)", "Esperanza Mat. (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
             df_disp = df_hist[cols_visibles]
             
             styled = df_disp.style.format({
                 "WinRate": "{:.1f}%", 
                 "Profit Factor": "{:.2f}", 
-                "Rend Medio %": "{:+.2f}%", 
-                "Euros Medio": "{:+.2f} €",
+                "Esperanza Mat. (%)": "{:+.2f}%", 
+                "Esperanza Mat. (€)": "{:+.2f} €",
                 "Velas Medias": "{:.1f}"
-            }).map(c_hist, subset=['Rend Medio %', 'Euros Medio'])
+            }).map(c_hist, subset=['Esperanza Mat. (%)', 'Esperanza Mat. (€)'])
             
             st.dataframe(styled, use_container_width=True)
 
             # --- 2. EL SELECTOR DETALLE (LA MAGIA) ---
             st.markdown("---")
             st.markdown("### 🎛️ Análisis Profundo (Selecciona un Sistema)")
-            opciones_dash = [f"Top {i+1} | {row['Sistema']} ({row['Compresión']}) | PF: {row['Profit Factor']:.2f} | Win: {row['WinRate']}% | {row['Euros Medio']:+.2f} €" for i, row in df_hist.iterrows()]
+            opciones_dash = [f"Top {i+1} | {row['Sistema']} ({row['Compresión']}) | EV: {row['Esperanza Mat. (€)']:+.2f} € | Win: {row['WinRate']}%" for i, row in df_hist.iterrows()]
             idx_sel = st.selectbox("🎯 Elige un sistema de la tabla superior para cargar sus gráficas y operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x])
             
-            # EL SISTEMA ELEGIDO QUE ALIMENTA TODO LO DE ABAJO
             sistema_activo = df_hist.iloc[idx_sel]
             
             st.markdown(f"#### 🔎 Viendo detalles del TOP {idx_sel+1}: {sistema_activo['Sistema']} ({sistema_activo['Compresión']})")
@@ -950,13 +954,14 @@ with tab4:
             fig_pf.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
             col_v2.plotly_chart(fig_pf, use_container_width=True)
 
-            # Tarjeta 3: Ganancia en Euros
-            color_eur = "#16a34a" if sistema_activo['Euros Medio'] > 0 else "#dc2626"
+            # Tarjeta 3: Esperanza Matemática (EV)
+            color_eur = "#16a34a" if sistema_activo['Esperanza Mat. (€)'] > 0 else "#dc2626"
             col_v3.markdown(f"""
             <div style='text-align: center; padding: 20px; background-color: white; border-radius: 10px; border: 1px solid #e8eaed; height: 100%; display: flex; flex-direction: column; justify-content: center;'>
-                <h3 style='color: gray; margin:0; font-size:1.1rem;'>Ganancia Media por Trade</h3>
-                <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{sistema_activo['Euros Medio']:+,.2f} €</h1>
-                <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{sistema_activo['Rend Medio %']:+,.2f} %</p>
+                <h3 style='color: gray; margin:0; font-size:1.1rem;'>Esperanza Matemática (EV)</h3>
+                <p style='color: gray; font-size: 0.8rem; margin-bottom: 10px;'>(Invirtiendo {capital_trade}€ por trade)</p>
+                <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{sistema_activo['Esperanza Mat. (€)']:+,.2f} €</h1>
+                <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{sistema_activo['Esperanza Mat. (%)']:+,.2f} %</p>
             </div>
             """, unsafe_allow_html=True)
             
@@ -980,7 +985,7 @@ with tab4:
                         nuevo_adn = {
                             "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
                             "Horizonte": horizonte_inteligente, 
-                            "Rendimiento": sistema_activo['Euros Medio'], 
+                            "Rendimiento": sistema_activo['Esperanza Mat. (€)'], 
                             "WinRate": sistema_activo['WinRate'], "Es_Default": es_def, "ID_ADN": n_id
                         }
                         
