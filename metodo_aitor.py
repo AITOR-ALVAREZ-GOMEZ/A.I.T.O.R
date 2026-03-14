@@ -948,6 +948,11 @@ with tab4:
                 
                 df_for['Ganancia €'] = (df_for['Rendimiento Real'] / 100) * capital_trade
                 
+                # 1. ORDENAMOS LAS COLUMNAS PRIMERO (Solución al error)
+                cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
+                df_for = df_for[cols_order]
+                
+                # 2. APLICAMOS EL COLOR Y FORMATO DESPUÉS
                 def f_pct(val): return f"{val:+.2f}%" if isinstance(val, (int, float)) else val
                 def f_dol(val): return f"{val:,.2f}" if isinstance(val, (int, float)) else val
                 def c_for(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
@@ -960,8 +965,7 @@ with tab4:
                     
                 styled_f = df_for.style.format(f_pct, subset=['Rendimiento Real', 'Max Drawdown']).format(f_dol, subset=['Precio Ent', 'Precio Sal', 'Ganancia €']).map(c_for, subset=['Rendimiento Real', 'Ganancia €']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
                 
-                cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
-                st.dataframe(styled_f[cols_order], use_container_width=True, hide_index=True)
+                st.dataframe(styled_f, use_container_width=True, hide_index=True)
 # =====================================================================
 # PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
 # =====================================================================
