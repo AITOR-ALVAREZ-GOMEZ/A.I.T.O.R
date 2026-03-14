@@ -589,7 +589,7 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (TRIBUNAL + VELOCÍMETROS PRT)
+# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (DASHBOARD MAESTRO-DETALLE)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
@@ -601,7 +601,7 @@ with tab4:
     opciones_compresion = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
     compresion = col_c1.selectbox("¿Cuántos días formarán UNA vela en el Test?", opciones_compresion, index=0)
     capital_trade = col_c2.number_input("Capital por Operación (€):", value=10000, step=1000)
-    min_trades = col_c3.number_input("Mínimo de Trades exigidos:", value=10, step=1, help="Sistemas con menos operaciones serán ignorados por falta de robustez estadística.")
+    min_trades = col_c3.number_input("Mínimo de Trades exigidos:", value=10, step=1, help="Sistemas con menos operaciones serán ignorados en el Modo Dios.")
 
     # 2. PANEL QUANT MANUAL
     st.markdown("### 🎛️ 2. Panel Quant (Desactívalos si quieres calcar tu PRT exacto)")
@@ -802,7 +802,7 @@ with tab4:
                     
                     if len(log_for) > 0:
                         if len(log_for) < min_trades:
-                            st.warning(f"⚠️ El test arrojó {len(log_for)} operaciones, lo cual está por debajo del mínimo de robustez ({min_trades}). Se muestra bajo tu propio riesgo.")
+                            st.warning(f"⚠️ El test arrojó {len(log_for)} operaciones. Por debajo de tu límite de robustez ({min_trades}).")
                         
                         wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
                         
@@ -834,7 +834,6 @@ with tab4:
                             for test_v in [None, 0.5, 1.0]:
                                 log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp)
                                 
-                                # APLICAMOS EL FILTRO DE ROBUSTEZ (ELIMINA LOS DE 4 TRADES)
                                 if len(log_for) >= min_trades: 
                                     wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
                                     nuevo_test = {
@@ -849,24 +848,25 @@ with tab4:
                 
                 if resultados_temp:
                     df_temp = pd.DataFrame(resultados_temp)
-                    # Ordenamos inicialmente por Ganancia Media
-                    df_temp = df_temp.sort_values(by="Euros Medio", ascending=False).head(10)
+                    df_temp = df_temp.sort_values(by="Euros Medio", ascending=False).head(15)
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Modo Dios Finalizado. Filtrado por robustez aplicado.")
+                    st.success("✅ Modo Dios Finalizado.")
                 else: st.warning(f"Ninguna combinación generó el mínimo exigido de {min_trades} operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
-    # --- RESULTADOS (EL COLISEO CON VELOCÍMETROS) ---
+    # =========================================================================
+    # EL NUEVO COLISEO QUANT (DASHBOARD MAESTRO-DETALLE)
+    # =========================================================================
     if len(st.session_state['historial_lab']) > 0:
         import plotly.graph_objects as go
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
         
         if not df_hist.empty:
             st.markdown("---")
-            st.markdown("## ⚔️ El Coliseo Quant (Resultados del Tribunal)")
+            st.markdown("## ⚔️ El Coliseo Quant (Dashboard Interactivo)")
             
-            # EL SELECTOR DE CORONAS (Tú decides quién gana)
-            criterio_orden = st.selectbox("🏆 ¿Qué métrica define al Campeón Absoluto?", [
+            # --- 1. SECCIÓN MAESTRA (LA TABLA DE RANKING) ---
+            criterio_orden = st.selectbox("🏆 ¿Qué métrica define el Ranking Oficial?", [
                 "Ganancia Media (€)", "Mayor Profit Factor", "Mayor % Acierto (WinRate)", "Robustez (Mayor nº Trades)"
             ])
             
@@ -879,26 +879,52 @@ with tab4:
             else:
                 df_hist = df_hist.sort_values(by=["Trades", "Euros Medio"], ascending=[False, False])
 
-            campeon = df_hist.iloc[0]
+            # Resetear índice para que coincida perfectamente con el selector
+            df_hist = df_hist.reset_index(drop=True)
+
+            st.markdown("#### 📋 Ranking Oficial de Sistemas")
             
-            st.markdown(f"### 👑 CAMPEÓN ABSOLUTO: {campeon['Sistema']} ({campeon['Compresión']})")
-            st.markdown(f"**Vigilancia:** Z-Score: {campeon['Z-Score']} | Volumen: {campeon['Volumen']} | Trades Totales: {campeon['Trades']}")
+            def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
             
+            # Forzamos las columnas exactas que queremos ver
+            cols_visibles = ["Compresión", "Sistema", "WinRate", "Profit Factor", "Rend Medio %", "Euros Medio", "Trades", "Velas Medias", "Z-Score", "Volumen"]
+            df_disp = df_hist[cols_visibles]
+            
+            styled = df_disp.style.format({
+                "WinRate": "{:.1f}%", 
+                "Profit Factor": "{:.2f}", 
+                "Rend Medio %": "{:+.2f}%", 
+                "Euros Medio": "{:+.2f} €",
+                "Velas Medias": "{:.1f}"
+            }).map(c_hist, subset=['Rend Medio %', 'Euros Medio'])
+            
+            st.dataframe(styled, use_container_width=True)
+
+            # --- 2. EL SELECTOR DETALLE (LA MAGIA) ---
+            st.markdown("---")
+            st.markdown("### 🎛️ Análisis Profundo (Selecciona un Sistema)")
+            opciones_dash = [f"Top {i+1} | {row['Sistema']} ({row['Compresión']}) | PF: {row['Profit Factor']:.2f} | Win: {row['WinRate']}% | {row['Euros Medio']:+.2f} €" for i, row in df_hist.iterrows()]
+            idx_sel = st.selectbox("🎯 Elige un sistema de la tabla superior para cargar sus gráficas y operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x])
+            
+            # EL SISTEMA ELEGIDO QUE ALIMENTA TODO LO DE ABAJO
+            sistema_activo = df_hist.iloc[idx_sel]
+            
+            st.markdown(f"#### 🔎 Viendo detalles del TOP {idx_sel+1}: {sistema_activo['Sistema']} ({sistema_activo['Compresión']})")
+            
+            # --- 3. LOS VELOCÍMETROS DEL SISTEMA ELEGIDO ---
             col_v1, col_v2, col_v3 = st.columns(3)
             
             # Velocímetro 1: Win Rate
             fig_wr = go.Figure(go.Indicator(
                 mode = "gauge+number",
-                value = campeon['WinRate'],
+                value = sistema_activo['WinRate'],
                 number = {'suffix': "%", 'font': {'size': 40, 'color': '#1d1d1f'}},
-                title = {'text': "% de Acierto<br><span style='font-size:0.8em;color:gray'>Posiciones Ganadoras</span>", 'font': {'size': 18}},
+                title = {'text': "% de Acierto", 'font': {'size': 18}},
                 gauge = {
                     'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
-                    'bar': {'color': "#16a34a" if campeon['WinRate'] >= 50 else "#dc2626"},
+                    'bar': {'color': "#16a34a" if sistema_activo['WinRate'] >= 50 else "#dc2626"},
                     'bgcolor': "white",
-                    'steps': [
-                        {'range': [0, 50], 'color': "#fee2e2"},
-                        {'range': [50, 100], 'color': "#dcfce7"}],
+                    'steps': [{'range': [0, 50], 'color': "#fee2e2"}, {'range': [50, 100], 'color': "#dcfce7"}],
                     'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 50}
                 }
             ))
@@ -906,21 +932,18 @@ with tab4:
             col_v1.plotly_chart(fig_wr, use_container_width=True)
 
             # Velocímetro 2: Profit Factor
-            pf_val = campeon['Profit Factor']
+            pf_val = sistema_activo['Profit Factor']
             pf_max = 5 if pf_val < 5 else pf_val + 1 
             fig_pf = go.Figure(go.Indicator(
                 mode = "gauge+number",
                 value = pf_val,
                 number = {'font': {'size': 40, 'color': '#1d1d1f'}},
-                title = {'text': "Ratio Ganancia/Pérdida<br><span style='font-size:0.8em;color:gray'>Profit Factor</span>", 'font': {'size': 18}},
+                title = {'text': "Profit Factor", 'font': {'size': 18}},
                 gauge = {
                     'axis': {'range': [0, pf_max], 'tickwidth': 1, 'tickcolor': "darkblue"},
                     'bar': {'color': "#16a34a" if pf_val >= 1.5 else ("#eab308" if pf_val >= 1.0 else "#dc2626")},
                     'bgcolor': "white",
-                    'steps': [
-                        {'range': [0, 1], 'color': "#fee2e2"},
-                        {'range': [1, 2], 'color': "#fef9c3"},
-                        {'range': [2, pf_max], 'color': "#dcfce7"}],
+                    'steps': [{'range': [0, 1], 'color': "#fee2e2"}, {'range': [1, 2], 'color': "#fef9c3"}, {'range': [2, pf_max], 'color': "#dcfce7"}],
                     'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 1}
                 }
             ))
@@ -928,38 +951,52 @@ with tab4:
             col_v2.plotly_chart(fig_pf, use_container_width=True)
 
             # Tarjeta 3: Ganancia en Euros
-            color_eur = "#16a34a" if campeon['Euros Medio'] > 0 else "#dc2626"
+            color_eur = "#16a34a" if sistema_activo['Euros Medio'] > 0 else "#dc2626"
             col_v3.markdown(f"""
             <div style='text-align: center; padding: 20px; background-color: white; border-radius: 10px; border: 1px solid #e8eaed; height: 100%; display: flex; flex-direction: column; justify-content: center;'>
                 <h3 style='color: gray; margin:0; font-size:1.1rem;'>Ganancia Media por Trade</h3>
-                <p style='color: gray; font-size: 0.8rem; margin-bottom: 10px;'>(Invirtiendo {capital_trade}€)</p>
-                <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{campeon['Euros Medio']:+,.2f} €</h1>
-                <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{campeon['Rend Medio %']:+,.2f} %</p>
+                <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{sistema_activo['Euros Medio']:+,.2f} €</h1>
+                <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{sistema_activo['Rend Medio %']:+,.2f} %</p>
             </div>
             """, unsafe_allow_html=True)
             
-            # --- TABLA DE RANKING ---
-            st.markdown("#### 📋 Ranking Oficial de Sistemas:")
-            def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
-            df_disp = df_hist.drop(columns=["Logs"])
-            styled = df_disp.style.map(c_hist, subset=['Rend Medio %', 'Euros Medio'])
-            st.dataframe(styled, use_container_width=True, hide_index=True)
+            # --- 4. BOTÓN DE GUARDADO INTELIGENTE ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button(f"💾 GUARDAR EL SISTEMA [TOP {idx_sel+1}] EN EL ADN", type="primary", use_container_width=True):
+                with st.spinner("Inyectando el sistema seleccionado en la base de datos..."):
+                    try:
+                        c_z = float(sistema_activo['Z-Score'].replace("> ", "")) if sistema_activo['Z-Score'] != "OFF" else -99
+                        c_acc = float(sistema_activo['Accel'].replace("> ", "")) if sistema_activo['Accel'] != "OFF" else -99
+                        c_vol = float(sistema_activo['Volumen'].replace("> ", "")) if sistema_activo['Volumen'] != "OFF" else -99
+                        
+                        comp_pack = sistema_activo['Compresión']
+                        sis_pack = sistema_activo['Sistema']
+                        horizonte_inteligente = f"{comp_pack}_{sis_pack}" 
+                        
+                        df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
+                        n_id = str(int(datetime.datetime.now().timestamp()))
+                        es_def = True if df_adn_act[df_adn_act['Ticker'] == ticker].empty else False
+                        
+                        nuevo_adn = {
+                            "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
+                            "Horizonte": horizonte_inteligente, 
+                            "Rendimiento": sistema_activo['Euros Medio'], 
+                            "WinRate": sistema_activo['WinRate'], "Es_Default": es_def, "ID_ADN": n_id
+                        }
+                        
+                        conn.update(worksheet="ADN_Quant", data=pd.concat([df_adn_act, pd.DataFrame([nuevo_adn])], ignore_index=True))
+                        st.cache_data.clear(); st.session_state['adn_saved_success'] = True; st.rerun()
+                    except Exception as e: st.error(f"Error al guardar: {e}")
 
-            # --- INSPECTOR FORENSE ---
-            st.markdown("---")
-            st.markdown("### 🔍 Inspección Forense (Auditoría de Trades)")
-            tests_vis = df_hist.to_dict('records')
-            opc_insp = [f"Top {i+1} | {t['Sistema']} {t['Compresión']} | PF: {t['Profit Factor']} | Win: {t['WinRate']}% | Trades: {t['Trades']}" for i, t in enumerate(tests_vis)]
-            idx_el = st.selectbox("Abre la caja negra del Test:", range(len(opc_insp)), format_func=lambda x: opc_insp[x])
-            datos_for = tests_vis[idx_el]["Logs"]
+            # --- 5. INSPECTOR FORENSE DEL SISTEMA ELEGIDO ---
+            st.markdown("#### 📓 Auditoría de Operaciones (Logs del sistema elegido)")
+            datos_for = sistema_activo["Logs"]
             
             if datos_for:
                 df_for = pd.DataFrame(datos_for)
                 df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
-                
                 df_for['Ganancia €'] = (df_for['Rendimiento Real'] / 100) * capital_trade
                 
-                # ORDENAMOS LAS COLUMNAS PRIMERO (Previene el error rojo)
                 cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
                 df_for = df_for[cols_order]
                 
