@@ -595,12 +595,13 @@ with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
     st.markdown(f"Experimenta con **{ticker}**. El sistema usa tu Tribunal de 3 Indicadores anclado a Tiempo Real.")
     
-    # 1. COMPRESIÓN TEMPORAL Y CAPITAL
+    # 1. COMPRESIÓN TEMPORAL, CAPITAL Y ROBUSTEZ
     st.markdown("### ⏳ 1. Configuración de Simulación")
-    col_c1, col_c2 = st.columns(2)
+    col_c1, col_c2, col_c3 = st.columns(3)
     opciones_compresion = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
     compresion = col_c1.selectbox("¿Cuántos días formarán UNA vela en el Test?", opciones_compresion, index=0)
-    capital_trade = col_c2.number_input("Capital por Operación (€) para medir ganancias:", value=10000, step=1000)
+    capital_trade = col_c2.number_input("Capital por Operación (€):", value=10000, step=1000)
+    min_trades = col_c3.number_input("Mínimo de Trades exigidos:", value=10, step=1, help="Sistemas con menos operaciones serán ignorados por falta de robustez estadística.")
 
     # 2. PANEL QUANT MANUAL
     st.markdown("### 🎛️ 2. Panel Quant (Desactívalos si quieres calcar tu PRT exacto)")
@@ -638,11 +639,9 @@ with tab4:
     col_run_man, col_run_auto = st.columns(2)
     
     # -------------------------------------------------------------------------
-    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA) ORIGINAL MATEMÁTICO
+    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA)
     # -------------------------------------------------------------------------
     def calcular_kama(series, n=10, fast=2, slow=30):
-        # Si n=1 como me pediste, el Ratio de Eficiencia falla matemáticamente.
-        # Ajustamos el mínimo vital a 2 para que el algoritmo respire.
         n_eff = max(2, n) 
         change = series.diff(n_eff).abs()
         volatility = series.diff().abs().rolling(n_eff).sum()
@@ -659,19 +658,16 @@ with tab4:
         return pd.Series(kama, index=series.index)
 
     # -------------------------------------------------------------------------
-    # FRACTAL ENGINE (CON ANCLAJE INVERSO PRT) + TRIBUNAL
+    # FRACTAL ENGINE (ANCLAJE INVERSO PRT) + TRIBUNAL
     # -------------------------------------------------------------------------
     def procesar_datos_fractales(ticker_str, comp):
         df_raw = yf.Ticker(ticker_str).history(period="max")
         if df_raw.empty: return pd.DataFrame()
         
-        # EL GRAN FIX: Anclaje Inverso desde HOY para coincidir con PRT
         if comp > 1:
             n = len(df_raw)
-            # Creamos grupos contando hacia atrás
             groups = (n - 1 - np.arange(n)) // comp
             df_raw['Grupo'] = groups
-            # Invertimos para que suban de forma cronológica
             df_raw['Grupo'] = df_raw['Grupo'].max() - df_raw['Grupo']
             
             fechas_agrupadas = df_raw.reset_index().groupby('Grupo')['Date'].last().values
@@ -690,17 +686,14 @@ with tab4:
         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
         
-        # Medias AMA reales (Ajustamos n=2 mínimo para que la matemática KAMA no dé error div/0)
         df_b['AMA_Rápida'] = calcular_kama(df_b['Close'], n=2, fast=2, slow=3)
         df_b['AMA_Lenta'] = calcular_kama(df_b['Open'], n=2, fast=3, slow=5)
         
-        # Juez 1: MACD
         macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
         macd_sig = macd_line.ewm(span=3, adjust=False).mean()
         df_b['J1_Azul'] = macd_line > macd_sig
         df_b['J1_Rojo'] = macd_line < macd_sig
         
-        # Juez 2: Stoch/Boll
         sma2 = df_b['Close'].rolling(window=2).mean()
         delta = df_b['Close'].diff()
         gain = delta.clip(lower=0).rolling(window=3).mean()
@@ -711,7 +704,6 @@ with tab4:
         df_b['J2_Azul'] = (stoch_rsi > 0.5) & (df_b['Close'] > sma2)
         df_b['J2_Rojo'] = (stoch_rsi < 0.5) & (df_b['Close'] < sma2)
         
-        # Juez 3: CCI
         tp = (df_b['High'] + df_b['Low'] + df_b['Close']) / 3
         sma2_tp = tp.rolling(window=2).mean()
         cci = (tp - sma2_tp) / (0.015 * tp.rolling(window=2).apply(lambda x: np.abs(x - x.mean()).mean()) + 0.0001)
@@ -724,7 +716,7 @@ with tab4:
         return df_b
 
     # -------------------------------------------------------------------------
-    # MOTOR DE BACKTEST (MÍNIMOS INTRADÍA + SISTEMA DECLARADO)
+    # MOTOR DE BACKTEST (MÍNIMOS INTRADÍA)
     # -------------------------------------------------------------------------
     def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp):
         cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
@@ -782,7 +774,7 @@ with tab4:
         return log_forense
 
     # -------------------------------------------------------------------------
-    # FUNCIÓN PARA CALCULAR MÉTRICAS ESTILO PROREALTIME
+    # FUNCIÓN MÉTRICAS PRT
     # -------------------------------------------------------------------------
     def compilar_metricas(log_for, cap_trade):
         if not log_for: return 0, 0, 0, 0, 0
@@ -809,6 +801,9 @@ with tab4:
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     
                     if len(log_for) > 0:
+                        if len(log_for) < min_trades:
+                            st.warning(f"⚠️ El test arrojó {len(log_for)} operaciones, lo cual está por debajo del mínimo de robustez ({min_trades}). Se muestra bajo tu propio riesgo.")
+                        
                         wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
                         
                         nuevo_test = {
@@ -839,7 +834,8 @@ with tab4:
                             for test_v in [None, 0.5, 1.0]:
                                 log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp)
                                 
-                                if len(log_for) >= 4: 
+                                # APLICAMOS EL FILTRO DE ROBUSTEZ (ELIMINA LOS DE 4 TRADES)
+                                if len(log_for) >= min_trades: 
                                     wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
                                     nuevo_test = {
                                         "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
@@ -853,11 +849,11 @@ with tab4:
                 
                 if resultados_temp:
                     df_temp = pd.DataFrame(resultados_temp)
-                    df_temp['EV_Proxy'] = df_temp['WinRate'] * df_temp['Profit Factor']
-                    df_temp = df_temp.sort_values(by="EV_Proxy", ascending=False).drop(columns=['EV_Proxy']).head(8)
+                    # Ordenamos inicialmente por Ganancia Media
+                    df_temp = df_temp.sort_values(by="Euros Medio", ascending=False).head(10)
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Modo Dios Finalizado.")
-                else: st.warning("Ninguna combinación generó operaciones viables.")
+                    st.success("✅ Modo Dios Finalizado. Filtrado por robustez aplicado.")
+                else: st.warning(f"Ninguna combinación generó el mínimo exigido de {min_trades} operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
     # --- RESULTADOS (EL COLISEO CON VELOCÍMETROS) ---
@@ -868,10 +864,25 @@ with tab4:
         if not df_hist.empty:
             st.markdown("---")
             st.markdown("## ⚔️ El Coliseo Quant (Resultados del Tribunal)")
+            
+            # EL SELECTOR DE CORONAS (Tú decides quién gana)
+            criterio_orden = st.selectbox("🏆 ¿Qué métrica define al Campeón Absoluto?", [
+                "Ganancia Media (€)", "Mayor Profit Factor", "Mayor % Acierto (WinRate)", "Robustez (Mayor nº Trades)"
+            ])
+            
+            if "Ganancia" in criterio_orden:
+                df_hist = df_hist.sort_values(by=["Euros Medio", "Profit Factor"], ascending=[False, False])
+            elif "Profit" in criterio_orden:
+                df_hist = df_hist.sort_values(by=["Profit Factor", "Euros Medio"], ascending=[False, False])
+            elif "WinRate" in criterio_orden:
+                df_hist = df_hist.sort_values(by=["WinRate", "Euros Medio"], ascending=[False, False])
+            else:
+                df_hist = df_hist.sort_values(by=["Trades", "Euros Medio"], ascending=[False, False])
+
             campeon = df_hist.iloc[0]
             
             st.markdown(f"### 👑 CAMPEÓN ABSOLUTO: {campeon['Sistema']} ({campeon['Compresión']})")
-            st.markdown(f"**Vigilancia:** Z-Score: {campeon['Z-Score']} | Volumen: {campeon['Volumen']} | Duración Media: {campeon['Velas Medias']} Velas")
+            st.markdown(f"**Vigilancia:** Z-Score: {campeon['Z-Score']} | Volumen: {campeon['Volumen']} | Trades Totales: {campeon['Trades']}")
             
             col_v1, col_v2, col_v3 = st.columns(3)
             
@@ -894,7 +905,7 @@ with tab4:
             fig_wr.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
             col_v1.plotly_chart(fig_wr, use_container_width=True)
 
-            # Velocímetro 2: Profit Factor (Ratio)
+            # Velocímetro 2: Profit Factor
             pf_val = campeon['Profit Factor']
             pf_max = 5 if pf_val < 5 else pf_val + 1 
             fig_pf = go.Figure(go.Indicator(
@@ -928,7 +939,7 @@ with tab4:
             """, unsafe_allow_html=True)
             
             # --- TABLA DE RANKING ---
-            st.markdown("#### 📋 Top Rankings de Sistemas:")
+            st.markdown("#### 📋 Ranking Oficial de Sistemas:")
             def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
             df_disp = df_hist.drop(columns=["Logs"])
             styled = df_disp.style.map(c_hist, subset=['Rend Medio %', 'Euros Medio'])
@@ -938,7 +949,7 @@ with tab4:
             st.markdown("---")
             st.markdown("### 🔍 Inspección Forense (Auditoría de Trades)")
             tests_vis = df_hist.to_dict('records')
-            opc_insp = [f"Top {i+1} | {t['Sistema']} {t['Compresión']} | PF: {t['Profit Factor']} | Win: {t['WinRate']}%" for i, t in enumerate(tests_vis)]
+            opc_insp = [f"Top {i+1} | {t['Sistema']} {t['Compresión']} | PF: {t['Profit Factor']} | Win: {t['WinRate']}% | Trades: {t['Trades']}" for i, t in enumerate(tests_vis)]
             idx_el = st.selectbox("Abre la caja negra del Test:", range(len(opc_insp)), format_func=lambda x: opc_insp[x])
             datos_for = tests_vis[idx_el]["Logs"]
             
@@ -948,11 +959,10 @@ with tab4:
                 
                 df_for['Ganancia €'] = (df_for['Rendimiento Real'] / 100) * capital_trade
                 
-                # 1. ORDENAMOS LAS COLUMNAS PRIMERO (Solución al error)
+                # ORDENAMOS LAS COLUMNAS PRIMERO (Previene el error rojo)
                 cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
                 df_for = df_for[cols_order]
                 
-                # 2. APLICAMOS EL COLOR Y FORMATO DESPUÉS
                 def f_pct(val): return f"{val:+.2f}%" if isinstance(val, (int, float)) else val
                 def f_dol(val): return f"{val:,.2f}" if isinstance(val, (int, float)) else val
                 def c_for(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
