@@ -938,10 +938,40 @@ with tab4:
 # =====================================================================
 # FIN DE LA PESTAÑA 4 (EL CÓDIGO SIGUE CON `with tab5:`)
 # =====================================================================
+# =====================================================================
+# PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN
+# =====================================================================
 with tab5:
     st.title("📡 Radar Institucional (El Centro de Mando)")
-    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY. Las alertas te dirán exactamente qué ADN (Corto, Medio o Largo plazo) acaba de detonar.")
+    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY. Las alertas te dirán exactamente qué ADN acaba de detonar.")
     
+    # --- VISOR GLOBAL DE LA PISCINA DE ADN ---
+    st.markdown("### 🌐 Tu Piscina de ADN Global")
+    if not df_adn.empty:
+        df_global_view = df_adn.copy()
+        
+        # Formateo visual de la tabla global
+        df_global_view['Es_Default'] = df_global_view['Es_Default'].apply(lambda x: "⭐ SÍ" if x else "No")
+        df_global_view['Z_Min'] = df_global_view['Z_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        df_global_view['Acc_Min'] = df_global_view['Acc_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        df_global_view['Vol_Min'] = df_global_view['Vol_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        
+        cols_visor = ['Ticker', 'Horizonte', 'WinRate', 'Rendimiento', 'Z_Min', 'Acc_Min', 'Vol_Min', 'Es_Default']
+        cols_visor = [c for c in cols_visor if c in df_global_view.columns] # Seguridad por si falta alguna columna
+        
+        # Mostrar la tabla ordenada por Ticker para que sea fácil de leer
+        st.dataframe(df_global_view[cols_visor].sort_values(by=['Ticker', 'Horizonte']), hide_index=True, use_container_width=True)
+        
+        # Resumen rápido de tropas
+        total_activos = df_global_view['Ticker'].nunique()
+        total_sistemas_guardados = len(df_global_view)
+        st.markdown(f"<div style='font-size:0.9rem; color:#86868b; margin-bottom:20px; text-align:right;'>Vigilando <b>{total_sistemas_guardados} sistemas</b> distribuidos en <b>{total_activos} activos</b>.</div>", unsafe_allow_html=True)
+    else:
+        st.info("Tu piscina de ADN está vacía. Ve al Laboratorio Quant, busca un Ticker y guarda tu primer sistema ganador.")
+
+    st.markdown("---")
+    
+    # --- MOTOR DEL RADAR ---
     if st.button("🔄 Lanzar Radar Diario de Mercado", type="primary", use_container_width=True):
         if df_adn.empty:
             st.warning("Aún no has guardado el ADN de ninguna acción en el Laboratorio Quant. No hay nada que vigilar.")
@@ -1023,7 +1053,7 @@ with tab5:
                                     riesgo_eur_rad = CAPITAL * (r_pct_rad / 100.0)
                                     acciones_rad = math.floor(riesgo_eur_rad / dist_stop_rad)
                                     inv_rad = acciones_rad * p_compra_rad
-                                    st.success(f"**Posición recomendada:** {acciones_rad} acciones")
+                                    st.success(f"**Posición:** {acciones_rad} acciones")
                                     st.info(f"**Inversión total:** {inv_rad:,.2f} $")
                                 else:
                                     acciones_rad = 0
