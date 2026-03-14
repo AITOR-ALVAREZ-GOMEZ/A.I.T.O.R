@@ -566,8 +566,14 @@ with tab3:
                 df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
                 adn_ticker = df_adn[df_adn['Ticker'] == ticker_vivo]
                 
+                # 🛡️ FILTRO CORE: Excluir los sistemas que son SOLO para el Radar Intradía
+                if 'Perfil' in adn_ticker.columns:
+                    # Rellenamos los vacíos antiguos asumiendo que eran del Escáner
+                    adn_ticker['Perfil'] = adn_ticker['Perfil'].fillna("Escáner")
+                    adn_ticker = adn_ticker[adn_ticker['Perfil'].astype(str).str.contains("Escáner")]
+                
                 if adn_ticker.empty:
-                    st.error(f"❌ No hay ADN guardado para {ticker_vivo}. Ve a la Pestaña 4 y guarda tus estrellas.")
+                    st.error(f"❌ No hay sistemas de 'Escáner' guardados para {ticker_vivo}. Ve a la Pestaña 4.")
                 else:
                     import yfinance as yf
                     import pandas as pd
@@ -616,7 +622,6 @@ with tab3:
                             df_temp = df_real.copy()
                             df_temp['Date'] = df_temp.index
                             df_temp['Grupo'] = grupos_raw
-                            # Etiquetamos cada vela con el PRIMER día para que coincida con tu gráfico
                             df_b = df_temp.groupby('Grupo').agg({'Date': 'first', 'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
                             df_b.set_index('Date', inplace=True)
                         else:
@@ -730,7 +735,6 @@ with tab3:
                             fecha_ent_final = "---"
                             fecha_sal_final = memoria_sal_str
                             
-                            # 🚨 DETECTOR DE VETO QUANT
                             if df_b['Tech_OK'].iloc[-2] and not df_b['Quant_OK'].iloc[-2]:
                                 gatillo_texto = "Bloqueado por Quant (Z/Vol insuficiente)"
                             elif df_b['Candidato_Ent'].iloc[-2]:
@@ -828,7 +832,7 @@ with tab3:
                 st.error(f"Error al procesar la posición viva: {e}")
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO QUANT (ESTABILIDAD INSTITUCIONAL ABSOLUTA)
+# PESTAÑA 4: LABORATORIO QUANT Y DELEGACIÓN
 # =====================================================================
 with tab4:
     if 'resultados_quant_definitivos' not in st.session_state:
@@ -1037,22 +1041,29 @@ with tab4:
                 else: st.warning(f"Ninguna compresión generó suficientes operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
+    # =========================================================================
+    # EL COLISEO QUANT: TABLA DE DELEGACIÓN INTERACTIVA (2 CASILLAS)
+    # =========================================================================
     if len(st.session_state['resultados_quant_definitivos']) > 0:
         import plotly.graph_objects as go
         
         st.markdown("---")
         st.markdown("## 🗺️ Topografía Fractal de Campeones")
-        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner.")
+        st.info("💡 **Marca el destino** de los sistemas que quieras guardar (Puedes marcar uno o ambos).")
         
         df_hist = pd.DataFrame(st.session_state['resultados_quant_definitivos'])
-        if "⭐" not in df_hist.columns: df_hist.insert(0, "⭐", False)
+        
+        # Inyectamos las dos columnas booleanas si no existen
+        if "⭐ Escáner" not in df_hist.columns: df_hist.insert(0, "⭐ Escáner", False)
+        if "📡 Radar" not in df_hist.columns: df_hist.insert(1, "📡 Radar", False)
             
-        cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"]
+        cols_visibles = ["⭐ Escáner", "📡 Radar", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"]
         
         edited_df = st.data_editor(
             df_hist[cols_visibles],
             column_config={
-                "⭐": st.column_config.CheckboxColumn("⭐ Favorito", default=False),
+                "⭐ Escáner": st.column_config.CheckboxColumn("⭐ Escáner", default=False),
+                "📡 Radar": st.column_config.CheckboxColumn("📡 Radar", default=False),
                 "WinRate": st.column_config.NumberColumn("WinRate", format="%.1f%%"),
                 "Profit Factor": st.column_config.NumberColumn("Profit", format="%.2f"),
                 "EV (%)": st.column_config.NumberColumn("EV (%)", format="%+.2f%%"),
@@ -1064,30 +1075,43 @@ with tab4:
         )
 
         st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary", use_container_width=True):
-            sistemas_marcados = edited_df[edited_df["⭐"] == True]
-            indices_marcados = sistemas_marcados.index.tolist()
-            if len(indices_marcados) == 0: st.warning("⚠️ No has marcado ninguna estrella.")
+        if st.button("💾 INYECTAR SISTEMAS SELECCIONADOS", type="primary", use_container_width=True):
+            # Filtramos los que tengan al menos una casilla marcada
+            sistemas_marcados = edited_df[(edited_df["⭐ Escáner"] == True) | (edited_df["📡 Radar"] == True)]
+            
+            if sistemas_marcados.empty: 
+                st.warning("⚠️ No has marcado ninguna casilla (ni Escáner ni Radar).")
             else:
-                with st.spinner(f"Inyectando {len(indices_marcados)} sistemas en tu ADN Quant..."):
+                with st.spinner(f"Inyectando sistemas en tu ADN Quant..."):
                     try:
                         df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
                         if not df_adn_act.empty: df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
                         
                         nuevas_filas = []
-                        for idx in indices_marcados:
-                            sys = df_hist.iloc[idx] 
+                        for idx, sys in sistemas_marcados.iterrows():
                             c_z = float(sys['Z-Score'].replace("> ", "")) if sys['Z-Score'] != "OFF" else -99
                             c_acc = float(sys['Accel'].replace("> ", "")) if sys['Accel'] != "OFF" else -99
                             c_vol = float(sys['Volumen'].replace("> ", "")) if sys['Volumen'] != "OFF" else -99
                             horizonte = f"{sys['Compresión']}_{sys['Sistema']}" 
                             n_id = str(int(datetime.datetime.now().timestamp())) + "_" + sys['Compresión']
-                            nuevas_filas.append({"Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, "Horizonte": horizonte, "Rendimiento": sys['EV (€)'], "WinRate": sys['WinRate'], "Es_Default": True, "ID_ADN": n_id})
+                            
+                            # Creamos la etiqueta de Perfil combinada
+                            perfiles = []
+                            if sys["⭐ Escáner"]: perfiles.append("Escáner")
+                            if sys["📡 Radar"]: perfiles.append("Radar")
+                            perfil_str = " + ".join(perfiles)
+                            
+                            nuevas_filas.append({
+                                "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
+                                "Horizonte": horizonte, "Rendimiento": sys['EV (€)'], 
+                                "WinRate": sys['WinRate'], "Es_Default": True, "ID_ADN": n_id,
+                                "Perfil": perfil_str
+                            })
                         
                         df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
                         conn.update(worksheet="ADN_Quant", data=df_final)
                         st.cache_data.clear()
-                        st.success(f"✅ ¡Éxito! Has inyectado el ADN de {len(indices_marcados)} fractales para {ticker}.")
+                        st.success(f"✅ ¡Éxito! Has inyectado {len(nuevas_filas)} fractales con sus etiquetas para {ticker}.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
         st.markdown("---")
