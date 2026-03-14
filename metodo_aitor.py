@@ -627,9 +627,9 @@ with tab4:
     st.markdown("### 🏛️ 3. Arquitectura del Sistema (Entradas y Salidas)")
     st.info("⚖️ **El Tribunal:** MACD(3,5,3), Combo Stoch/Boll(3,2), CCI(2). Exige 2/3 Azul para Entrar. Exige 2/3 Rojo para Salir.")
     tipo_sistema = st.radio("Añade el filtro de Medias Adaptativas (AMA Cierre 2, AMA Apertura 3):", [
-        "1️⃣ Sistema PURO: Ignorar medias. Entrar con Tribunal Azul + Romper Máximo. Salir con Tribunal Rojo + Perder Mínimo.",
-        "2️⃣ Sistema HÍBRIDO: Entrar SOLO si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.",
-        "3️⃣ Sistema TENDENCIAL: Entrar SOLO si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."
+        "PURO: Ignorar medias. Entrar con Tribunal Azul + Romper Máximo. Salir con Tribunal Rojo + Perder Mínimo.",
+        "HÍBRIDO: Entrar SOLO si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.",
+        "TENDENCIAL: Entrar SOLO si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."
     ], index=1)
     
     st.markdown("<br>", unsafe_allow_html=True)
@@ -693,13 +693,13 @@ with tab4:
         return df_b
 
     # -------------------------------------------------------------------------
-    # MOTOR DE BACKTEST (CON CORRECCIÓN DE OPERACIONES ABIERTAS)
+    # MOTOR DE BACKTEST (MÍNIMOS INTRADÍA + SISTEMA DECLARADO)
     # -------------------------------------------------------------------------
     def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp):
         cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
         cond_acc = (df_bt['Accel'] > t_a) if b_a else pd.Series(True, index=df_bt.index)
         cond_vol = (df_bt['Vol_Z_Score'] > t_v) if b_v else pd.Series(True, index=df_bt.index)
-        cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "1️⃣" not in sys_type else pd.Series(True, index=df_bt.index)
+        cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_bt.index)
             
         df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias
         
@@ -708,28 +708,33 @@ with tab4:
         
         while i < len(df_bt) - 1:
             if df_bt.iloc[i]['Candidato_Ent']:
+                # GATILLO INTRADÍA: La vela siguiente supera el máximo
                 if df_bt.iloc[i+1]['High'] > df_bt.iloc[i]['High']:
                     idx_ent = i + 1
-                    p_ent = df_bt.iloc[idx_ent]['Close'] 
+                    # Simulamos entrada en la ruptura exacta del máximo (o en la apertura si hubo gap alcista)
+                    p_ent = max(df_bt.iloc[idx_ent]['Open'], df_bt.iloc[i]['High'])
                     
                     idx_salida = -1
                     for j in range(idx_ent + 1, len(df_bt)):
                         trib_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
-                        pierde_min = df_bt['Close'].iloc[j] < df_bt['Low'].iloc[j-1]
                         
-                        if "3️⃣" in sys_type:
+                        # SALIDA INTRADÍA: El Mínimo (Low) de hoy perfora el Mínimo (Low) de ayer
+                        pierde_min = df_bt['Low'].iloc[j] < df_bt['Low'].iloc[j-1]
+                        
+                        if "TENDENCIAL" in sys_type:
                             cruce_b = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
                             if cruce_b and pierde_min: idx_salida = j; break
                         else:
                             if trib_rojo and pierde_min: idx_salida = j; break
                                 
                     if idx_salida != -1:
-                        # LA OPERACIÓN SE CERRÓ EN EL PASADO
-                        p_sal = df_bt['Close'].iloc[idx_salida]
+                        # LA OPERACIÓN SE CERRÓ
+                        # Simulamos salida en la pérdida del mínimo exacto
+                        p_sal = min(df_bt.iloc[idx_salida]['Open'], df_bt.iloc[idx_salida-1]['Low'])
                         f_sal = pd.to_datetime(df_bt.index[idx_salida]).strftime("%Y-%m-%d")
                         velas_in = idx_salida - idx_ent
                     else:
-                        # LA OPERACIÓN SIGUE ABIERTA HOY (El Bug que cazaste)
+                        # ABIERTA HOY
                         idx_salida = len(df_bt) - 1
                         p_sal = df_bt['Close'].iloc[idx_salida]
                         f_sal = "🟢 ABIERTA ACTUAL"
@@ -759,6 +764,7 @@ with tab4:
             try:
                 df_bt = procesar_datos_fractales(ticker, compresion)
                 if not df_bt.empty:
+                    sys_name = tipo_sistema.split(":")[0]
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     
                     if len(log_for) > 0:
@@ -766,7 +772,7 @@ with tab4:
                         wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
                         
                         nuevo_test = {
-                            "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": tipo_sistema.split(" ")[1],
+                            "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": sys_name,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", 
                             "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
                             "Trades": len(log_for), "WinRate": round(wr, 1), 
@@ -775,7 +781,7 @@ with tab4:
                             "Logs": log_for
                         }
                         st.session_state['historial_lab'].append(nuevo_test)
-                        st.success(f"✅ Análisis completado. {len(log_for)} operaciones encontradas (incluyendo abiertas).")
+                        st.success(f"✅ Análisis completado. {len(log_for)} operaciones encontradas.")
                     else: st.warning("Cero operaciones cerradas. Las reglas no dieron señal.")
             except Exception as e: st.error(f"Error: {e}")
 
@@ -789,7 +795,7 @@ with tab4:
                     df_bt = procesar_datos_fractales(ticker, cmp)
                     if df_bt.empty: continue
                     
-                    for s_type in ["1️⃣ Sistema PURO", "2️⃣ Sistema HÍBRIDO", "3️⃣ Sistema TENDENCIAL"]:
+                    for s_type in ["PURO", "HÍBRIDO", "TENDENCIAL"]:
                         for test_z in [None, 0.5, 1.0]:
                             for test_v in [None, 0.5, 1.0]:
                                 log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp)
@@ -798,7 +804,7 @@ with tab4:
                                     rets = [f["Rendimiento Real"] for f in log_for]
                                     wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
                                     nuevo_test = {
-                                        "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type.split(" ")[1],
+                                        "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
                                         "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
                                         "Volumen": f"> {test_v}" if test_v is not None else "OFF", "Accel": "OFF",
                                         "Trades": len(log_for), "WinRate": round(wr, 1), 
@@ -826,8 +832,9 @@ with tab4:
             campeon = df_hist.iloc[0]
             st.markdown(f"""
             <div class='champion-card'>
-                <div class='champion-title'>👑 CAMPEÓN ABSOLUTO ({campeon['Sistema']})</div>
+                <div class='champion-title'>👑 CAMPEÓN ABSOLUTO</div>
                 <div class='champion-stats'>
+                    <div class='stat-box'>⚙️ Medias: {campeon['Sistema']}</div>
                     <div class='stat-box'>⏱️ Velas: {campeon['Compresión']}</div>
                     <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
                     <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rend Medio: +{campeon['Rend Medio %']}%</div>
@@ -854,7 +861,6 @@ with tab4:
             
             if datos_for:
                 df_for = pd.DataFrame(datos_for)
-                # Ordenar para que las operaciones Abiertas o más recientes salgan arriba
                 df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
                 
                 def f_pct(val): return f"{val:+.2f}%" if isinstance(val, (int, float)) else val
