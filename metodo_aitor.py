@@ -602,7 +602,6 @@ with tab4:
     
     # Nueva serie de Fibonacci extendida
     horizontes_fibo = [13, 21, 34, 55, 89, 144, 233, 377]
-    str_cols_fibo = [f"Ret_{h}V ({h * compresion}d)" for h in horizontes_fibo]
 
     st.markdown("### 🎛️ 2. Panel Quant Manual")
     col_p1, col_p2, col_p3 = st.columns(3)
@@ -672,6 +671,7 @@ with tab4:
 
     # --- TEST MANUAL ---
     if col_run_man.button(f"⚙️ Ejecutar Simulación Manual en {ticker}", type="primary", use_container_width=True):
+        st.session_state['historial_lab'] = [] 
         with st.spinner(f"Comprimiendo tiempo ({compresion}d) y calculando..."):
             try:
                 df_bt = procesar_datos_fractales(ticker, compresion)
@@ -691,9 +691,7 @@ with tab4:
                     
                     for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
                         row = df_bt.iloc[i]
-                        date = df_bt.index[i]
                         if row['Candidato']:
-                            # Evitar entradas solapadas (Filtramos por velas, no por días)
                             if ultimo_idx_señal is not None and (i - ultimo_idx_señal) <= 5: 
                                 continue 
                             
@@ -707,32 +705,25 @@ with tab4:
                                 if row_next['High'] > row['High']: es_valida = True; idx_entrada = i + 1; p_entrada = row_next['Close']
 
                             if es_valida:
-                                # MAX DRAWDOWN (Calculado sobre las siguientes 55 velas para normalizar)
                                 ventana_minimos = df_bt['Low'].iloc[idx_entrada + 1 : idx_entrada + 56]
                                 minimo_alcanzado = ventana_minimos.min()
                                 max_drawdown = ((minimo_alcanzado - p_entrada) / p_entrada) * 100
                                 
-                                # Extraer fecha limpiamente, sea datetime64 o Timestamp
                                 fecha_str = pd.to_datetime(df_bt.index[idx_entrada]).strftime("%Y-%m-%d")
+                                fila_diario = {"Fecha Entrada": fecha_str, "Precio": f"{p_entrada:.2f} $", "Max Drawdown": max_drawdown}
                                 
-                                fila_diario = {
-                                    "Fecha Entrada": fecha_str, 
-                                    "Precio": f"{p_entrada:.2f} $", 
-                                    "Max Drawdown": max_drawdown
-                                }
                                 for h in horizontes_fibo:
                                     p_salida = df_bt['Close'].iloc[idx_entrada + h]
                                     ret = ((p_salida - p_entrada) / p_entrada) * 100
                                     datos_estadistica[h].append(ret)
-                                    col_name = f"Ret_{h}V ({h * compresion}d)"
-                                    fila_diario[col_name] = ret
+                                    fila_diario[f"Ret_{h}V ({h * compresion}d)"] = ret
                                     
                                 log_forense.append(fila_diario)
                                 ultimo_idx_señal = idx_entrada
 
                     total_señales = len(log_forense)
                     if total_señales > 0:
-                        positivas = len([s for s in datos_estadistica[21] if s > 0])
+                        positivas = len([s for s in datos_estadistica[21] if s > 0]) if 21 in datos_estadistica else len([s for s in datos_estadistica[horizontes_fibo[0]] if s > 0])
                         win_rate = (positivas / total_señales) * 100
                         nuevo_test = {
                             "Ticker": ticker, "Compresión": f"{compresion}d", "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", 
@@ -747,24 +738,28 @@ with tab4:
                     else: st.warning("Tus reglas son demasiado estrictas. 0 señales encontradas.")
             except Exception as e: st.error(f"Error: {e}")
 
-    # --- TEST AUTO (GRID SEARCH) ---
+    # --- TEST AUTO (GRID SEARCH MULTIDIMENSIONAL + SELECTOR OFF) ---
     if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo", type="secondary", use_container_width=True):
-        with st.spinner(f"Probando combinaciones institucionales en velas de {compresion}d..."):
+        st.session_state['historial_lab'] = [] 
+        with st.spinner(f"Probando las 100 combinaciones posibles (incluyendo apagar velocímetros)..."):
             try:
                 df_bt = procesar_datos_fractales(ticker, compresion)
                 if df_bt.empty: 
                     st.error(f"No hay suficientes datos históricos para crear velas de {compresion} días.")
                 else:
-                    for test_z in [0.5, 1.0, 1.5]:
-                        for test_a in [-0.5, 0.0, 0.5]:
-                            for test_v in [1.0, 1.5, 2.0]:
-                                cond_z = df_bt['Z_Score'] > test_z
-                                cond_acc = df_bt['Accel'] > test_a
-                                cond_vol = df_bt['Vol_Z_Score'] > test_v
+                    resultados_temp = []
+                    # EL MOTOR AHORA PRUEBA EL "NONE" (OFF) Y EL 0.0 PARA DESCUBRIR QUÉ SOBRA
+                    for test_z in [None, 0.0, 0.5, 1.0, 1.5]:
+                        for test_a in [None, -0.5, 0.0, 0.5]:
+                            for test_v in [None, 0.0, 0.5, 1.0, 1.5]:
+                                
+                                cond_z = (df_bt['Z_Score'] > test_z) if test_z is not None else pd.Series(True, index=df_bt.index)
+                                cond_acc = (df_bt['Accel'] > test_a) if test_a is not None else pd.Series(True, index=df_bt.index)
+                                cond_vol = (df_bt['Vol_Z_Score'] > test_v) if test_v is not None else pd.Series(True, index=df_bt.index)
                                 df_bt['Candidato'] = cond_z & cond_acc & cond_vol
                                 
                                 log_forense = []
-                                rets_21v = []
+                                rets_referencia = []
                                 ultimo_idx_señal = None
                                 
                                 for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
@@ -781,27 +776,31 @@ with tab4:
                                             max_drawdown = ((minimo_alcanzado - p_entrada) / p_entrada) * 100
                                             
                                             fecha_str = pd.to_datetime(df_bt.index[idx_entrada]).strftime("%Y-%m-%d")
+                                            fila_diario = {"Fecha Entrada": fecha_str, "Precio": f"{p_entrada:.2f} $", "Max Drawdown": max_drawdown}
                                             
-                                            fila_diario = {
-                                                "Fecha Entrada": fecha_str, 
-                                                "Precio": f"{p_entrada:.2f} $",
-                                                "Max Drawdown": max_drawdown
-                                            }
                                             for h in horizontes_fibo:
                                                 p_salida = df_bt['Close'].iloc[idx_entrada + h]
                                                 ret = ((p_salida - p_entrada) / p_entrada) * 100
                                                 col_name = f"Ret_{h}V ({h * compresion}d)"
                                                 fila_diario[col_name] = ret
-                                                if h == 21: rets_21v.append(ret)
+                                                if h == 21: rets_referencia.append(ret)
                                                 
                                             log_forense.append(fila_diario)
                                             ultimo_idx_señal = idx_entrada 
                                 
                                 if len(log_forense) > 0:
-                                    win_rate = (len([s for s in rets_21v if s > 0]) / len(log_forense)) * 100
+                                    # Si no hay horizonte 21, usamos el primero disponible para el winrate base
+                                    if not rets_referencia:
+                                        rets_referencia = [f[f"Ret_{horizontes_fibo[0]}V ({horizontes_fibo[0] * compresion}d)"] for f in log_forense]
+                                    
+                                    win_rate = (len([s for s in rets_referencia if s > 0]) / len(log_forense)) * 100
                                     nuevo_test = {
-                                        "Ticker": ticker, "Compresión": f"{compresion}d", "Z-Score": f"> {test_z}", "Accel": f"> {test_a}", 
-                                        "Volumen": f"> {test_v}", "Medias": "OFF", "Precio": "Continuación", 
+                                        "Ticker": ticker, 
+                                        "Compresión": f"{compresion}d", 
+                                        "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
+                                        "Accel": f"> {test_a}" if test_a is not None else "OFF", 
+                                        "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
+                                        "Medias": "OFF", "Precio": "Continuación", 
                                         "Trades": len(log_forense), "WinRate": round(win_rate, 1),
                                         "Logs": log_forense
                                     }
@@ -809,8 +808,21 @@ with tab4:
                                         col_name = f"Ret_{h}V ({h * compresion}d)"
                                         medias = [f[col_name] for f in log_forense]
                                         nuevo_test[col_name] = round(np.mean(medias), 2)
-                                    st.session_state['historial_lab'].append(nuevo_test)
-                    st.success("Test Auto Finalizado.")
+                                    resultados_temp.append(nuevo_test)
+                    
+                    if resultados_temp:
+                        df_temp = pd.DataFrame(resultados_temp)
+                        col_21v = f"Ret_21V ({21 * compresion}d)"
+                        if col_21v in df_temp.columns:
+                            # SE QUEDA CON EL TOP 5 ORDENADO POR WINRATE Y LUEGO POR RENDIMIENTO A 21 VELAS
+                            df_temp = df_temp.sort_values(by=["WinRate", col_21v], ascending=[False, False]).head(5)
+                        else:
+                            df_temp = df_temp.sort_values(by="WinRate", ascending=False).head(5)
+                            
+                        st.session_state['historial_lab'] = df_temp.to_dict('records')
+                        st.success("✅ Test Auto Finalizado. Mostrando el TOP 5 histórico.")
+                    else:
+                        st.warning("Ninguna combinación generó señales con estos parámetros.")
             except Exception as e: st.error(f"Error: {e}")
 
     # --- RESULTADOS Y GUARDADO (EL COLISEO) ---
@@ -820,10 +832,9 @@ with tab4:
         
         if not df_ticker_hist.empty:
             st.markdown("---")
-            st.markdown("## ⚔️ El Coliseo Quant (Resultados)")
+            st.markdown("## ⚔️ El Coliseo Quant (Resultados Limpios)")
             st.markdown("<div style='background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #22c55e; margin-bottom:20px;'>", unsafe_allow_html=True)
             
-            # Buscamos dinámicamente qué columnas de retorno tenemos disponibles en el DataFrame
             cols_ret_disponibles = [c for c in df_ticker_hist.columns if c.startswith("Ret_")]
             if cols_ret_disponibles:
                 objetivo_opt = st.selectbox("🏆 ¿A qué horizonte temporal quieres encontrar al Campeón?", cols_ret_disponibles, index=1 if len(cols_ret_disponibles)>1 else 0)
@@ -870,7 +881,7 @@ with tab4:
                             st.rerun()
                         except Exception as e: st.error(f"Error: {e}")
 
-                st.markdown("#### 📋 Historial de esta Sesión:")
+                st.markdown("#### 📋 Resultados de este Estudio (Top 5 Histórico):")
                 def color_history(val):
                     if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
                     return ''
@@ -885,11 +896,11 @@ with tab4:
                 # -----------------------------------------------------------------
                 st.markdown("---")
                 st.markdown("### 🔍 Inspección Forense (Autopsia Vela a Vela)")
-                st.markdown("Selecciona un Test para ver en qué fechas exactas entró y **cuánto llegó a caer el precio (Max Drawdown)**.")
+                st.markdown("Selecciona un Test de la tabla superior para ver sus fechas de entrada y **Nivel de Pánico**.")
                 
                 tests_visibles = df_ticker_hist.to_dict('records')
-                opciones_inspector = [f"Test {t.get('Compresión', '1d')} | Z {t['Z-Score']} | Acc {t['Accel']} | Vol {t['Volumen']} ({t['Trades']} trades)" for t in tests_visibles]
-                idx_elegido = st.selectbox("Abre la caja negra de un Test:", range(len(opciones_inspector)), format_func=lambda x: opciones_inspector[x])
+                opciones_inspector = [f"Top {i+1} | Z {t['Z-Score']} | Acc {t['Accel']} | Vol {t['Volumen']} ({t['Trades']} trades)" for i, t in enumerate(tests_visibles)]
+                idx_elegido = st.selectbox("Abre la caja negra del Test:", range(len(opciones_inspector)), format_func=lambda x: opciones_inspector[x])
                 datos_forenses = tests_visibles[idx_elegido]["Logs"]
                 
                 if datos_forenses:
