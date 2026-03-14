@@ -842,8 +842,8 @@ with tab4:
                 else: st.warning(f"Ninguna compresión generó suficientes operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
-    # =========================================================================
-    # EL COLISEO QUANT: TABLA DE FAVORITOS INTERACTIVA
+# =========================================================================
+    # EL COLISEO QUANT: TABLA DE FAVORITOS INTERACTIVA (MEMORIA BLINDADA)
     # =========================================================================
     if len(st.session_state['historial_lab']) > 0:
         import plotly.graph_objects as go
@@ -851,12 +851,13 @@ with tab4:
         st.markdown("---")
         st.markdown("## 🗺️ Topografía Fractal de Campeones")
         
-        # Ordenación manual que actualiza el Session State directamente
+        # 1. Cargamos la memoria sin borrarla
+        df_hist = pd.DataFrame(st.session_state['historial_lab'])
+        
         col_ord1, col_ord2 = st.columns([1, 2])
         criterio = col_ord1.selectbox("🏆 Ordenar Ranking por:", ["Esperanza Mat. (€)", "WinRate", "Profit Factor", "Compresión (Tiempo)"], key="orden_ranking")
         
-        df_hist = pd.DataFrame(st.session_state['historial_lab'])
-        
+        # 2. Ordenamos solo para visualización
         if "Esperanza" in criterio: df_hist = df_hist.sort_values(by=["EV (€)", "Profit Factor"], ascending=[False, False])
         elif "WinRate" in criterio: df_hist = df_hist.sort_values(by=["WinRate", "EV (€)"], ascending=[False, False])
         elif "Profit" in criterio: df_hist = df_hist.sort_values(by=["Profit Factor", "EV (€)"], ascending=[False, False])
@@ -865,11 +866,10 @@ with tab4:
             df_hist = df_hist.sort_values(by="Orden").drop(columns=['Orden'])
             
         df_hist = df_hist.reset_index(drop=True)
-        st.session_state['historial_lab'] = df_hist.to_dict('records') # Guardamos el orden
 
-        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner. Tus clics se guardarán automáticamente.")
+        st.info("💡 **Marca la casilla '⭐ Favorito'** en los sistemas que quieras enviar al Escáner. No se borrará la pantalla.")
         
-        # TABLA NATIVA INTERACTIVA (SIN BUG DE REINICIO)
+        # 3. Dibujamos el Editor de Datos
         cols_visibles = ["⭐", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
         df_disp = df_hist[cols_visibles]
         
@@ -886,19 +886,21 @@ with tab4:
             disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"],
             hide_index=True,
             use_container_width=True,
-            key="editor_adn_quant" # CANDADO DE TABLA
+            key="editor_adn_quant" 
         )
 
-        # Guardar en memoria qué estrellas has marcado
-        for i, val in enumerate(edited_df["⭐"]):
-            st.session_state['historial_lab'][i]["⭐"] = val
+        # 4. TRUCO DE MAGIA: Guardamos solo la columna de estrellas de vuelta a la memoria
+        df_hist["⭐"] = edited_df["⭐"]
+        st.session_state['historial_lab'] = df_hist.to_dict('records')
 
         # --- BOTÓN PARA INYECTAR ADN AL ESCÁNER ---
-        if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary"):
-            sistemas_marcados = [sys for sys in st.session_state['historial_lab'] if sys["⭐"] == True]
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("💾 INYECTAR FAVORITOS (⭐) EN EL ESCÁNER", type="primary", use_container_width=True):
+            # Filtramos los que tienen la estrella marcada
+            sistemas_marcados = df_hist[df_hist["⭐"] == True].to_dict('records')
             
             if len(sistemas_marcados) == 0:
-                st.warning("⚠️ No has marcado ninguna estrella. Marca al menos una en la tabla superior.")
+                st.warning("⚠️ No has marcado ninguna estrella. Haz clic en al menos una casilla de la tabla.")
             else:
                 with st.spinner(f"Inyectando {len(sistemas_marcados)} sistemas en tu ADN Quant..."):
                     try:
@@ -933,7 +935,6 @@ with tab4:
         st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
         opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['EV (€)']:+.2f} €" for i, row in df_hist.iterrows()]
         
-        # CANDADO DEL SELECTOR (Evita que la pantalla se borre al cambiar de sistema)
         idx_sel = st.selectbox("🎯 Elige un campeón para auditar sus operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="selector_detalle_campeon")
         
         sistema_activo = df_hist.iloc[idx_sel]
