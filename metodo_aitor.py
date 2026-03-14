@@ -596,12 +596,12 @@ with tab4:
     st.markdown(f"Experimenta con **{ticker}**. Comprime el tiempo para ver macro-tendencias y guarda múltiples sistemas.")
     
     # 1. COMPRESIÓN TEMPORAL (EL MOTOR FRACTAL)
-    st.markdown("### ⏳ 1. Compresión Temporal (Timeframe)")
+    st.markdown("### ⏳ 1. Compresión Temporal (Para Test Manual)")
     opciones_compresion = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
-    compresion = st.selectbox("¿Cuántos días reales formarán UNA sola vela para este análisis?", opciones_compresion, index=0)
+    compresion = st.selectbox("¿Cuántos días reales formarán UNA sola vela en el Test Manual?", opciones_compresion, index=0)
     
-    # Nueva serie de Fibonacci extendida
-    horizontes_fibo = [13, 21, 34, 55, 89, 144, 233, 377]
+    # Horizontes ampliados para Swing Trading y Position Trading
+    horizontes_fibo = [3, 5, 7, 13, 21, 34, 55, 89, 144, 233, 377]
 
     st.markdown("### 🎛️ 2. Panel Quant Manual")
     col_p1, col_p2, col_p3 = st.columns(3)
@@ -627,7 +627,7 @@ with tab4:
         
     st.markdown("### 📈 3. Filtro de Tendencia (Medias Móviles)")
     lista_mas = [2, 3, 5, 8, 13, 21, 34, 55]
-    mas_seleccionadas = st.multiselect(f"El precio debe estar POR ENCIMA de estas medias (Calculadas sobre velas de {compresion}d):", lista_mas, default=[])
+    mas_seleccionadas = st.multiselect("El precio debe estar POR ENCIMA de estas medias:", lista_mas, default=[])
     
     st.markdown("### 🎯 4. Confirmación del Precio (Price Action)")
     tipo_filtro = st.radio("¿Qué debe hacer la vela para activar tu compra?", [
@@ -642,42 +642,37 @@ with tab4:
     # -------------------------------------------------------------------------
     # FUNCIÓN DE COMPRESIÓN DE DATOS (FRACTAL ENGINE)
     # -------------------------------------------------------------------------
-    def procesar_datos_fractales(ticker, compresion):
-        df_raw = yf.Ticker(ticker).history(period="max")
+    def procesar_datos_fractales(ticker_str, comp):
+        df_raw = yf.Ticker(ticker_str).history(period="max")
         if df_raw.empty: return pd.DataFrame()
         
-        if compresion > 1:
-            df_raw['Grupo'] = np.arange(len(df_raw)) // compresion
+        if comp > 1:
+            df_raw['Grupo'] = np.arange(len(df_raw)) // comp
             fechas_agrupadas = df_raw.reset_index().groupby('Grupo')['Date'].last().values
-            df_bt = df_raw.groupby('Grupo').agg({
-                'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'
-            })
-            df_bt.index = fechas_agrupadas
+            df_b = df_raw.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
+            df_b.index = fechas_agrupadas
         else:
-            df_bt = df_raw.copy()
+            df_b = df_raw.copy()
             
-        if len(df_bt) < 100: return pd.DataFrame()
+        if len(df_b) < 100: return pd.DataFrame()
             
-        df_bt['MA55'] = df_bt['Close'].rolling(window=55).mean()
-        df_bt['Vol_MA55'] = df_bt['Volume'].rolling(window=55).mean()
-        df_bt['Vol_STD55'] = df_bt['Volume'].rolling(window=55).std()
-        df_bt['Vol_Z_Score'] = (df_bt['Volume'] - df_bt['Vol_MA55']) / df_bt['Vol_STD55']
-        df_bt['Z_Score'] = (df_bt['Close'] - df_bt['MA55']) / df_bt['Close'].rolling(window=55).std()
-        df_bt['ROC_10'] = df_bt['Close'].pct_change(periods=10) * 100
-        df_bt['Accel'] = df_bt['ROC_10'].diff(periods=5)
-        for ma in lista_mas: df_bt[f'MA_{ma}'] = df_bt['Close'].rolling(window=ma).mean()
-        
-        return df_bt
+        df_b['MA55'] = df_b['Close'].rolling(window=55).mean()
+        df_b['Vol_MA55'] = df_b['Volume'].rolling(window=55).mean()
+        df_b['Vol_STD55'] = df_b['Volume'].rolling(window=55).std()
+        df_b['Vol_Z_Score'] = (df_b['Volume'] - df_b['Vol_MA55']) / df_b['Vol_STD55']
+        df_b['Z_Score'] = (df_b['Close'] - df_b['MA55']) / df_b['Close'].rolling(window=55).std()
+        df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
+        df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
+        for ma in lista_mas: df_b[f'MA_{ma}'] = df_b['Close'].rolling(window=ma).mean()
+        return df_b
 
     # --- TEST MANUAL ---
     if col_run_man.button(f"⚙️ Ejecutar Simulación Manual en {ticker}", type="primary", use_container_width=True):
         st.session_state['historial_lab'] = [] 
-        with st.spinner(f"Comprimiendo tiempo ({compresion}d) y calculando..."):
+        with st.spinner(f"Calculando..."):
             try:
                 df_bt = procesar_datos_fractales(ticker, compresion)
-                if df_bt.empty: 
-                    st.error(f"No hay suficientes datos históricos para crear velas de {compresion} días.")
-                else:
+                if not df_bt.empty:
                     cond_z = (df_bt['Z_Score'] > bt_z_precio) if use_z else pd.Series(True, index=df_bt.index)
                     cond_acc = (df_bt['Accel'] > bt_accel) if use_acc else pd.Series(True, index=df_bt.index)
                     cond_vol = (df_bt['Vol_Z_Score'] > bt_z_vol) if use_vol else pd.Series(True, index=df_bt.index)
@@ -686,71 +681,68 @@ with tab4:
                     df_bt['Candidato'] = cond_z & cond_acc & cond_vol & cond_mas
                     
                     log_forense = []
-                    datos_estadistica = {h: [] for h in horizontes_fibo}
-                    ultimo_idx_señal = None
+                    ultimo_idx = -999
                     
-                    for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
-                        row = df_bt.iloc[i]
-                        if row['Candidato']:
-                            if ultimo_idx_señal is not None and (i - ultimo_idx_señal) <= 5: 
-                                continue 
+                    for i in range(55, len(df_bt) - 2):
+                        if df_bt.iloc[i]['Candidato']:
+                            if (i - ultimo_idx) <= 5: continue 
                             
-                            es_valida = False; idx_entrada = i; p_entrada = row['Close']
-                            gatillo_name = tipo_filtro.split(" (")[0].split(":")[0] 
+                            es_valida = False; idx_ent = i; p_ent = df_bt.iloc[i]['Close']
+                            gatillo = tipo_filtro.split(" (")[0].split(":")[0] 
+                            
                             if "Ninguno" in tipo_filtro: es_valida = True
                             elif "Fuerza Inmediata" in tipo_filtro:
-                                if row['High'] > df_bt.iloc[i-1]['High']: es_valida = True
+                                if df_bt.iloc[i]['High'] > df_bt.iloc[i-1]['High']: es_valida = True
                             elif "Continuación" in tipo_filtro:
                                 row_next = df_bt.iloc[i+1]
-                                if row_next['High'] > row['High']: es_valida = True; idx_entrada = i + 1; p_entrada = row_next['Close']
+                                if row_next['High'] > df_bt.iloc[i]['High']: 
+                                    es_valida = True; idx_ent = i + 1; p_ent = row_next['Close']
 
                             if es_valida:
-                                ventana_minimos = df_bt['Low'].iloc[idx_entrada + 1 : idx_entrada + 56]
-                                minimo_alcanzado = ventana_minimos.min()
-                                max_drawdown = ((minimo_alcanzado - p_entrada) / p_entrada) * 100
+                                end_dd = min(idx_ent + 56, len(df_bt))
+                                min_dd = df_bt['Low'].iloc[idx_ent + 1 : end_dd].min() if end_dd > idx_ent + 1 else p_ent
+                                max_dd = ((min_dd - p_ent) / p_ent) * 100
                                 
-                                fecha_str = pd.to_datetime(df_bt.index[idx_entrada]).strftime("%Y-%m-%d")
-                                fila_diario = {"Fecha Entrada": fecha_str, "Precio": f"{p_entrada:.2f} $", "Max Drawdown": max_drawdown}
+                                fila = {"Fecha Entrada": pd.to_datetime(df_bt.index[idx_ent]).strftime("%Y-%m-%d"), "Precio": f"{p_ent:.2f} $", "Max Drawdown": max_dd}
                                 
                                 for h in horizontes_fibo:
-                                    p_salida = df_bt['Close'].iloc[idx_entrada + h]
-                                    ret = ((p_salida - p_entrada) / p_entrada) * 100
-                                    datos_estadistica[h].append(ret)
-                                    fila_diario[f"Ret_{h}V ({h * compresion}d)"] = ret
-                                    
-                                log_forense.append(fila_diario)
-                                ultimo_idx_señal = idx_entrada
+                                    if idx_ent + h < len(df_bt): 
+                                        p_salida = df_bt['Close'].iloc[idx_ent + h]
+                                        fila[f"Ret_{h}V"] = ((p_salida - p_ent) / p_ent) * 100
+                                        
+                                log_forense.append(fila)
+                                ultimo_idx = idx_ent
 
-                    total_señales = len(log_forense)
-                    if total_señales > 0:
-                        positivas = len([s for s in datos_estadistica[21] if s > 0]) if 21 in datos_estadistica else len([s for s in datos_estadistica[horizontes_fibo[0]] if s > 0])
-                        win_rate = (positivas / total_señales) * 100
+                    if len(log_forense) > 0:
+                        rets_21 = [f["Ret_21V"] for f in log_forense if "Ret_21V" in f]
+                        if not rets_21: rets_21 = [f[f"Ret_{horizontes_fibo[0]}V"] for f in log_forense if f"Ret_{horizontes_fibo[0]}V" in f]
+                        wr = (len([s for s in rets_21 if s > 0]) / len(rets_21)) * 100 if rets_21 else 0
+                        
                         nuevo_test = {
                             "Ticker": ticker, "Compresión": f"{compresion}d", "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", 
                             "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
-                            "Medias": str(mas_seleccionadas) if mas_seleccionadas else "OFF", "Precio": gatillo_name, 
-                            "Trades": total_señales, "WinRate": round(win_rate, 1),
-                            "Logs": log_forense
+                            "Trades": len(log_forense), "WinRate": round(wr, 1), "Logs": log_forense
                         }
-                        for h in horizontes_fibo: nuevo_test[f"Ret_{h}V ({h * compresion}d)"] = round(np.mean(datos_estadistica[h]), 2)
+                        for h in horizontes_fibo:
+                            vals = [f[f"Ret_{h}V"] for f in log_forense if f"Ret_{h}V" in f]
+                            if vals: nuevo_test[f"Ret_{h}V ({h * compresion}d)"] = round(np.mean(vals), 2)
                         st.session_state['historial_lab'].append(nuevo_test)
-                        st.success("✅ Test manual completado.")
-                    else: st.warning("Tus reglas son demasiado estrictas. 0 señales encontradas.")
+                        st.success("✅ Test completado.")
+                    else: st.warning("Tus reglas son demasiado estrictas. 0 señales.")
             except Exception as e: st.error(f"Error: {e}")
 
-    # --- TEST AUTO (GRID SEARCH MULTIDIMENSIONAL + SELECTOR OFF) ---
-    if col_run_auto.button(f"🤖 Auto-Descubrir ADN Óptimo", type="secondary", use_container_width=True):
+    # --- MODO DIOS (AUTO-DESCUBRIR TIMEFRAMES) ---
+    if col_run_auto.button(f"🤖 MODO DIOS: Auto-Descubrir Multiverso", type="secondary", use_container_width=True):
         st.session_state['historial_lab'] = [] 
-        with st.spinner(f"Probando las 100 combinaciones posibles (incluyendo apagar velocímetros)..."):
+        with st.spinner(f"Activando CPU local al 100%. Probando todas las compresiones (1d, 2d, 3d, 5d, 8d) y parámetros. Espera..."):
             try:
-                df_bt = procesar_datos_fractales(ticker, compresion)
-                if df_bt.empty: 
-                    st.error(f"No hay suficientes datos históricos para crear velas de {compresion} días.")
-                else:
-                    resultados_temp = []
-                    # EL MOTOR AHORA PRUEBA EL "NONE" (OFF) Y EL 0.0 PARA DESCUBRIR QUÉ SOBRA
+                resultados_temp = []
+                for cmp in [1, 2, 3, 5, 8]: 
+                    df_bt = procesar_datos_fractales(ticker, cmp)
+                    if df_bt.empty: continue
+                    
                     for test_z in [None, 0.0, 0.5, 1.0, 1.5]:
-                        for test_a in [None, -0.5, 0.0, 0.5]:
+                        for test_a in [None, 0.0, 0.5]:
                             for test_v in [None, 0.0, 0.5, 1.0, 1.5]:
                                 
                                 cond_z = (df_bt['Z_Score'] > test_z) if test_z is not None else pd.Series(True, index=df_bt.index)
@@ -758,212 +750,179 @@ with tab4:
                                 cond_vol = (df_bt['Vol_Z_Score'] > test_v) if test_v is not None else pd.Series(True, index=df_bt.index)
                                 df_bt['Candidato'] = cond_z & cond_acc & cond_vol
                                 
+                                idx_cand = np.where(df_bt['Candidato'])[0]
+                                idx_cand = idx_cand[(idx_cand >= 55) & (idx_cand < len(df_bt) - 2)]
+                                
                                 log_forense = []
-                                rets_referencia = []
-                                ultimo_idx_señal = None
+                                rets_ref = []
+                                ultimo_idx = -999
                                 
-                                for i in range(55, len(df_bt) - max(horizontes_fibo) - 1):
-                                    row = df_bt.iloc[i]
-                                    if row['Candidato']:
-                                        if ultimo_idx_señal is not None and (i - ultimo_idx_señal) <= 5: 
-                                            continue 
-                                        row_next = df_bt.iloc[i+1]
-                                        if row_next['High'] > row['High']:
-                                            idx_entrada = i + 1; p_entrada = row_next['Close']
-                                            
-                                            ventana_minimos = df_bt['Low'].iloc[idx_entrada + 1 : idx_entrada + 56]
-                                            minimo_alcanzado = ventana_minimos.min()
-                                            max_drawdown = ((minimo_alcanzado - p_entrada) / p_entrada) * 100
-                                            
-                                            fecha_str = pd.to_datetime(df_bt.index[idx_entrada]).strftime("%Y-%m-%d")
-                                            fila_diario = {"Fecha Entrada": fecha_str, "Precio": f"{p_entrada:.2f} $", "Max Drawdown": max_drawdown}
-                                            
-                                            for h in horizontes_fibo:
-                                                p_salida = df_bt['Close'].iloc[idx_entrada + h]
-                                                ret = ((p_salida - p_entrada) / p_entrada) * 100
-                                                col_name = f"Ret_{h}V ({h * compresion}d)"
-                                                fila_diario[col_name] = ret
-                                                if h == 21: rets_referencia.append(ret)
-                                                
-                                            log_forense.append(fila_diario)
-                                            ultimo_idx_señal = idx_entrada 
-                                
-                                if len(log_forense) > 0:
-                                    # Si no hay horizonte 21, usamos el primero disponible para el winrate base
-                                    if not rets_referencia:
-                                        rets_referencia = [f[f"Ret_{horizontes_fibo[0]}V ({horizontes_fibo[0] * compresion}d)"] for f in log_forense]
+                                for i in idx_cand:
+                                    if (i - ultimo_idx) <= 5: continue 
                                     
-                                    win_rate = (len([s for s in rets_referencia if s > 0]) / len(log_forense)) * 100
+                                    row = df_bt.iloc[i]
+                                    row_next = df_bt.iloc[i+1]
+                                    if row_next['High'] > row['High']:
+                                        idx_ent = i + 1; p_ent = row_next['Close']
+                                        
+                                        end_dd = min(idx_ent + 56, len(df_bt))
+                                        min_dd = df_bt['Low'].iloc[idx_ent + 1 : end_dd].min() if end_dd > idx_ent + 1 else p_ent
+                                        max_dd = ((min_dd - p_ent) / p_ent) * 100
+                                        
+                                        fila = {"Fecha Entrada": pd.to_datetime(df_bt.index[idx_ent]).strftime("%Y-%m-%d"), "Precio": f"{p_ent:.2f} $", "Max Drawdown": max_dd}
+                                        
+                                        for h in horizontes_fibo:
+                                            if idx_ent + h < len(df_bt):
+                                                p_sal = df_bt['Close'].iloc[idx_ent + h]
+                                                ret = ((p_sal - p_ent) / p_ent) * 100
+                                                fila[f"Ret_{h}V"] = ret
+                                                if h == 21: rets_ref.append(ret)
+                                                
+                                        log_forense.append(fila)
+                                        ultimo_idx = idx_ent 
+                                
+                                if len(log_forense) >= 5: 
+                                    if not rets_ref:
+                                        rets_ref = [f[f"Ret_{horizontes_fibo[0]}V"] for f in log_forense if f"Ret_{horizontes_fibo[0]}V" in f]
+                                    wr = (len([s for s in rets_ref if s > 0]) / len(rets_ref)) * 100 if rets_ref else 0
+                                    
                                     nuevo_test = {
-                                        "Ticker": ticker, 
-                                        "Compresión": f"{compresion}d", 
+                                        "Ticker": ticker, "Compresión": f"{cmp}d", 
                                         "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
                                         "Accel": f"> {test_a}" if test_a is not None else "OFF", 
                                         "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
-                                        "Medias": "OFF", "Precio": "Continuación", 
-                                        "Trades": len(log_forense), "WinRate": round(win_rate, 1),
-                                        "Logs": log_forense
+                                        "Trades": len(log_forense), "WinRate": round(wr, 1), "Logs": log_forense
                                     }
                                     for h in horizontes_fibo:
-                                        col_name = f"Ret_{h}V ({h * compresion}d)"
-                                        medias = [f[col_name] for f in log_forense]
-                                        nuevo_test[col_name] = round(np.mean(medias), 2)
+                                        vals = [f[f"Ret_{h}V"] for f in log_forense if f"Ret_{h}V" in f]
+                                        if vals: nuevo_test[f"Ret_{h}V ({h * cmp}d)"] = round(np.mean(vals), 2)
                                     resultados_temp.append(nuevo_test)
-                    
-                    if resultados_temp:
-                        df_temp = pd.DataFrame(resultados_temp)
-                        col_21v = f"Ret_21V ({21 * compresion}d)"
-                        if col_21v in df_temp.columns:
-                            # SE QUEDA CON EL TOP 5 ORDENADO POR WINRATE Y LUEGO POR RENDIMIENTO A 21 VELAS
-                            df_temp = df_temp.sort_values(by=["WinRate", col_21v], ascending=[False, False]).head(5)
-                        else:
-                            df_temp = df_temp.sort_values(by="WinRate", ascending=False).head(5)
-                            
-                        st.session_state['historial_lab'] = df_temp.to_dict('records')
-                        st.success("✅ Test Auto Finalizado. Mostrando el TOP 5 histórico.")
+                
+                if resultados_temp:
+                    df_temp = pd.DataFrame(resultados_temp)
+                    # Busca dinámicamente si existe alguna columna de 21 velas para ordenar
+                    cols_21v = [c for c in df_temp.columns if c.startswith("Ret_21V")]
+                    if cols_21v:
+                        df_temp = df_temp.sort_values(by=["WinRate", cols_21v[0]], ascending=[False, False]).head(5)
                     else:
-                        st.warning("Ninguna combinación generó señales con estos parámetros.")
-            except Exception as e: st.error(f"Error: {e}")
+                        df_temp = df_temp.sort_values(by="WinRate", ascending=False).head(5)
+                    st.session_state['historial_lab'] = df_temp.to_dict('records')
+                    st.success("✅ Modo Dios Finalizado. Aquí tienes los 5 Sistemas Maestros.")
+                else: st.warning("Ninguna combinación generó más de 5 señales consistentes.")
+            except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
-    # --- RESULTADOS Y GUARDADO (EL COLISEO) ---
+    # --- RESULTADOS (EL COLISEO) ---
     if len(st.session_state['historial_lab']) > 0:
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
-        df_ticker_hist = df_hist[df_hist['Ticker'] == ticker].copy()
-        
-        if not df_ticker_hist.empty:
+        if not df_hist.empty:
             st.markdown("---")
-            st.markdown("## ⚔️ El Coliseo Quant (Resultados Limpios)")
-            st.markdown("<div style='background:#f0fdf4; padding:15px; border-radius:10px; border:1px solid #22c55e; margin-bottom:20px;'>", unsafe_allow_html=True)
+            st.markdown("## ⚔️ El Coliseo Quant")
             
-            cols_ret_disponibles = [c for c in df_ticker_hist.columns if c.startswith("Ret_")]
-            if cols_ret_disponibles:
-                objetivo_opt = st.selectbox("🏆 ¿A qué horizonte temporal quieres encontrar al Campeón?", cols_ret_disponibles, index=1 if len(cols_ret_disponibles)>1 else 0)
-                st.markdown("</div>", unsafe_allow_html=True)
-                
-                df_ticker_hist = df_ticker_hist.sort_values(by=objetivo_opt, ascending=False)
-                campeon = df_ticker_hist.iloc[0]
-                
-                st.markdown(f"""
-                <div class='champion-card'>
-                    <div class='champion-title'>👑 LA COMBINACIÓN GANADORA PARA {objetivo_opt.upper()}</div>
-                    <div class='champion-stats'>
-                        <div class='stat-box'>⏱️ Velas de: {campeon.get('Compresión', '1d')}</div>
-                        <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
-                        <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rendimiento: +{campeon[objetivo_opt]}%</div>
-                        <div class='stat-box'>🔍 Z-Score: {campeon['Z-Score']}</div>
-                        <div class='stat-box'>🏎️ Accel: {campeon['Accel']}</div>
-                        <div class='stat-box'>🐘 Volumen: {campeon['Volumen']}</div>
-                    </div>
+            cols_ret = [c for c in df_hist.columns if c.startswith("Ret_")]
+            
+            # Selector para ver quién es el campeón según el horizonte temporal (ahora incluye los cortos)
+            idx_defecto = next((i for i, v in enumerate(cols_ret) if "21V" in v), 0)
+            objetivo = st.selectbox("🏆 ¿A qué horizonte temporal quieres coronar al Campeón?", cols_ret, index=idx_defecto)
+            
+            df_hist = df_hist.sort_values(by=objetivo, ascending=False)
+            campeon = df_hist.iloc[0]
+            
+            st.markdown(f"""
+            <div class='champion-card'>
+                <div class='champion-title'>👑 CAMPEÓN ABSOLUTO ({objetivo})</div>
+                <div class='champion-stats'>
+                    <div class='stat-box'>⏱️ Velas: {campeon.get('Compresión', '1d')}</div>
+                    <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
+                    <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rendimiento: +{campeon.get(objetivo, 0)}%</div>
+                    <div class='stat-box'>🔍 Z-Score: {campeon['Z-Score']}</div>
+                    <div class='stat-box'>🏎️ Accel: {campeon['Accel']}</div>
+                    <div class='stat-box'>🐘 Volumen: {campeon['Volumen']}</div>
                 </div>
-                """, unsafe_allow_html=True)
-                
-                if st.button(f"💾 GUARDAR ESTE SISTEMA EN LA PISCINA DE ADN DE {ticker}", type="primary", use_container_width=True):
-                    with st.spinner("Añadiendo a la base de datos..."):
-                        try:
-                            c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
-                            c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
-                            c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
-                            
-                            df_adn_actual = conn.read(worksheet="ADN_Quant", ttl=0)
-                            nuevo_id = str(int(datetime.datetime.now().timestamp()))
-                            es_def = True if df_adn_actual[df_adn_actual['Ticker'] == ticker].empty else False
-                            
-                            nuevo_adn = {
-                                "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
-                                "Horizonte": objetivo_opt, "Rendimiento": campeon[objetivo_opt], 
-                                "WinRate": campeon['WinRate'], "Es_Default": es_def, "ID_ADN": nuevo_id
-                            }
-                            
-                            df_adn_nuevo = pd.concat([df_adn_actual, pd.DataFrame([nuevo_adn])], ignore_index=True)
-                            conn.update(worksheet="ADN_Quant", data=df_adn_nuevo)
-                            st.cache_data.clear()
-                            st.session_state['adn_saved_success'] = True
-                            st.rerun()
-                        except Exception as e: st.error(f"Error: {e}")
+            </div>
+            """, unsafe_allow_html=True)
+            
+            if st.button(f"💾 GUARDAR ESTE SISTEMA EN EL ADN", type="primary", use_container_width=True):
+                with st.spinner("Guardando en la nube..."):
+                    try:
+                        c_z = float(campeon['Z-Score'].replace("> ", "")) if campeon['Z-Score'] != "OFF" else -99
+                        c_acc = float(campeon['Accel'].replace("> ", "")) if campeon['Accel'] != "OFF" else -99
+                        c_vol = float(campeon['Volumen'].replace("> ", "")) if campeon['Volumen'] != "OFF" else -99
+                        comp_limpia = int(campeon['Compresión'].replace('d','')) if 'Compresión' in campeon else 1
+                        
+                        df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
+                        n_id = str(int(datetime.datetime.now().timestamp()))
+                        es_def = True if df_adn_act[df_adn_act['Ticker'] == ticker].empty else False
+                        
+                        nuevo_adn = {
+                            "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
+                            "Horizonte": f"{comp_limpia}d_{objetivo.split(' ')[0]}", "Rendimiento": campeon.get(objetivo, 0), 
+                            "WinRate": campeon['WinRate'], "Es_Default": es_def, "ID_ADN": n_id
+                        }
+                        
+                        conn.update(worksheet="ADN_Quant", data=pd.concat([df_adn_act, pd.DataFrame([nuevo_adn])], ignore_index=True))
+                        st.cache_data.clear(); st.session_state['adn_saved_success'] = True; st.rerun()
+                    except Exception as e: st.error(f"Error: {e}")
 
-                st.markdown("#### 📋 Resultados de este Estudio (Top 5 Histórico):")
-                def color_history(val):
-                    if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
+            st.markdown("#### 📋 Resultados de este Estudio:")
+            def c_hist(val):
+                if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else ('color: #dc2626' if val < 0 else '')
+                return ''
+            
+            df_disp = df_hist.drop(columns=["Logs"])
+            styled = df_disp.style.map(c_hist, subset=cols_ret).set_properties(**{'background-color': '#fffbeb'}, subset=[objetivo])
+            st.dataframe(styled, use_container_width=True, hide_index=True)
+
+            # --- INSPECTOR FORENSE ---
+            st.markdown("---")
+            st.markdown("### 🔍 Inspección Forense (Autopsia Vela a Vela)")
+            tests_vis = df_hist.to_dict('records')
+            opc_insp = [f"Top {i+1} | {t.get('Compresión','1d')} | Z {t['Z-Score']} | Vol {t['Volumen']} ({t['Trades']} trades)" for i, t in enumerate(tests_vis)]
+            idx_el = st.selectbox("Abre la caja negra del Test:", range(len(opc_insp)), format_func=lambda x: opc_insp[x])
+            datos_for = tests_vis[idx_el]["Logs"]
+            
+            if datos_for:
+                df_for = pd.DataFrame(datos_for)
+                def f_pct(val): return f"{val:+.2f}%" if isinstance(val, (int, float)) else val
+                def c_for(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
+                def c_dd(val):
+                    if isinstance(val, (int, float)):
+                        if val < -15: return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold'
+                        elif val < -8: return 'background-color: #fff9c4; color: #e65100; font-weight: bold'
                     return ''
-                
-                df_mostrar = df_ticker_hist.drop(columns=["Logs"])
-                styled_df = df_mostrar.style.map(color_history, subset=cols_ret_disponibles)
-                styled_df = styled_df.set_properties(**{'background-color': '#fffbeb'}, subset=[objetivo_opt])
-                st.dataframe(styled_df, use_container_width=True, hide_index=True)
-
-                # -----------------------------------------------------------------
-                # 🔍 EL NUEVO INSPECTOR FORENSE (CON MAX DRAWDOWN)
-                # -----------------------------------------------------------------
-                st.markdown("---")
-                st.markdown("### 🔍 Inspección Forense (Autopsia Vela a Vela)")
-                st.markdown("Selecciona un Test de la tabla superior para ver sus fechas de entrada y **Nivel de Pánico**.")
-                
-                tests_visibles = df_ticker_hist.to_dict('records')
-                opciones_inspector = [f"Top {i+1} | Z {t['Z-Score']} | Acc {t['Accel']} | Vol {t['Volumen']} ({t['Trades']} trades)" for i, t in enumerate(tests_visibles)]
-                idx_elegido = st.selectbox("Abre la caja negra del Test:", range(len(opciones_inspector)), format_func=lambda x: opciones_inspector[x])
-                datos_forenses = tests_visibles[idx_elegido]["Logs"]
-                
-                if datos_forenses:
-                    df_forense = pd.DataFrame(datos_forenses)
                     
-                    def format_pct(val):
-                        if isinstance(val, (int, float)): return f"{val:+.2f}%"
-                        return val
-                        
-                    def color_forense(val):
-                        if isinstance(val, (int, float)): return 'color: #16a34a; font-weight: bold' if val > 0 else 'color: #dc2626'
-                        return ''
+                cols_r_for = [c for c in df_for.columns if c.startswith('Ret_')]
+                styled_f = df_for.style.format(f_pct, subset=cols_r_for + ['Max Drawdown']).map(c_for, subset=cols_r_for).map(c_dd, subset=['Max Drawdown'])
+                st.dataframe(styled_f, use_container_width=True, hide_index=True)
 
-                    def color_drawdown(val):
-                        if isinstance(val, (int, float)):
-                            if val < -15: return 'background-color: #ffcdd2; color: #b71c1c; font-weight: bold'
-                            elif val < -8: return 'background-color: #fff9c4; color: #e65100; font-weight: bold'
-                            else: return 'color: #1d1d1f'
-                        return ''
-                        
-                    cols_retorno_for = [col for col in df_forense.columns if col.startswith('Ret_')]
-                    
-                    styled_df_for = df_forense.style.format(format_pct, subset=cols_retorno_for + ['Max Drawdown'])
-                    styled_df_for = styled_df_for.map(color_forense, subset=cols_retorno_for)
-                    styled_df_for = styled_df_for.map(color_drawdown, subset=['Max Drawdown'])
-                    
-                    st.dataframe(styled_df_for, use_container_width=True, hide_index=True)
-
-    # -------------------------------------------------------------------------
-    # EL GESTOR DE ADN
-    # -------------------------------------------------------------------------
+    # --- GESTOR DE ADN ---
     st.markdown("---")
     st.markdown(f"## 🧬 Tu Banco de ADN para {ticker}")
     if tiene_adn:
-        st.markdown("Estos son los sistemas que están vigilando esta acción.")
-        df_display_adn = df_adn_ticker.copy()
-        df_display_adn['Es_Default'] = df_display_adn['Es_Default'].apply(lambda x: "⭐ SÍ" if x else "No")
-        df_display_adn['Z_Min'] = df_display_adn['Z_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
-        df_display_adn['Acc_Min'] = df_display_adn['Acc_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
-        df_display_adn['Vol_Min'] = df_display_adn['Vol_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
-        cols_to_show = ['ID_ADN', 'Es_Default', 'Horizonte', 'Rendimiento', 'WinRate', 'Z_Min', 'Acc_Min', 'Vol_Min']
-        st.dataframe(df_display_adn[cols_to_show], hide_index=True, use_container_width=True)
+        df_d_adn = df_adn_ticker.copy()
+        df_d_adn['Es_Default'] = df_d_adn['Es_Default'].apply(lambda x: "⭐ SÍ" if x else "No")
+        df_d_adn['Z_Min'] = df_d_adn['Z_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        df_d_adn['Acc_Min'] = df_d_adn['Acc_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        df_d_adn['Vol_Min'] = df_d_adn['Vol_Min'].apply(lambda x: f"> {x}" if x != -99 else "OFF")
+        cols_show = ['ID_ADN', 'Es_Default', 'Horizonte', 'Rendimiento', 'WinRate', 'Z_Min', 'Acc_Min', 'Vol_Min']
+        st.dataframe(df_d_adn[cols_show], hide_index=True, use_container_width=True)
         
-        col_m1, col_m2 = st.columns(2)
-        adn_a_gestionar = col_m1.selectbox("Selecciona la ID de un ADN para gestionarlo:", df_display_adn['ID_ADN'].tolist())
+        c_m1, c_m2 = st.columns(2)
+        adn_gest = c_m1.selectbox("Selecciona la ID de un ADN para gestionarlo:", df_d_adn['ID_ADN'].tolist())
         
-        if col_m2.button("⭐ Establecer como ADN Principal (Se verá en el Escáner)", use_container_width=True):
-            df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
-            df_adn_full.loc[df_adn_full['Ticker'] == ticker, 'Es_Default'] = False
-            df_adn_full.loc[df_adn_full['ID_ADN'] == str(adn_a_gestionar), 'Es_Default'] = True
-            conn.update(worksheet="ADN_Quant", data=df_adn_full)
-            st.cache_data.clear(); st.rerun()
+        if c_m2.button("⭐ Establecer como ADN Principal", use_container_width=True):
+            df_a_f = conn.read(worksheet="ADN_Quant", ttl=0)
+            df_a_f.loc[df_a_f['Ticker'] == ticker, 'Es_Default'] = False
+            df_a_f.loc[df_a_f['ID_ADN'] == str(adn_gest), 'Es_Default'] = True
+            conn.update(worksheet="ADN_Quant", data=df_a_f); st.cache_data.clear(); st.rerun()
             
-        if col_m2.button("🗑️ Borrar este ADN", use_container_width=True):
-            df_adn_full = conn.read(worksheet="ADN_Quant", ttl=0)
-            df_adn_full = df_adn_full[df_adn_full['ID_ADN'] != str(adn_a_gestionar)]
-            quedan = df_adn_full[df_adn_full['Ticker'] == ticker]
+        if c_m2.button("🗑️ Borrar este ADN", use_container_width=True):
+            df_a_f = conn.read(worksheet="ADN_Quant", ttl=0)
+            df_a_f = df_a_f[df_a_f['ID_ADN'] != str(adn_gest)]
+            quedan = df_a_f[df_a_f['Ticker'] == ticker]
             if not quedan.empty and not quedan['Es_Default'].any():
-                df_adn_full.loc[quedan.index[0], 'Es_Default'] = True
-            conn.update(worksheet="ADN_Quant", data=df_adn_full)
-            st.cache_data.clear(); st.rerun()
-    else:
-        st.info("Aún no tienes ningún sistema guardado para esta acción.")
+                df_a_f.loc[quedan.index[0], 'Es_Default'] = True
+            conn.update(worksheet="ADN_Quant", data=df_a_f); st.cache_data.clear(); st.rerun()
+    else: st.info("Aún no tienes ningún sistema guardado.")
 # =====================================================================
 # PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
 # =====================================================================
