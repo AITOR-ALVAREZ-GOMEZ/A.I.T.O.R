@@ -539,7 +539,7 @@ with tab2:
         st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
 
 # =====================================================================
-# PESTAÑA 3: CENTRO DE MANDO (CARTERA EN VIVO Y NIVELES DE SALIDA)
+# PESTAÑA 3: CENTRO DE MANDO (CARTERA EN VIVO Y FECHAS DE AUDITORÍA)
 # =====================================================================
 with tab3:
     st.title("💼 Centro de Mando: Posiciones Vivas")
@@ -553,7 +553,6 @@ with tab3:
     fecha_compra = col_v3.date_input("Fecha de Compra:")
     cap_invertido = col_v4.number_input("Capital Invertido (€):", value=10000, step=1000)
 
-    # Motor KAMA exacto al del Laboratorio
     def calcular_kama_vivo(series, n=10, fast=2, slow=30):
         n_eff = max(2, n) 
         change = series.diff(n_eff).abs()
@@ -572,13 +571,13 @@ with tab3:
         return pd.Series(kama, index=series.index)
 
     if st.button("🔍 AUDITAR POSICIÓN Y CALCULAR SALIDAS", type="primary", use_container_width=True):
-        with st.spinner(f"Analizando la estructura de {ticker_vivo}. Calculando Gatillos de Salida..."):
+        with st.spinner(f"Rastreando el histórico de {ticker_vivo}. Calculando fechas de entrada..."):
             try:
                 df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
                 adn_ticker = df_adn[df_adn['Ticker'] == ticker_vivo]
                 
                 if adn_ticker.empty:
-                    st.error(f"❌ No hay ADN guardado para {ticker_vivo}. Ve a la Pestaña 4, marca tus 5 estrellas (⭐) y guárdalas.")
+                    st.error(f"❌ No hay ADN guardado para {ticker_vivo}. Ve a la Pestaña 4 y guarda tus estrellas.")
                 else:
                     import yfinance as yf
                     import pandas as pd
@@ -586,11 +585,10 @@ with tab3:
                     import plotly.graph_objects as go
                     import datetime
                     
-                    # 2. DESCARGAR DATOS Y PURGAR ZONAS HORARIAS (Evita el Error Rojo)
-                    fecha_inicio_datos = fecha_compra - datetime.timedelta(days=150) 
+                    # Descargamos mucha historia para que los sistemas lentos tengan contexto
+                    fecha_inicio_datos = datetime.datetime.now() - datetime.timedelta(days=1000) 
                     df_real = yf.Ticker(ticker_vivo).history(start=fecha_inicio_datos)
                     
-                    # Eliminamos la zona horaria para que no choque con Streamlit
                     if df_real.index.tz is not None:
                         df_real.index = df_real.index.tz_localize(None)
 
@@ -604,13 +602,18 @@ with tab3:
                     
                     max_ev_absoluto = adn_ticker['Rendimiento'].astype(float).max()
 
-                    # 3. RECREAR LA MATEMÁTICA EXACTA DEL LABORATORIO
+                    # 3. RASTREADOR HISTÓRICO PARA CADA SISTEMA
                     for index, row in adn_ticker.iterrows():
                         horizonte = row['Horizonte']
                         comp_str = horizonte.split('_')[0]
                         comp_int = int(comp_str.replace('d', ''))
                         sys_type = horizonte.split('_')[1]
                         ev_sistema = float(row['Rendimiento']) 
+                        
+                        # Extraer umbrales del ADN
+                        c_z = float(row.get('Z_Min', -99))
+                        c_a = float(row.get('Acc_Min', -99))
+                        c_v = float(row.get('Vol_Min', -99))
                         
                         if comp_int > 1:
                             n = len(df_real)
@@ -619,18 +622,28 @@ with tab3:
                             df_temp['Grupo'] = groups
                             df_temp['Grupo'] = df_temp['Grupo'].max() - df_temp['Grupo']
                             fechas_agr = df_temp.reset_index().groupby('Grupo')['Date'].last().values
-                            df_b = df_temp.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last'})
+                            df_b = df_temp.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
                             df_b.index = fechas_agr
                         else:
                             df_b = df_real.copy()
 
-                        # MATEMÁTICA INSTITUCIONAL (KAMA + Tribunal)
+                        if len(df_b) < 55: continue
+
+                        df_b['MA55'] = df_b['Close'].rolling(window=55).mean()
+                        df_b['Vol_MA55'] = df_b['Volume'].rolling(window=55).mean()
+                        df_b['Vol_STD55'] = df_b['Volume'].rolling(window=55).std()
+                        df_b['Vol_Z_Score'] = (df_b['Volume'] - df_b['Vol_MA55']) / df_b['Vol_STD55']
+                        df_b['Z_Score'] = (df_b['Close'] - df_b['MA55']) / df_b['Close'].rolling(window=55).std()
+                        df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
+                        df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
+
                         df_b['AMA_Rápida'] = calcular_kama_vivo(df_b['Close'], n=2, fast=2, slow=3)
                         df_b['AMA_Lenta'] = calcular_kama_vivo(df_b['Open'], n=2, fast=3, slow=5)
                         
                         macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
                         macd_sig = macd_line.ewm(span=3, adjust=False).mean()
-                        j1_rojo = macd_line < macd_sig
+                        df_b['J1_Azul'] = macd_line > macd_sig
+                        df_b['J1_Rojo'] = macd_line < macd_sig
                         
                         sma2 = df_b['Close'].rolling(window=2).mean()
                         delta = df_b['Close'].diff()
@@ -639,47 +652,99 @@ with tab3:
                         rsi3_s = pd.Series(100 - (100 / (1 + np.where(loss == 0, 100, gain / loss))), index=df_b.index)
                         min_rsi = rsi3_s.rolling(3).min()
                         stoch_rsi = (rsi3_s - min_rsi) / (rsi3_s.rolling(3).max() - min_rsi + 0.0001)
-                        j2_rojo = (stoch_rsi < 0.5) & (df_b['Close'] < sma2)
+                        df_b['J2_Azul'] = (stoch_rsi > 0.5) & (df_b['Close'] > sma2)
+                        df_b['J2_Rojo'] = (stoch_rsi < 0.5) & (df_b['Close'] < sma2)
                         
                         tp = (df_b['High'] + df_b['Low'] + df_b['Close']) / 3
                         sma2_tp = tp.rolling(window=2).mean()
                         cci = (tp - sma2_tp) / (0.015 * tp.rolling(window=2).apply(lambda x: np.abs(x - x.mean()).mean()) + 0.0001)
-                        j3_rojo = cci < 0
+                        df_b['J3_Azul'] = cci > 0
+                        df_b['J3_Rojo'] = cci < 0
                         
-                        votos_rojo = j1_rojo.astype(int) + j2_rojo.astype(int) + j3_rojo.astype(int)
+                        df_b['Votos_Azul'] = df_b['J1_Azul'].astype(int) + df_b['J2_Azul'].astype(int) + df_b['J3_Azul'].astype(int)
+                        df_b['Votos_Rojo'] = df_b['J1_Rojo'].astype(int) + df_b['J2_Rojo'].astype(int) + df_b['J3_Rojo'].astype(int)
                         
-                        # EVALUAR EL ESTADO (Vela actual vs Vela anterior)
+                        cond_z = (df_b['Z_Score'] > c_z) if c_z != -99 else pd.Series(True, index=df_b.index)
+                        cond_a = (df_b['Accel'] > c_a) if c_a != -99 else pd.Series(True, index=df_b.index)
+                        cond_v = (df_b['Vol_Z_Score'] > c_v) if c_v != -99 else pd.Series(True, index=df_b.index)
+                        cond_medias = (df_b['AMA_Rápida'] > df_b['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_b.index)
+                        
+                        df_b['Candidato_Ent'] = (df_b['Votos_Azul'] >= 2) & cond_z & cond_a & cond_v & cond_medias
+
+                        # SIMULADOR EXACTO DE ENTRADAS Y SALIDAS
+                        en_mercado = False
+                        fecha_ent_str = "---"
+                        fecha_sal_str = "---"
+                        precio_stop = 0.0
+                        
+                        i = 55 
+                        while i < len(df_b) - 1:
+                            if not en_mercado:
+                                # ¿Da señal de entrada?
+                                if df_b['Candidato_Ent'].iloc[i]:
+                                    # ¿Rompe el máximo en la vela siguiente para validar?
+                                    if df_b['High'].iloc[i+1] > df_b['High'].iloc[i]:
+                                        en_mercado = True
+                                        idx_ent = i + 1
+                                        fecha_ent_str = pd.to_datetime(df_b.index[idx_ent]).strftime("%Y-%m-%d")
+                                        fecha_sal_str = "ABIERTA"
+                            else:
+                                # Ya está dentro, ¿da señal de salida?
+                                trib_rojo = df_b['Votos_Rojo'].iloc[i-1] >= 2
+                                pierde_min = df_b['Low'].iloc[i] < df_b['Low'].iloc[i-1]
+                                cruce_b = df_b['AMA_Rápida'].iloc[i-1] < df_b['AMA_Lenta'].iloc[i-1]
+                                
+                                if "TENDENCIAL" in sys_type:
+                                    if cruce_b and pierde_min:
+                                        en_mercado = False
+                                        fecha_sal_str = pd.to_datetime(df_b.index[i]).strftime("%Y-%m-%d")
+                                else:
+                                    if trib_rojo and pierde_min:
+                                        en_mercado = False
+                                        fecha_sal_str = pd.to_datetime(df_b.index[i]).strftime("%Y-%m-%d")
+                            i += 1
+
+                        # DIAGNÓSTICO DEL ESTADO ACTUAL (HOY)
                         vela_actual = df_b.iloc[-1]
                         vela_anterior = df_b.iloc[-2]
-                        
-                        pierde_minimo = vela_actual['Low'] < vela_anterior['Low']
-                        tribunal_rojo_ayer = votos_rojo.iloc[-2] >= 2
-                        cruce_bajista = df_b['AMA_Rápida'].iloc[-2] < df_b['AMA_Lenta'].iloc[-2]
-
-                        estado_sistema = "MANTENER 🟢"
-                        armado = False
-                        
-                        if "TENDENCIAL" in sys_type:
-                            if cruce_bajista: armado = True
-                            if cruce_bajista and pierde_minimo: estado_sistema = "VENTA 🔴"
-                        else:
-                            if tribunal_rojo_ayer: armado = True
-                            if tribunal_rojo_ayer and pierde_minimo: estado_sistema = "VENTA 🔴"
-                        
-                        if "VENTA" in estado_sistema: votos_vender_ev += ev_sistema
-                        else: votos_mantener_ev += ev_sistema
-                            
                         precio_stop = vela_anterior['Low']
-                        if estado_sistema == "VENTA 🔴": gatillo_texto = "¡EJECUTADO HOY!"
-                        elif armado: gatillo_texto = f"⚠️ Armado: Salta si pierde {precio_stop:.2f}$"
-                        else: gatillo_texto = "🛡️ Fuerte (Esperando retroceso)"
+                        
+                        if en_mercado:
+                            pierde_minimo = vela_actual['Low'] < vela_anterior['Low']
+                            tribunal_rojo_ayer = df_b['Votos_Rojo'].iloc[-2] >= 2
+                            cruce_bajista = df_b['AMA_Rápida'].iloc[-2] < df_b['AMA_Lenta'].iloc[-2]
+
+                            estado_sistema = "MANTENER 🟢"
+                            armado = False
+                            
+                            if "TENDENCIAL" in sys_type:
+                                if cruce_bajista: armado = True
+                                if cruce_bajista and pierde_minimo: estado_sistema = "VENTA 🔴"
+                            else:
+                                if tribunal_rojo_ayer: armado = True
+                                if tribunal_rojo_ayer and pierde_minimo: estado_sistema = "VENTA 🔴"
+
+                            if estado_sistema == "VENTA 🔴":
+                                fecha_sal_str = "HOY"
+                                gatillo_texto = "¡VENDIDO HOY!"
+                                votos_vender_ev += ev_sistema
+                            else:
+                                if armado: gatillo_texto = f"⚠️ Armado: Salta si pierde {precio_stop:.2f}$"
+                                else: gatillo_texto = "🛡️ Fuerte (Protegido)"
+                                votos_mantener_ev += ev_sistema
+                        else:
+                            # Si no está en mercado, no suma votos ni a favor ni en contra. Es neutral.
+                            estado_sistema = "FUERA ⚪"
+                            gatillo_texto = "Esperando rotura..."
 
                         es_lider = True if ev_sistema == max_ev_absoluto else False
                         rol_texto = "👑 JUEZ SUPREMO" if es_lider else "Votante"
 
                         detalles_sistemas.append({
                             "Rol": rol_texto, "Fractal": comp_str, "Sistema": sys_type, 
-                            "EV (Peso)": ev_sistema, "Estado": estado_sistema, "Gatillo de Salida (Hoy)": gatillo_texto
+                            "EV (Peso)": ev_sistema, "Estado": estado_sistema, 
+                            "F. Entrada": fecha_ent_str, "F. Salida": fecha_sal_str,
+                            "Gatillo (Hoy)": gatillo_texto
                         })
 
                     # --- 4. DIBUJAR LA MESA REDONDA ---
@@ -690,15 +755,19 @@ with tab3:
                     if pct_venta >= 50:
                         alerta_color = "#dc2626"
                         veredicto = "🚨 ALARMA DE VENTA GENERAL 🚨"
-                        sub_veredicto = f"El {pct_venta:.0f}% de la Esperanza Matemática exige liquidar hoy mismo."
+                        sub_veredicto = f"El {pct_venta:.0f}% de la Esperanza Matemática exige liquidar la posición hoy."
                     elif pct_venta > 0:
                         alerta_color = "#eab308" 
                         veredicto = "⚠️ ALERTA TEMPRANA (Giro en curso)"
                         sub_veredicto = f"Sistemas rápidos ({pct_venta:.0f}% del EV) detectan debilidad."
-                    else:
+                    elif votos_mantener_ev > 0:
                         alerta_color = "#16a34a" 
                         veredicto = "🛡️ POSICIÓN BLINDADA (Dejar Correr)"
-                        sub_veredicto = "Ningún sistema ha armado el gatillo de venta. La tendencia es sólida."
+                        sub_veredicto = "La tendencia es sólida. Todos los sistemas activos apoyan MANTENER."
+                    else:
+                        alerta_color = "#6b7280" 
+                        veredicto = "⚪ MERCADO NEUTRAL"
+                        sub_veredicto = "La máquina detecta que tus sistemas aún no han validado la entrada (F. Entrada = ---)."
 
                     st.markdown(f"""
                     <div style='text-align: center; padding: 20px; background-color: {alerta_color}15; border-radius: 10px; border: 2px solid {alerta_color};'>
@@ -709,27 +778,30 @@ with tab3:
                     </div>
                     """, unsafe_allow_html=True)
 
-                    st.markdown("#### 🗳️ Votación y Niveles de Salida (Tus 5 Sistemas)")
+                    st.markdown("#### 🗳️ Auditoría de Fechas y Salidas (Tus 5 Sistemas)")
                     df_votos = pd.DataFrame(detalles_sistemas)
                     df_votos = df_votos.sort_values(by="EV (Peso)", ascending=False).reset_index(drop=True)
                     
-                    def c_estado(val): return 'color: #dc2626; font-weight: bold' if "VENTA" in str(val) else 'color: #16a34a; font-weight: bold'
-                    def c_gatillo(val): return 'color: #eab308; font-weight: bold' if "Armado" in str(val) else ('color: #dc2626; font-weight: bold' if "EJECUTADO" in str(val) else 'color: gray')
+                    def c_estado(val): 
+                        if "VENTA" in str(val): return 'color: #dc2626; font-weight: bold'
+                        elif "MANTENER" in str(val): return 'color: #16a34a; font-weight: bold'
+                        else: return 'color: #6b7280; font-weight: bold'
+                        
+                    def c_gatillo(val): return 'color: #eab308; font-weight: bold' if "Armado" in str(val) else ('color: #dc2626; font-weight: bold' if "VENDIDO" in str(val) else 'color: gray')
+                    
                     def highlight_lider(row):
                         if "👑" in row['Rol']: return ['background-color: #fef9c3; font-weight: bold'] * len(row)
                         return [''] * len(row)
 
-                    styled_votos = df_votos.style.apply(highlight_lider, axis=1).map(c_estado, subset=['Estado']).map(c_gatillo, subset=['Gatillo de Salida (Hoy)']).format({"EV (Peso)": "{:+.2f} €"})
+                    styled_votos = df_votos.style.apply(highlight_lider, axis=1).map(c_estado, subset=['Estado']).map(c_gatillo, subset=['Gatillo (Hoy)']).format({"EV (Peso)": "{:+.2f} €"})
                     st.dataframe(styled_votos, use_container_width=True, hide_index=True)
 
                     st.markdown("#### 📉 Gráfico Táctico desde la Compra")
-                    
-                    # Filtramos los datos desde la fecha de compra
                     fecha_c_dt = pd.to_datetime(fecha_compra)
                     df_grafico = df_real[df_real.index >= fecha_c_dt]
                     
                     if df_grafico.empty:
-                        st.warning("⚠️ Espera al menos un día desde la fecha de compra para ver el gráfico táctico.")
+                        st.warning("⚠️ Espera al menos un día desde tu fecha de compra para ver el gráfico táctico.")
                     else:
                         fig = go.Figure()
                         fig.add_trace(go.Candlestick(x=df_grafico.index, open=df_grafico['Open'], high=df_grafico['High'], low=df_grafico['Low'], close=df_grafico['Close'], name='Precio'))
@@ -738,7 +810,6 @@ with tab3:
                         lider = df_votos.iloc[0]
                         comp_lider = int(lider['Fractal'].replace('d',''))
                         
-                        # Stop dinámico calculado sobre el gráfico diario visual
                         df_real['Trailing_Stop'] = df_real['Low'].rolling(window=comp_lider).min().shift(1)
                         df_stop_grafico = df_real[df_real.index >= fecha_c_dt]
                         
