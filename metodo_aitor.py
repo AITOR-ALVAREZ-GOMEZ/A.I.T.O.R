@@ -589,63 +589,57 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (DASHBOARD MAESTRO-DETALLE + EV)
+# PESTAÑA 4: LABORATORIO QUANT (TOPOGRAFÍA FRACTAL + ADN ESCÁNER)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
-    st.markdown(f"Experimenta con **{ticker}**. El sistema usa tu Tribunal de 3 Indicadores anclado a Tiempo Real.")
+    st.markdown(f"Escaneando topografía adaptativa para **{ticker}**.")
     
-    # 1. COMPRESIÓN TEMPORAL, CAPITAL Y ROBUSTEZ
-    st.markdown("### ⏳ 1. Configuración de Simulación")
-    col_c1, col_c2, col_c3 = st.columns(3)
+    # 1. CONFIGURACIÓN DE SIMULACIÓN
+    st.markdown("### ⏳ 1. Configuración del Motor")
+    col_c1, col_c2, col_c3, col_c4 = st.columns(4)
     opciones_compresion = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
-    compresion = col_c1.selectbox("¿Cuántos días formarán UNA vela en el Test?", opciones_compresion, index=0)
-    capital_trade = col_c2.number_input("Capital por Operación (€):", value=10000, step=1000)
-    min_trades = col_c3.number_input("Mínimo de Trades exigidos:", value=10, step=1, help="Sistemas con menos operaciones serán ignorados en el Modo Dios.")
+    compresion = col_c1.selectbox("Velas (Test Manual):", opciones_compresion, index=3)
+    anos_test = col_c2.selectbox("Historia a testear:", ["5y", "10y", "15y", "max"], index=1)
+    capital_trade = col_c3.number_input("Capital/Trade (€):", value=10000, step=1000)
+    min_trades = col_c4.number_input("Mínimo Trades exigidos:", value=10, step=1)
 
     # 2. PANEL QUANT MANUAL
-    st.markdown("### 🎛️ 2. Panel Quant (Desactívalos si quieres calcar tu PRT exacto)")
+    st.markdown("### 🎛️ 2. Panel Quant Manual (Solo para el botón azul)")
     col_p1, col_p2, col_p3 = st.columns(3)
     val_z = True if opt_z != -99 else False
     val_acc = True if opt_acc != -99 else False
     val_vol = True if opt_vol != -99 else False
     
     with col_p1:
-        st.markdown("<div style='background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e8eaed;'>", unsafe_allow_html=True)
-        use_z = st.checkbox("🟢 Usar Tensión Precio (Z)", value=val_z)
+        use_z = st.checkbox("🟢 Usar Z-Score", value=val_z)
         bt_z_precio = st.number_input("Z-Score Mínimo (>)", value=float(opt_z) if opt_z != -99 else 1.0, step=0.1, disabled=not use_z)
-        st.markdown("</div>", unsafe_allow_html=True)
     with col_p2:
-        st.markdown("<div style='background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e8eaed;'>", unsafe_allow_html=True)
         use_acc = st.checkbox("🟢 Usar Momentum (Accel)", value=val_acc)
         bt_accel = st.number_input("Aceleración Mínima (>)", value=float(opt_acc) if opt_acc != -99 else 0.0, step=0.5, disabled=not use_acc)
-        st.markdown("</div>", unsafe_allow_html=True)
     with col_p3:
-        st.markdown("<div style='background:#f8f9fa; padding:15px; border-radius:10px; border:1px solid #e8eaed;'>", unsafe_allow_html=True)
         use_vol = st.checkbox("🟢 Usar Huella Volumen", value=val_vol)
-        bt_z_vol = st.number_input("Huella Vol Mínima (>)", value=float(opt_vol) if opt_vol != -99 else 1.5, step=0.1, disabled=not use_vol)
-        st.markdown("</div>", unsafe_allow_html=True)
+        bt_z_vol = st.number_input("Volumen Mínimo (>)", value=float(opt_vol) if opt_vol != -99 else 1.5, step=0.1, disabled=not use_vol)
         
-    # 3. LA TRINIDAD DE SISTEMAS (MEDIAS + TRIBUNAL)
-    st.markdown("### 🏛️ 3. Arquitectura del Sistema (Entradas y Salidas)")
-    st.info("⚖️ **El Tribunal:** MACD(3,5,3), Combo Stoch/Boll(3,2), CCI(2). Exige 2/3 Azul para Entrar. Exige 2/3 Rojo para Salir.")
-    tipo_sistema = st.radio("Añade el filtro de Medias Adaptativas Kaufman (AMA):", [
-        "PURO: Ignorar medias. Entrar con Tribunal Azul + Romper Máximo. Salir con Tribunal Rojo + Perder Mínimo.",
-        "HÍBRIDO: Entrar SOLO si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.",
-        "TENDENCIAL: Entrar SOLO si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."
+    st.markdown("### 🏛️ 3. Tipo de Sistema")
+    tipo_sistema = st.radio("Filtro de Medias Adaptativas Kaufman (AMA):", [
+        "PURO: Sin medias. Entrar con Tribunal Azul. Salir con Tribunal Rojo + Perder Mínimo.",
+        "HÍBRIDO: Entrar si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.",
+        "TENDENCIAL: Entrar si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."
     ], index=1)
     
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
     
     # -------------------------------------------------------------------------
-    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA)
+    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA) - BLINDADO CONTRA CERO (BUG 1980s)
     # -------------------------------------------------------------------------
     def calcular_kama(series, n=10, fast=2, slow=30):
         n_eff = max(2, n) 
         change = series.diff(n_eff).abs()
         volatility = series.diff().abs().rolling(n_eff).sum()
-        er = change / volatility
+        er = np.where(volatility == 0, 0, change / volatility)
+        er = pd.Series(er, index=series.index).fillna(0)
         sc = (er * (2/(fast+1) - 2/(slow+1)) + 2/(slow+1)) ** 2
         
         kama = np.full_like(series, np.nan, dtype=float)
@@ -654,14 +648,15 @@ with tab4:
             first_valid = valid_idx[0]
             kama[first_valid - 1] = series.iloc[first_valid - 1]
             for i in range(first_valid, len(series)):
-                kama[i] = kama[i-1] + sc.iloc[i] * (series.iloc[i] - kama[i-1])
+                if np.isnan(sc.iloc[i]): kama[i] = kama[i-1]
+                else: kama[i] = kama[i-1] + sc.iloc[i] * (series.iloc[i] - kama[i-1])
         return pd.Series(kama, index=series.index)
 
     # -------------------------------------------------------------------------
     # FRACTAL ENGINE (ANCLAJE INVERSO PRT) + TRIBUNAL
     # -------------------------------------------------------------------------
-    def procesar_datos_fractales(ticker_str, comp):
-        df_raw = yf.Ticker(ticker_str).history(period="max")
+    def procesar_datos_fractales(ticker_str, comp, periodo):
+        df_raw = yf.Ticker(ticker_str).history(period=periodo)
         if df_raw.empty: return pd.DataFrame()
         
         if comp > 1:
@@ -669,14 +664,13 @@ with tab4:
             groups = (n - 1 - np.arange(n)) // comp
             df_raw['Grupo'] = groups
             df_raw['Grupo'] = df_raw['Grupo'].max() - df_raw['Grupo']
-            
             fechas_agrupadas = df_raw.reset_index().groupby('Grupo')['Date'].last().values
             df_b = df_raw.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
             df_b.index = fechas_agrupadas
         else:
             df_b = df_raw.copy()
             
-        if len(df_b) < 100: return pd.DataFrame()
+        if len(df_b) < 55: return pd.DataFrame()
             
         df_b['MA55'] = df_b['Close'].rolling(window=55).mean()
         df_b['Vol_MA55'] = df_b['Volume'].rolling(window=55).mean()
@@ -773,43 +767,31 @@ with tab4:
             
         return log_forense
 
-    # -------------------------------------------------------------------------
-    # FUNCIÓN MÉTRICAS PRT (AHORA LLAMADA ESPERANZA MATEMÁTICA / EV)
-    # -------------------------------------------------------------------------
     def compilar_metricas(log_for, cap_trade):
         if not log_for: return 0, 0, 0, 0, 0
         rets = [f["Rendimiento Real"] for f in log_for]
         wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
-        
-        # EV = Promedio total de retornos de TODAS las operaciones (ganadoras y perdedoras)
         ev_pct = np.mean(rets)
         
         ganancias = sum([r for r in rets if r > 0])
         perdidas = abs(sum([r for r in rets if r < 0]))
         profit_factor = (ganancias / perdidas) if perdidas != 0 else 99.9
         
-        # EV Monetario = Capital * (EV% / 100)
         ev_eur = (ev_pct / 100) * cap_trade
-        
         velas_med = np.mean([f["Velas Dentro"] for f in log_for])
         return wr, ev_pct, profit_factor, ev_eur, velas_med
 
     # --- TEST MANUAL ---
-    if col_run_man.button(f"⚙️ Ejecutar Tribunal en {ticker}", type="primary", use_container_width=True):
+    if col_run_man.button(f"⚙️ Test Manual ({compresion}d)", type="primary", use_container_width=True):
         st.session_state['historial_lab'] = [] 
-        with st.spinner(f"Aplicando Votación de Jueces y Filtros Quant..."):
+        with st.spinner(f"Testeando..."):
             try:
-                df_bt = procesar_datos_fractales(ticker, compresion)
+                df_bt = procesar_datos_fractales(ticker, compresion, anos_test)
                 if not df_bt.empty:
                     sys_name = tipo_sistema.split(":")[0]
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
-                    
                     if len(log_for) > 0:
-                        if len(log_for) < min_trades:
-                            st.warning(f"⚠️ El test arrojó {len(log_for)} operaciones. Por debajo de tu límite de robustez ({min_trades}).")
-                        
                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
-                        
                         nuevo_test = {
                             "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": sys_name,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", 
@@ -819,48 +801,63 @@ with tab4:
                             "Velas Medias": round(v_med, 1), "Logs": log_for
                         }
                         st.session_state['historial_lab'].append(nuevo_test)
-                        st.success(f"✅ Análisis completado. {len(log_for)} operaciones encontradas.")
-                    else: st.warning("Cero operaciones cerradas. Las reglas no dieron señal.")
+                        st.success(f"✅ Análisis completado. {len(log_for)} operaciones.")
+                    else: st.warning("Cero operaciones cerradas.")
             except Exception as e: st.error(f"Error: {e}")
 
-    # --- MODO DIOS ---
-    if col_run_auto.button(f"🤖 MODO DIOS: Optimizador Cuántico", type="secondary", use_container_width=True):
+    # --- MODO DIOS: MAPEADO FRACTAL ABSOLUTO ---
+    if col_run_auto.button(f"🤖 MODO DIOS: Buscar el Campeón de cada Fractal", type="secondary", use_container_width=True):
         st.session_state['historial_lab'] = [] 
-        with st.spinner(f"Probando Compresiones + Trinidad de Sistemas + Filtros Quant..."):
+        with st.spinner(f"Analizando los 15 marcos temporales para {ticker}. Esto puede tardar 20-30 segundos..."):
             try:
-                resultados_temp = []
-                for cmp in [1, 2, 3, 5, 8]: 
-                    df_bt = procesar_datos_fractales(ticker, cmp)
+                resultados_campeones = []
+                todos_los_fractales = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
+                
+                for cmp in todos_los_fractales: 
+                    df_bt = procesar_datos_fractales(ticker, cmp, anos_test)
                     if df_bt.empty: continue
                     
+                    mejor_ev_cmp = -999999
+                    mejor_sistema_cmp = None
+                    
                     for s_type in ["PURO", "HÍBRIDO", "TENDENCIAL"]:
-                        for test_z in [None, 0.5, 1.0]:
+                        # Reducimos un poco el Grid para que no colapse el servidor
+                        for test_z in [None, 0.5, 1.0, 1.5]:
                             for test_v in [None, 0.5, 1.0]:
-                                log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp)
-                                
-                                if len(log_for) >= min_trades: 
-                                    wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
-                                    nuevo_test = {
-                                        "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
-                                        "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
-                                        "Volumen": f"> {test_v}" if test_v is not None else "OFF", "Accel": "OFF",
-                                        "Trades": len(log_for), "WinRate": round(wr, 1), 
-                                        "Esperanza Mat. (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "Esperanza Mat. (€)": round(ev_eur, 2),
-                                        "Velas Medias": round(v_med, 1), "Logs": log_for
-                                    }
-                                    resultados_temp.append(nuevo_test)
+                                for test_a in [None, 0.0]:
+                                    
+                                    log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, test_a if test_a else 0, test_v if test_v else 0, test_z is not None, test_a is not None, test_v is not None, cmp)
+                                    
+                                    if len(log_for) >= min_trades: 
+                                        wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
+                                        # Guardamos SOLO el que tenga la mayor Esperanza Matemática para esta compresión
+                                        if ev_eur > mejor_ev_cmp:
+                                            mejor_ev_cmp = ev_eur
+                                            mejor_sistema_cmp = {
+                                                "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
+                                                "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
+                                                "Accel": f"> {test_a}" if test_a is not None else "OFF",
+                                                "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
+                                                "Trades": len(log_for), "WinRate": round(wr, 1), 
+                                                "Esperanza Mat. (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "Esperanza Mat. (€)": round(ev_eur, 2),
+                                                "Velas Medias": round(v_med, 1), "Logs": log_for
+                                            }
+                    
+                    if mejor_sistema_cmp is not None:
+                        resultados_campeones.append(mejor_sistema_cmp)
                 
-                if resultados_temp:
-                    df_temp = pd.DataFrame(resultados_temp)
-                    # El Modo Dios ahora ordena inicialmente por el Santo Grial: La Esperanza Matemática (€)
-                    df_temp = df_temp.sort_values(by="Esperanza Mat. (€)", ascending=False).head(15)
+                if resultados_campeones:
+                    df_temp = pd.DataFrame(resultados_campeones)
+                    # Ordenamos de menor a mayor compresión (1d, 2d... 89d)
+                    df_temp['Orden'] = df_temp['Compresión'].str.replace('d','').astype(int)
+                    df_temp = df_temp.sort_values(by="Orden").drop(columns=['Orden'])
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Modo Dios Finalizado. Clasificado por Esperanza Matemática.")
-                else: st.warning(f"Ninguna combinación generó el mínimo exigido de {min_trades} operaciones.")
+                    st.success("✅ Topografía Fractal completada. Aquí tienes el mejor sistema para cada vela.")
+                else: st.warning(f"Ninguna compresión generó el mínimo de {min_trades} operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
     # =========================================================================
-    # EL NUEVO COLISEO QUANT (DASHBOARD MAESTRO-DETALLE)
+    # EL NUEVO COLISEO QUANT Y GUARDADO MÚLTIPLE
     # =========================================================================
     if len(st.session_state['historial_lab']) > 0:
         import plotly.graph_objects as go
@@ -868,60 +865,82 @@ with tab4:
         
         if not df_hist.empty:
             st.markdown("---")
-            st.markdown("## ⚔️ El Coliseo Quant (Dashboard Interactivo)")
-            
-            # --- 1. SECCIÓN MAESTRA (LA TABLA DE RANKING) ---
-            # Ahora la Esperanza Matemática (EV) es el criterio principal por defecto
-            criterio_orden = st.selectbox("🏆 ¿Qué métrica define el Ranking Oficial?", [
-                "Esperanza Matemática (EV)", "Mayor Profit Factor", "Mayor % Acierto (WinRate)", "Robustez (Mayor nº Trades)"
-            ])
-            
-            if "Esperanza" in criterio_orden:
-                df_hist = df_hist.sort_values(by=["Esperanza Mat. (€)", "Profit Factor"], ascending=[False, False])
-            elif "Profit" in criterio_orden:
-                df_hist = df_hist.sort_values(by=["Profit Factor", "Esperanza Mat. (€)"], ascending=[False, False])
-            elif "WinRate" in criterio_orden:
-                df_hist = df_hist.sort_values(by=["WinRate", "Esperanza Mat. (€)"], ascending=[False, False])
-            else:
-                df_hist = df_hist.sort_values(by=["Trades", "Esperanza Mat. (€)"], ascending=[False, False])
+            st.markdown("## 🗺️ Topografía Fractal de Campeones")
+            st.markdown("Cada fila muestra el **Mejor Sistema Absoluto** para esa compresión de tiempo (optimizado por EV).")
 
             df_hist = df_hist.reset_index(drop=True)
-
-            st.markdown("#### 📋 Ranking Oficial de Sistemas")
             
             def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
             
-            # Mostramos el nombre correcto en las columnas de la tabla
             cols_visibles = ["Compresión", "Sistema", "WinRate", "Profit Factor", "Esperanza Mat. (%)", "Esperanza Mat. (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
             df_disp = df_hist[cols_visibles]
             
             styled = df_disp.style.format({
-                "WinRate": "{:.1f}%", 
-                "Profit Factor": "{:.2f}", 
-                "Esperanza Mat. (%)": "{:+.2f}%", 
-                "Esperanza Mat. (€)": "{:+.2f} €",
-                "Velas Medias": "{:.1f}"
+                "WinRate": "{:.1f}%", "Profit Factor": "{:.2f}", "Esperanza Mat. (%)": "{:+.2f}%", 
+                "Esperanza Mat. (€)": "{:+.2f} €", "Velas Medias": "{:.1f}"
             }).map(c_hist, subset=['Esperanza Mat. (%)', 'Esperanza Mat. (€)'])
             
             st.dataframe(styled, use_container_width=True)
 
-            # --- 2. EL SELECTOR DETALLE (LA MAGIA) ---
+            # --- LA REVOLUCIÓN: GUARDAR LOS 5 FRACTALES PARA EL ESCÁNER ---
             st.markdown("---")
-            st.markdown("### 🎛️ Análisis Profundo (Selecciona un Sistema)")
-            opciones_dash = [f"Top {i+1} | {row['Sistema']} ({row['Compresión']}) | EV: {row['Esperanza Mat. (€)']:+.2f} € | Win: {row['WinRate']}%" for i, row in df_hist.iterrows()]
-            idx_sel = st.selectbox("🎯 Elige un sistema de la tabla superior para cargar sus gráficas y operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x])
+            st.markdown("### 💾 Inyectar ADN en el Escáner (Tus 5 Espacios)")
+            st.info("Selecciona exactamente los 5 marcos temporales que quieres que A.I.T.O.R. vigile diariamente para esta acción.")
+            
+            lista_compresiones = df_hist['Compresión'].tolist()
+            seleccion_fractales = st.multiselect("Elige tus 5 espacios temporales:", lista_compresiones, default=lista_compresiones[:5] if len(lista_compresiones)>=5 else lista_compresiones)
+            
+            if st.button("💾 GUARDAR ESTOS FRACTALES EN EL ESCÁNER", type="primary"):
+                if len(seleccion_fractales) == 0:
+                    st.warning("Debes seleccionar al menos 1 fractal.")
+                else:
+                    with st.spinner("Borrando memoria vieja y grabando el nuevo ADN múltiple..."):
+                        try:
+                            # 1. Leer Base de Datos
+                            df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
+                            
+                            # 2. Borrar todos los registros viejos de este Ticker
+                            if not df_adn_act.empty:
+                                df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
+                            
+                            # 3. Preparar las nuevas filas
+                            nuevas_filas = []
+                            for comp_elegida in seleccion_fractales:
+                                fila_sistema = df_hist[df_hist['Compresión'] == comp_elegida].iloc[0]
+                                
+                                c_z = float(fila_sistema['Z-Score'].replace("> ", "")) if fila_sistema['Z-Score'] != "OFF" else -99
+                                c_acc = float(fila_sistema['Accel'].replace("> ", "")) if fila_sistema['Accel'] != "OFF" else -99
+                                c_vol = float(fila_sistema['Volumen'].replace("> ", "")) if fila_sistema['Volumen'] != "OFF" else -99
+                                
+                                horizonte_inteligente = f"{fila_sistema['Compresión']}_{fila_sistema['Sistema']}" 
+                                n_id = str(int(datetime.datetime.now().timestamp())) + "_" + comp_elegida
+                                
+                                nuevas_filas.append({
+                                    "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
+                                    "Horizonte": horizonte_inteligente, "Rendimiento": fila_sistema['Esperanza Mat. (€)'], 
+                                    "WinRate": fila_sistema['WinRate'], "Es_Default": True, "ID_ADN": n_id
+                                })
+                            
+                            # 4. Inyectar todo de golpe
+                            df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
+                            conn.update(worksheet="ADN_Quant", data=df_final)
+                            st.cache_data.clear()
+                            st.success(f"✅ ¡ADN Grabado! Has inyectado {len(seleccion_fractales)} fractales para {ticker}.")
+                        except Exception as e:
+                            st.error(f"Error al guardar: {e}")
+
+            # --- ANALIZADOR DETALLE ---
+            st.markdown("---")
+            st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
+            opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['Esperanza Mat. (€)']:+.2f} €" for i, row in df_hist.iterrows()]
+            idx_sel = st.selectbox("🎯 Elige un campeón para ver sus métricas y operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x])
             
             sistema_activo = df_hist.iloc[idx_sel]
             
-            st.markdown(f"#### 🔎 Viendo detalles del TOP {idx_sel+1}: {sistema_activo['Sistema']} ({sistema_activo['Compresión']})")
-            
-            # --- 3. LOS VELOCÍMETROS DEL SISTEMA ELEGIDO ---
             col_v1, col_v2, col_v3 = st.columns(3)
             
-            # Velocímetro 1: Win Rate
             fig_wr = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = sistema_activo['WinRate'],
+                mode = "gauge+number", value = sistema_activo['WinRate'],
                 number = {'suffix': "%", 'font': {'size': 40, 'color': '#1d1d1f'}},
                 title = {'text': "% de Acierto", 'font': {'size': 18}},
                 gauge = {
@@ -935,12 +954,10 @@ with tab4:
             fig_wr.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
             col_v1.plotly_chart(fig_wr, use_container_width=True)
 
-            # Velocímetro 2: Profit Factor
             pf_val = sistema_activo['Profit Factor']
             pf_max = 5 if pf_val < 5 else pf_val + 1 
             fig_pf = go.Figure(go.Indicator(
-                mode = "gauge+number",
-                value = pf_val,
+                mode = "gauge+number", value = pf_val,
                 number = {'font': {'size': 40, 'color': '#1d1d1f'}},
                 title = {'text': "Profit Factor", 'font': {'size': 18}},
                 gauge = {
@@ -954,49 +971,16 @@ with tab4:
             fig_pf.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
             col_v2.plotly_chart(fig_pf, use_container_width=True)
 
-            # Tarjeta 3: Esperanza Matemática (EV)
             color_eur = "#16a34a" if sistema_activo['Esperanza Mat. (€)'] > 0 else "#dc2626"
             col_v3.markdown(f"""
             <div style='text-align: center; padding: 20px; background-color: white; border-radius: 10px; border: 1px solid #e8eaed; height: 100%; display: flex; flex-direction: column; justify-content: center;'>
                 <h3 style='color: gray; margin:0; font-size:1.1rem;'>Esperanza Matemática (EV)</h3>
-                <p style='color: gray; font-size: 0.8rem; margin-bottom: 10px;'>(Invirtiendo {capital_trade}€ por trade)</p>
                 <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{sistema_activo['Esperanza Mat. (€)']:+,.2f} €</h1>
                 <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{sistema_activo['Esperanza Mat. (%)']:+,.2f} %</p>
             </div>
             """, unsafe_allow_html=True)
             
-            # --- 4. BOTÓN DE GUARDADO INTELIGENTE ---
-            st.markdown("<br>", unsafe_allow_html=True)
-            if st.button(f"💾 GUARDAR EL SISTEMA [TOP {idx_sel+1}] EN EL ADN", type="primary", use_container_width=True):
-                with st.spinner("Inyectando el sistema seleccionado en la base de datos..."):
-                    try:
-                        c_z = float(sistema_activo['Z-Score'].replace("> ", "")) if sistema_activo['Z-Score'] != "OFF" else -99
-                        c_acc = float(sistema_activo['Accel'].replace("> ", "")) if sistema_activo['Accel'] != "OFF" else -99
-                        c_vol = float(sistema_activo['Volumen'].replace("> ", "")) if sistema_activo['Volumen'] != "OFF" else -99
-                        
-                        comp_pack = sistema_activo['Compresión']
-                        sis_pack = sistema_activo['Sistema']
-                        horizonte_inteligente = f"{comp_pack}_{sis_pack}" 
-                        
-                        df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
-                        n_id = str(int(datetime.datetime.now().timestamp()))
-                        es_def = True if df_adn_act[df_adn_act['Ticker'] == ticker].empty else False
-                        
-                        nuevo_adn = {
-                            "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
-                            "Horizonte": horizonte_inteligente, 
-                            "Rendimiento": sistema_activo['Esperanza Mat. (€)'], 
-                            "WinRate": sistema_activo['WinRate'], "Es_Default": es_def, "ID_ADN": n_id
-                        }
-                        
-                        conn.update(worksheet="ADN_Quant", data=pd.concat([df_adn_act, pd.DataFrame([nuevo_adn])], ignore_index=True))
-                        st.cache_data.clear(); st.session_state['adn_saved_success'] = True; st.rerun()
-                    except Exception as e: st.error(f"Error al guardar: {e}")
-
-            # --- 5. INSPECTOR FORENSE DEL SISTEMA ELEGIDO ---
-            st.markdown("#### 📓 Auditoría de Operaciones (Logs del sistema elegido)")
             datos_for = sistema_activo["Logs"]
-            
             if datos_for:
                 df_for = pd.DataFrame(datos_for)
                 df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
