@@ -589,7 +589,7 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO QUANT (TOPOGRAFÍA FRACTAL + ADN ESCÁNER)
+# PESTAÑA 4: LABORATORIO QUANT (TOPOGRAFÍA FRACTAL + FAVORITOS)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
@@ -602,8 +602,7 @@ with tab4:
     compresion = col_c1.selectbox("Velas (Test Manual):", opciones_compresion, index=3)
     anos_test = col_c2.selectbox("Historia a testear:", ["5y", "10y", "15y", "max"], index=1)
     capital_trade = col_c3.number_input("Capital/Trade (€):", value=10000, step=1000)
-    # EL NUEVO FILTRO BASE FRACTAL
-    min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1, help="La máquina reducirá esta exigencia automáticamente en velas lentas (ej. en 21d pedirá solo 3 o 4 trades).")
+    min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1, help="El límite bajará automáticamente para velas más lentas.")
 
     # 2. PANEL QUANT MANUAL
     st.markdown("### 🎛️ 2. Panel Quant Manual (Solo para el botón azul)")
@@ -787,7 +786,6 @@ with tab4:
         st.session_state['historial_lab'] = [] 
         with st.spinner(f"Testeando..."):
             try:
-                # Calculo dinámico de trades mínimos para el test manual (Raíz Cuadrada inversa)
                 min_trades_real = max(3, int(min_trades_base * (1 / (compresion ** 0.5))))
                 
                 df_bt = procesar_datos_fractales(ticker, compresion, anos_test)
@@ -796,7 +794,7 @@ with tab4:
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     if len(log_for) > 0:
                         if len(log_for) < min_trades_real:
-                            st.warning(f"⚠️ Operaciones ({len(log_for)}) por debajo del umbral de robustez dinámico para {compresion}d (mínimo exigido: {min_trades_real}).")
+                            st.warning(f"⚠️ Operaciones ({len(log_for)}) por debajo del umbral de robustez para {compresion}d (mínimo: {min_trades_real}).")
                         
                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                         nuevo_test = {
@@ -821,7 +819,6 @@ with tab4:
                 todos_los_fractales = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
                 
                 for cmp in todos_los_fractales: 
-                    # El Filtro Inteligente: Reduce la exigencia cuantas más días tenga la vela
                     min_trades_real = max(3, int(min_trades_base * (1 / (cmp ** 0.5))))
                     
                     df_bt = procesar_datos_fractales(ticker, cmp, anos_test)
@@ -837,7 +834,6 @@ with tab4:
                                     
                                     log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, test_a if test_a else 0, test_v if test_v else 0, test_z is not None, test_a is not None, test_v is not None, cmp)
                                     
-                                    # APLICAMOS EL FILTRO REDUCIDO PARA QUE LAS VELAS LENTAS RESPIRREN
                                     if len(log_for) >= min_trades_real: 
                                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                                         if ev_eur > mejor_ev_cmp:
@@ -860,12 +856,12 @@ with tab4:
                     df_temp['Orden'] = df_temp['Compresión'].str.replace('d','').astype(int)
                     df_temp = df_temp.sort_values(by="Orden").drop(columns=['Orden'])
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
-                    st.success("✅ Topografía Fractal completada. Los marcos de largo plazo (13d, 21d...) ya no están ocultos.")
-                else: st.warning(f"Ninguna compresión generó suficientes operaciones bajo el filtro de robustez dinámico.")
+                    st.success("✅ Topografía Fractal completada.")
+                else: st.warning(f"Ninguna compresión generó suficientes operaciones.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
     # =========================================================================
-    # EL NUEVO COLISEO QUANT Y GUARDADO MÚLTIPLE
+    # EL NUEVO COLISEO QUANT CON TABLA INTERACTIVA DE ESTRELLAS
     # =========================================================================
     if len(st.session_state['historial_lab']) > 0:
         import plotly.graph_objects as go
@@ -874,51 +870,64 @@ with tab4:
         if not df_hist.empty:
             st.markdown("---")
             st.markdown("## 🗺️ Topografía Fractal de Campeones")
-            st.markdown("Cada fila muestra el **Mejor Sistema Absoluto** para esa compresión de tiempo (optimizado por EV).")
+            st.markdown("Marca la casilla **⭐ Favorito** en los 5 sistemas que quieras enviar a tu Escáner Diario.")
 
             df_hist = df_hist.reset_index(drop=True)
             
+            # 1. Preparamos el DataFrame para la edición interactiva
+            cols_visibles = ["Compresión", "Sistema", "WinRate", "Profit Factor", "Esperanza Mat. (%)", "Esperanza Mat. (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
+            df_disp = df_hist[cols_visibles].copy()
+            
+            # Insertamos la columna booleana de las estrellas al principio
+            df_disp.insert(0, "⭐ Favorito", False)
+            
+            # Aplicamos los colores al DataFrame base
             def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
             
-            cols_visibles = ["Compresión", "Sistema", "WinRate", "Profit Factor", "Esperanza Mat. (%)", "Esperanza Mat. (€)", "Trades", "Velas Medias", "Z-Score", "Volumen"]
-            df_disp = df_hist[cols_visibles]
-            
-            styled = df_disp.style.format({
+            styled_df = df_disp.style.format({
                 "WinRate": "{:.1f}%", "Profit Factor": "{:.2f}", "Esperanza Mat. (%)": "{:+.2f}%", 
                 "Esperanza Mat. (€)": "{:+.2f} €", "Velas Medias": "{:.1f}"
             }).map(c_hist, subset=['Esperanza Mat. (%)', 'Esperanza Mat. (€)'])
             
-            st.dataframe(styled, use_container_width=True)
+            # Renderizamos la tabla editable donde SOLO se puede tocar la estrella
+            edited_df = st.data_editor(
+                styled_df,
+                column_config={
+                    "⭐ Favorito": st.column_config.CheckboxColumn("⭐ Favorito", help="Selecciona los 5 que quieras guardar", default=False)
+                },
+                disabled=cols_visibles, # Deshabilita la edición del resto de columnas
+                hide_index=True,
+                use_container_width=True,
+                key="editor_estrellas_adn" # Este Key evita que la tabla se borre
+            )
 
-            # --- LA REVOLUCIÓN: GUARDAR LOS 5 FRACTALES PARA EL ESCÁNER ---
-            st.markdown("---")
-            st.markdown("### 💾 Inyectar ADN en el Escáner (Tus 5 Espacios)")
-            st.info("Selecciona exactamente los marcos temporales que quieres que A.I.T.O.R. vigile diariamente para esta acción.")
-            
-            lista_compresiones = df_hist['Compresión'].tolist()
-            seleccion_fractales = st.multiselect("Elige tus fractales:", lista_compresiones, default=lista_compresiones[:5] if len(lista_compresiones)>=5 else lista_compresiones)
-            
-            if st.button("💾 GUARDAR ESTOS FRACTALES EN EL ESCÁNER", type="primary"):
-                if len(seleccion_fractales) == 0:
-                    st.warning("Debes seleccionar al menos 1 fractal.")
+            # Extraemos cuáles ha marcado el usuario
+            indices_elegidos = edited_df.index[edited_df["⭐ Favorito"] == True].tolist()
+
+            # --- BOTÓN PARA GUARDAR LAS ESTRELLAS MARCADAS ---
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("💾 GUARDAR LOS SISTEMAS MARCADOS (⭐) EN EL ESCÁNER", type="primary"):
+                if len(indices_elegidos) == 0:
+                    st.warning("⚠️ No has marcado ninguna estrella. Marca al menos una casilla en la tabla arriba.")
+                elif len(indices_elegidos) > 5:
+                    st.warning(f"⚠️ Has marcado {len(indices_elegidos)} sistemas. Te recomendamos guardar un máximo de 5 para no saturar el escáner.")
                 else:
-                    with st.spinner("Borrando memoria vieja y grabando el nuevo ADN múltiple..."):
+                    with st.spinner(f"Borrando memoria vieja y grabando el nuevo ADN para {ticker}..."):
                         try:
                             df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
-                            
                             if not df_adn_act.empty:
                                 df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
                             
                             nuevas_filas = []
-                            for comp_elegida in seleccion_fractales:
-                                fila_sistema = df_hist[df_hist['Compresión'] == comp_elegida].iloc[0]
+                            for idx in indices_elegidos:
+                                fila_sistema = df_hist.iloc[idx]
                                 
                                 c_z = float(fila_sistema['Z-Score'].replace("> ", "")) if fila_sistema['Z-Score'] != "OFF" else -99
                                 c_acc = float(fila_sistema['Accel'].replace("> ", "")) if fila_sistema['Accel'] != "OFF" else -99
                                 c_vol = float(fila_sistema['Volumen'].replace("> ", "")) if fila_sistema['Volumen'] != "OFF" else -99
                                 
                                 horizonte_inteligente = f"{fila_sistema['Compresión']}_{fila_sistema['Sistema']}" 
-                                n_id = str(int(datetime.datetime.now().timestamp())) + "_" + comp_elegida
+                                n_id = str(int(datetime.datetime.now().timestamp())) + "_" + fila_sistema['Compresión']
                                 
                                 nuevas_filas.append({
                                     "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
@@ -929,15 +938,17 @@ with tab4:
                             df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
                             conn.update(worksheet="ADN_Quant", data=df_final)
                             st.cache_data.clear()
-                            st.success(f"✅ ¡ADN Grabado! Has inyectado {len(seleccion_fractales)} fractales para {ticker}.")
+                            st.success(f"✅ ¡ADN Grabado! Has inyectado {len(indices_elegidos)} sistemas ganadores para {ticker}.")
                         except Exception as e:
                             st.error(f"Error al guardar: {e}")
 
-            # --- ANALIZADOR DETALLE ---
+            # --- ANALIZADOR DETALLE CON CANDADO (Soluciona el reinicio) ---
             st.markdown("---")
             st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
             opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['Esperanza Mat. (€)']:+.2f} €" for i, row in df_hist.iterrows()]
-            idx_sel = st.selectbox("🎯 Elige un campeón para ver sus métricas y operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x])
+            
+            # EL CANDADO (key="selector_detalle") evita el reinicio fantasma
+            idx_sel = st.selectbox("🎯 Elige un campeón para ver sus métricas y operaciones:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="selector_detalle")
             
             sistema_activo = df_hist.iloc[idx_sel]
             
