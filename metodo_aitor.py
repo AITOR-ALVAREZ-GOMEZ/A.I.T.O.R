@@ -539,7 +539,7 @@ with tab2:
         st.dataframe(df_display.sort_values("Score_Global", ascending=False), hide_index=True, use_container_width=True)
 
 # =====================================================================
-# PESTAÑA 3: CENTRO DE MANDO (CARTERA EN VIVO Y LÁSER PRT)
+# PESTAÑA 3: CENTRO DE MANDO (CARTERA EN VIVO)
 # =====================================================================
 with tab3:
     st.title("💼 Centro de Mando: Posiciones Vivas")
@@ -552,40 +552,16 @@ with tab3:
     fecha_compra = col_v3.date_input("Fecha de Compra:")
     cap_invertido = col_v4.number_input("Capital Invertido (€):", value=10000, step=1000)
 
-    # ⏳ EL RELOJ ATÓMICO DE PROREALTIME
-    anclas_prt = {
-        1: "2026-03-16", 2: "2026-03-17", 3: "2026-03-18", 5: "2026-03-16",
-        6: "2026-03-23", 7: "2026-03-17", 8: "2026-03-19", 11: "2026-03-30",
-        13: "2026-04-01", 14: "2026-03-17", 17: "2026-03-17", 21: "2026-03-26",
-        34: "2026-03-17", 55: "2026-03-30", 89: "2026-06-08"
+    # ⏳ EL RELOJ ATÓMICO (Anclas fijadas al pasado para sincronizar índices de PRT)
+    past_anchors = {
+        1: "2026-03-13", 2: "2026-03-13", 3: "2026-03-13", 5: "2026-03-09", 
+        6: "2026-03-13", 7: "2026-03-06", 8: "2026-03-09", 11: "2026-03-13", 
+        13: "2026-03-13", 14: "2026-02-25", 17: "2026-02-20", 21: "2026-02-25", 
+        34: "2026-01-28", 55: "2026-01-09", 89: "2026-01-30"
     }
 
-    # 🎯 EL LÁSER KAMA EXACTO DE PROREALTIME
-    def calcular_kama_prt(series, n, fast, slow):
-        n = int(n)
-        change = series.diff(n).abs()
-        volatility = series.diff(1).abs().rolling(n).sum()
-        er = np.where(volatility == 0, 0.0, change / volatility)
-        er = pd.Series(er, index=series.index).fillna(0.0)
-        
-        fast_c = 2.0 / (fast + 1.0)
-        slow_c = 2.0 / (slow + 1.0)
-        sc = (er * (fast_c - slow_c) + slow_c) ** 2
-        
-        kama = np.zeros(len(series))
-        kama[:] = np.nan
-        
-        for i in range(len(series)):
-            if i == 0 or np.isnan(series.iloc[i]):
-                kama[i] = series.iloc[i]
-            else:
-                prev_kama = kama[i-1] if not np.isnan(kama[i-1]) else series.iloc[i-1]
-                if np.isnan(prev_kama): prev_kama = series.iloc[i]
-                kama[i] = prev_kama + sc.iloc[i] * (series.iloc[i] - prev_kama)
-        return pd.Series(kama, index=series.index)
-
     if st.button("🔍 AUDITAR POSICIÓN Y CALCULAR SALIDAS", type="primary", use_container_width=True):
-        with st.spinner(f"Sincronizando Láser KAMA con ProRealTime para {ticker_vivo}..."):
+        with st.spinner(f"Sincronizando láser Quant y Reloj Atómico para {ticker_vivo}..."):
             try:
                 df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
                 adn_ticker = df_adn[df_adn['Ticker'] == ticker_vivo]
@@ -624,28 +600,25 @@ with tab3:
                         c_a = float(row.get('Acc_Min', -99))
                         c_v = float(row.get('Vol_Min', -99))
                         
+                        # 🧩 AGRUPACIÓN DE VELAS CLONADA A PROREALTIME
                         if comp_int > 1:
-                            fecha_ancla = anclas_prt.get(comp_int, None)
-                            if fecha_ancla:
-                                ultimo_dia = df_real.index[-1].date()
-                                ancla_dt = pd.to_datetime(fecha_ancla).date()
-                                delta = np.busday_count(ancla_dt, ultimo_dia)
-                                days_in = delta % comp_int
-                                m_dias = comp_int - 1 - days_in
+                            ancla_str = past_anchors.get(comp_int)
+                            if ancla_str:
+                                ancla_dt = pd.to_datetime(ancla_str)
+                                try:
+                                    idx_ancla = df_real.index.get_indexer([ancla_dt], method='nearest')[0]
+                                except:
+                                    idx_ancla = len(df_real) - 1
                             else:
-                                m_dias = 0
+                                idx_ancla = len(df_real) - 1
                                 
-                            n_real = len(df_real)
-                            n_total = n_real + m_dias
-                            groups_total = (n_total - 1 - np.arange(n_total)) // comp_int
-                            groups = groups_total[:n_real] 
-                            
+                            grupos_raw = (np.arange(len(df_real)) - idx_ancla) // comp_int
                             df_temp = df_real.copy()
-                            df_temp['Grupo'] = groups
-                            df_temp['Grupo'] = df_temp['Grupo'].max() - df_temp['Grupo']
-                            fechas_agr = df_temp.reset_index().groupby('Grupo')['Date'].last().values
-                            df_b = df_temp.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
-                            df_b.index = fechas_agr
+                            df_temp['Date'] = df_temp.index
+                            df_temp['Grupo'] = grupos_raw
+                            # Etiquetamos cada vela con el PRIMER día para que coincida con tu gráfico
+                            df_b = df_temp.groupby('Grupo').agg({'Date': 'first', 'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
+                            df_b.set_index('Date', inplace=True)
                         else:
                             df_b = df_real.copy()
 
@@ -659,11 +632,9 @@ with tab3:
                         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
                         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
 
-                        # 🚀 RÉPLICA EXACTA DE TUS CAPTURAS DE PROREALTIME
-                        # AMA Rápida: Periodo 1, Rápida 2, Lenta 1 -> Cierre
-                        df_b['AMA_Rápida'] = calcular_kama_prt(df_b['Close'], n=1, fast=2, slow=1)
-                        # AMA Lenta: Periodo 1, Rápida 3, Lenta 1 -> Apertura
-                        df_b['AMA_Lenta'] = calcular_kama_prt(df_b['Open'], n=1, fast=3, slow=1)
+                        # 🎯 LÁSER MATEMÁTICO: Replica exacta de tu PRT (1,2,1) y (1,3,1)
+                        df_b['AMA_Rápida'] = df_b['Close'].ewm(alpha=4/9, adjust=False).mean()
+                        df_b['AMA_Lenta'] = df_b['Open'].ewm(alpha=0.25, adjust=False).mean()
                         
                         macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
                         macd_sig = macd_line.ewm(span=3, adjust=False).mean()
@@ -759,8 +730,9 @@ with tab3:
                             fecha_ent_final = "---"
                             fecha_sal_final = memoria_sal_str
                             
+                            # 🚨 DETECTOR DE VETO QUANT
                             if df_b['Tech_OK'].iloc[-2] and not df_b['Quant_OK'].iloc[-2]:
-                                gatillo_texto = "Técnico OK -> Bloqueado por Quant (Z/Vol)"
+                                gatillo_texto = "Bloqueado por Quant (Z/Vol insuficiente)"
                             elif df_b['Candidato_Ent'].iloc[-2]:
                                 gatillo_texto = f"Esperando rotura de {df_b['High'].iloc[-2]:.2f}$"
                             else:
@@ -894,56 +866,30 @@ with tab4:
     
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
-
-    # 🎯 EL LÁSER KAMA EXACTO EN EL LABORATORIO TAMBIÉN
-    def calcular_kama_prt_lab(series, n, fast, slow):
-        n = int(n)
-        change = series.diff(n).abs()
-        volatility = series.diff(1).abs().rolling(n).sum()
-        er = np.where(volatility == 0, 0.0, change / volatility)
-        er = pd.Series(er, index=series.index).fillna(0.0)
-        fast_c = 2.0 / (fast + 1.0)
-        slow_c = 2.0 / (slow + 1.0)
-        sc = (er * (fast_c - slow_c) + slow_c) ** 2
-        kama = np.zeros(len(series))
-        kama[:] = np.nan
-        for i in range(len(series)):
-            if i == 0 or np.isnan(series.iloc[i]):
-                kama[i] = series.iloc[i]
-            else:
-                prev_kama = kama[i-1] if not np.isnan(kama[i-1]) else series.iloc[i-1]
-                if np.isnan(prev_kama): prev_kama = series.iloc[i]
-                kama[i] = prev_kama + sc.iloc[i] * (series.iloc[i] - prev_kama)
-        return pd.Series(kama, index=series.index)
     
     def procesar_datos_fractales(ticker_str, comp, periodo):
         df_raw = yf.Ticker(ticker_str).history(period=periodo)
         if df_raw.empty: return pd.DataFrame()
         
-        anclas_prt_lab = {1: "2026-03-16", 2: "2026-03-17", 3: "2026-03-18", 5: "2026-03-16", 6: "2026-03-23", 7: "2026-03-17", 8: "2026-03-19", 11: "2026-03-30", 13: "2026-04-01", 14: "2026-03-17", 17: "2026-03-17", 21: "2026-03-26", 34: "2026-03-17", 55: "2026-03-30", 89: "2026-06-08"}
+        past_anchors_lab = {1: "2026-03-13", 2: "2026-03-13", 3: "2026-03-13", 5: "2026-03-09", 6: "2026-03-13", 7: "2026-03-06", 8: "2026-03-09", 11: "2026-03-13", 13: "2026-03-13", 14: "2026-02-25", 17: "2026-02-20", 21: "2026-02-25", 34: "2026-01-28", 55: "2026-01-09", 89: "2026-01-30"}
         
         if comp > 1:
-            fecha_ancla = anclas_prt_lab.get(comp, None)
-            if fecha_ancla:
-                ultimo_dia = df_raw.index[-1].date()
-                ancla_dt = pd.to_datetime(fecha_ancla).date()
-                delta = np.busday_count(ancla_dt, ultimo_dia)
-                days_in = delta % comp
-                m_dias = comp - 1 - days_in
+            ancla_str = past_anchors_lab.get(comp)
+            if ancla_str:
+                ancla_dt = pd.to_datetime(ancla_str)
+                try:
+                    idx_ancla = df_raw.index.get_indexer([ancla_dt], method='nearest')[0]
+                except:
+                    idx_ancla = len(df_raw) - 1
             else:
-                m_dias = 0
+                idx_ancla = len(df_raw) - 1
                 
-            n_real = len(df_raw)
-            n_total = n_real + m_dias
-            groups_total = (n_total - 1 - np.arange(n_total)) // comp
-            groups = groups_total[:n_real]
-            
+            grupos_raw = (np.arange(len(df_raw)) - idx_ancla) // comp
             df_temp = df_raw.copy()
-            df_temp['Grupo'] = groups
-            df_temp['Grupo'] = df_temp['Grupo'].max() - df_temp['Grupo']
-            fechas_agrupadas = df_temp.reset_index().groupby('Grupo')['Date'].last().values
-            df_b = df_temp.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
-            df_b.index = fechas_agrupadas
+            df_temp['Date'] = df_temp.index
+            df_temp['Grupo'] = grupos_raw
+            df_b = df_temp.groupby('Grupo').agg({'Date': 'first', 'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
+            df_b.set_index('Date', inplace=True)
         else: df_b = df_raw.copy()
             
         if len(df_b) < 55: return pd.DataFrame()
@@ -956,9 +902,9 @@ with tab4:
         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
 
-        # 🚀 LÁSER PRT (Laboratorio)
-        df_b['AMA_Rápida'] = calcular_kama_prt_lab(df_b['Close'], 1, 2, 1)
-        df_b['AMA_Lenta'] = calcular_kama_prt_lab(df_b['Open'], 1, 3, 1)
+        # 🚀 LÁSER PRT TAMBIÉN EN EL LABORATORIO
+        df_b['AMA_Rápida'] = df_b['Close'].ewm(alpha=4/9, adjust=False).mean()
+        df_b['AMA_Lenta'] = df_b['Open'].ewm(alpha=0.25, adjust=False).mean()
         
         macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
         macd_sig = macd_line.ewm(span=3, adjust=False).mean()
