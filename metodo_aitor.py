@@ -589,19 +589,21 @@ with tab3:
         except: pass
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (TRIBUNAL + OPERACIONES ABIERTAS)
+# PESTAÑA 4: LABORATORIO MODULAR FRACTAL (TRIBUNAL + VELOCÍMETROS PRT)
 # =====================================================================
 with tab4:
     st.title("🧪 Laboratorio Quant y Optimizador Fractal")
-    st.markdown(f"Experimenta con **{ticker}**. El sistema usa tu Tribunal de 3 Indicadores cruzado con el ADN Quant.")
+    st.markdown(f"Experimenta con **{ticker}**. El sistema usa tu Tribunal de 3 Indicadores anclado a Tiempo Real.")
     
-    # 1. COMPRESIÓN TEMPORAL
-    st.markdown("### ⏳ 1. Compresión Temporal (Motor Fractal)")
+    # 1. COMPRESIÓN TEMPORAL Y CAPITAL
+    st.markdown("### ⏳ 1. Configuración de Simulación")
+    col_c1, col_c2 = st.columns(2)
     opciones_compresion = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
-    compresion = st.selectbox("¿Cuántos días reales formarán UNA sola vela en el Test?", opciones_compresion, index=0)
+    compresion = col_c1.selectbox("¿Cuántos días formarán UNA vela en el Test?", opciones_compresion, index=0)
+    capital_trade = col_c2.number_input("Capital por Operación (€) para medir ganancias:", value=10000, step=1000)
 
     # 2. PANEL QUANT MANUAL
-    st.markdown("### 🎛️ 2. Panel Quant (Filtros Estructurales)")
+    st.markdown("### 🎛️ 2. Panel Quant (Desactívalos si quieres calcar tu PRT exacto)")
     col_p1, col_p2, col_p3 = st.columns(3)
     val_z = True if opt_z != -99 else False
     val_acc = True if opt_acc != -99 else False
@@ -626,7 +628,7 @@ with tab4:
     # 3. LA TRINIDAD DE SISTEMAS (MEDIAS + TRIBUNAL)
     st.markdown("### 🏛️ 3. Arquitectura del Sistema (Entradas y Salidas)")
     st.info("⚖️ **El Tribunal:** MACD(3,5,3), Combo Stoch/Boll(3,2), CCI(2). Exige 2/3 Azul para Entrar. Exige 2/3 Rojo para Salir.")
-    tipo_sistema = st.radio("Añade el filtro de Medias Adaptativas (AMA Cierre 2, AMA Apertura 3):", [
+    tipo_sistema = st.radio("Añade el filtro de Medias Adaptativas Kaufman (AMA):", [
         "PURO: Ignorar medias. Entrar con Tribunal Azul + Romper Máximo. Salir con Tribunal Rojo + Perder Mínimo.",
         "HÍBRIDO: Entrar SOLO si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.",
         "TENDENCIAL: Entrar SOLO si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."
@@ -636,14 +638,42 @@ with tab4:
     col_run_man, col_run_auto = st.columns(2)
     
     # -------------------------------------------------------------------------
-    # FRACTAL ENGINE + TRIBUNAL
+    # KAUFMAN ADAPTIVE MOVING AVERAGE (KAMA) ORIGINAL MATEMÁTICO
+    # -------------------------------------------------------------------------
+    def calcular_kama(series, n=10, fast=2, slow=30):
+        # Si n=1 como me pediste, el Ratio de Eficiencia falla matemáticamente.
+        # Ajustamos el mínimo vital a 2 para que el algoritmo respire.
+        n_eff = max(2, n) 
+        change = series.diff(n_eff).abs()
+        volatility = series.diff().abs().rolling(n_eff).sum()
+        er = change / volatility
+        sc = (er * (2/(fast+1) - 2/(slow+1)) + 2/(slow+1)) ** 2
+        
+        kama = np.full_like(series, np.nan, dtype=float)
+        valid_idx = np.where(~np.isnan(sc))[0]
+        if len(valid_idx) > 0:
+            first_valid = valid_idx[0]
+            kama[first_valid - 1] = series.iloc[first_valid - 1]
+            for i in range(first_valid, len(series)):
+                kama[i] = kama[i-1] + sc.iloc[i] * (series.iloc[i] - kama[i-1])
+        return pd.Series(kama, index=series.index)
+
+    # -------------------------------------------------------------------------
+    # FRACTAL ENGINE (CON ANCLAJE INVERSO PRT) + TRIBUNAL
     # -------------------------------------------------------------------------
     def procesar_datos_fractales(ticker_str, comp):
         df_raw = yf.Ticker(ticker_str).history(period="max")
         if df_raw.empty: return pd.DataFrame()
         
+        # EL GRAN FIX: Anclaje Inverso desde HOY para coincidir con PRT
         if comp > 1:
-            df_raw['Grupo'] = np.arange(len(df_raw)) // comp
+            n = len(df_raw)
+            # Creamos grupos contando hacia atrás
+            groups = (n - 1 - np.arange(n)) // comp
+            df_raw['Grupo'] = groups
+            # Invertimos para que suban de forma cronológica
+            df_raw['Grupo'] = df_raw['Grupo'].max() - df_raw['Grupo']
+            
             fechas_agrupadas = df_raw.reset_index().groupby('Grupo')['Date'].last().values
             df_b = df_raw.groupby('Grupo').agg({'Open': 'first', 'High': 'max', 'Low': 'min', 'Close': 'last', 'Volume': 'sum'})
             df_b.index = fechas_agrupadas
@@ -660,8 +690,9 @@ with tab4:
         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
         
-        df_b['AMA_Rápida'] = df_b['Close'].ewm(span=2, adjust=False).mean()
-        df_b['AMA_Lenta'] = df_b['Open'].ewm(span=3, adjust=False).mean()
+        # Medias AMA reales (Ajustamos n=2 mínimo para que la matemática KAMA no dé error div/0)
+        df_b['AMA_Rápida'] = calcular_kama(df_b['Close'], n=2, fast=2, slow=3)
+        df_b['AMA_Lenta'] = calcular_kama(df_b['Open'], n=2, fast=3, slow=5)
         
         # Juez 1: MACD
         macd_line = df_b['Close'].ewm(span=3, adjust=False).mean() - df_b['Close'].ewm(span=5, adjust=False).mean()
@@ -708,17 +739,13 @@ with tab4:
         
         while i < len(df_bt) - 1:
             if df_bt.iloc[i]['Candidato_Ent']:
-                # GATILLO INTRADÍA: La vela siguiente supera el máximo
                 if df_bt.iloc[i+1]['High'] > df_bt.iloc[i]['High']:
                     idx_ent = i + 1
-                    # Simulamos entrada en la ruptura exacta del máximo (o en la apertura si hubo gap alcista)
                     p_ent = max(df_bt.iloc[idx_ent]['Open'], df_bt.iloc[i]['High'])
                     
                     idx_salida = -1
                     for j in range(idx_ent + 1, len(df_bt)):
                         trib_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
-                        
-                        # SALIDA INTRADÍA: El Mínimo (Low) de hoy perfora el Mínimo (Low) de ayer
                         pierde_min = df_bt['Low'].iloc[j] < df_bt['Low'].iloc[j-1]
                         
                         if "TENDENCIAL" in sys_type:
@@ -728,13 +755,10 @@ with tab4:
                             if trib_rojo and pierde_min: idx_salida = j; break
                                 
                     if idx_salida != -1:
-                        # LA OPERACIÓN SE CERRÓ
-                        # Simulamos salida en la pérdida del mínimo exacto
                         p_sal = min(df_bt.iloc[idx_salida]['Open'], df_bt.iloc[idx_salida-1]['Low'])
                         f_sal = pd.to_datetime(df_bt.index[idx_salida]).strftime("%Y-%m-%d")
                         velas_in = idx_salida - idx_ent
                     else:
-                        # ABIERTA HOY
                         idx_salida = len(df_bt) - 1
                         p_sal = df_bt['Close'].iloc[idx_salida]
                         f_sal = "🟢 ABIERTA ACTUAL"
@@ -757,6 +781,23 @@ with tab4:
             
         return log_forense
 
+    # -------------------------------------------------------------------------
+    # FUNCIÓN PARA CALCULAR MÉTRICAS ESTILO PROREALTIME
+    # -------------------------------------------------------------------------
+    def compilar_metricas(log_for, cap_trade):
+        if not log_for: return 0, 0, 0, 0, 0
+        rets = [f["Rendimiento Real"] for f in log_for]
+        wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
+        rend_medio = np.mean(rets)
+        
+        ganancias = sum([r for r in rets if r > 0])
+        perdidas = abs(sum([r for r in rets if r < 0]))
+        profit_factor = (ganancias / perdidas) if perdidas != 0 else 99.9
+        
+        euros_medio = (rend_medio / 100) * cap_trade
+        velas_med = np.mean([f["Velas Dentro"] for f in log_for])
+        return wr, rend_medio, profit_factor, euros_medio, velas_med
+
     # --- TEST MANUAL ---
     if col_run_man.button(f"⚙️ Ejecutar Tribunal en {ticker}", type="primary", use_container_width=True):
         st.session_state['historial_lab'] = [] 
@@ -768,17 +809,15 @@ with tab4:
                     log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
                     
                     if len(log_for) > 0:
-                        rets = [f["Rendimiento Real"] for f in log_for]
-                        wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
+                        wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
                         
                         nuevo_test = {
                             "Ticker": ticker, "Compresión": f"{compresion}d", "Sistema": sys_name,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", 
                             "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
                             "Trades": len(log_for), "WinRate": round(wr, 1), 
-                            "Rend Medio %": round(np.mean(rets), 2), 
-                            "Velas Medias": round(np.mean([f["Velas Dentro"] for f in log_for]), 1),
-                            "Logs": log_for
+                            "Rend Medio %": round(r_med, 2), "Profit Factor": round(pf, 2), "Euros Medio": round(eur_med, 2),
+                            "Velas Medias": round(v_med, 1), "Logs": log_for
                         }
                         st.session_state['historial_lab'].append(nuevo_test)
                         st.success(f"✅ Análisis completado. {len(log_for)} operaciones encontradas.")
@@ -801,61 +840,105 @@ with tab4:
                                 log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp)
                                 
                                 if len(log_for) >= 4: 
-                                    rets = [f["Rendimiento Real"] for f in log_for]
-                                    wr = (len([s for s in rets if s > 0]) / len(rets)) * 100
+                                    wr, r_med, pf, eur_med, v_med = compilar_metricas(log_for, capital_trade)
                                     nuevo_test = {
                                         "Ticker": ticker, "Compresión": f"{cmp}d", "Sistema": s_type,
                                         "Z-Score": f"> {test_z}" if test_z is not None else "OFF", 
                                         "Volumen": f"> {test_v}" if test_v is not None else "OFF", "Accel": "OFF",
                                         "Trades": len(log_for), "WinRate": round(wr, 1), 
-                                        "Rend Medio %": round(np.mean(rets), 2), 
-                                        "Velas Medias": round(np.mean([f["Velas Dentro"] for f in log_for]), 1),
-                                        "Logs": log_for
+                                        "Rend Medio %": round(r_med, 2), "Profit Factor": round(pf, 2), "Euros Medio": round(eur_med, 2),
+                                        "Velas Medias": round(v_med, 1), "Logs": log_for
                                     }
                                     resultados_temp.append(nuevo_test)
                 
                 if resultados_temp:
                     df_temp = pd.DataFrame(resultados_temp)
-                    df_temp['EV_Proxy'] = df_temp['WinRate'] * df_temp['Rend Medio %']
+                    df_temp['EV_Proxy'] = df_temp['WinRate'] * df_temp['Profit Factor']
                     df_temp = df_temp.sort_values(by="EV_Proxy", ascending=False).drop(columns=['EV_Proxy']).head(8)
                     st.session_state['historial_lab'] = df_temp.to_dict('records')
                     st.success("✅ Modo Dios Finalizado.")
                 else: st.warning("Ninguna combinación generó operaciones viables.")
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
-    # --- RESULTADOS (EL COLISEO) ---
+    # --- RESULTADOS (EL COLISEO CON VELOCÍMETROS) ---
     if len(st.session_state['historial_lab']) > 0:
+        import plotly.graph_objects as go
         df_hist = pd.DataFrame(st.session_state['historial_lab'])
+        
         if not df_hist.empty:
             st.markdown("---")
             st.markdown("## ⚔️ El Coliseo Quant (Resultados del Tribunal)")
             campeon = df_hist.iloc[0]
-            st.markdown(f"""
-            <div class='champion-card'>
-                <div class='champion-title'>👑 CAMPEÓN ABSOLUTO</div>
-                <div class='champion-stats'>
-                    <div class='stat-box'>⚙️ Medias: {campeon['Sistema']}</div>
-                    <div class='stat-box'>⏱️ Velas: {campeon['Compresión']}</div>
-                    <div class='stat-box'>📈 Win Rate: {campeon['WinRate']}%</div>
-                    <div class='stat-box' style='background:#fef3c7; border-color:#d97706;'>💰 Rend Medio: +{campeon['Rend Medio %']}%</div>
-                    <div class='stat-box'>⌛ Duración: {campeon['Velas Medias']} Velas</div>
-                    <div class='stat-box'>🔍 Z: {campeon['Z-Score']} | 🐘 Vol: {campeon['Volumen']}</div>
-                </div>
+            
+            st.markdown(f"### 👑 CAMPEÓN ABSOLUTO: {campeon['Sistema']} ({campeon['Compresión']})")
+            st.markdown(f"**Vigilancia:** Z-Score: {campeon['Z-Score']} | Volumen: {campeon['Volumen']} | Duración Media: {campeon['Velas Medias']} Velas")
+            
+            col_v1, col_v2, col_v3 = st.columns(3)
+            
+            # Velocímetro 1: Win Rate
+            fig_wr = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = campeon['WinRate'],
+                number = {'suffix': "%", 'font': {'size': 40, 'color': '#1d1d1f'}},
+                title = {'text': "% de Acierto<br><span style='font-size:0.8em;color:gray'>Posiciones Ganadoras</span>", 'font': {'size': 18}},
+                gauge = {
+                    'axis': {'range': [0, 100], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                    'bar': {'color': "#16a34a" if campeon['WinRate'] >= 50 else "#dc2626"},
+                    'bgcolor': "white",
+                    'steps': [
+                        {'range': [0, 50], 'color': "#fee2e2"},
+                        {'range': [50, 100], 'color': "#dcfce7"}],
+                    'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 50}
+                }
+            ))
+            fig_wr.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
+            col_v1.plotly_chart(fig_wr, use_container_width=True)
+
+            # Velocímetro 2: Profit Factor (Ratio)
+            pf_val = campeon['Profit Factor']
+            pf_max = 5 if pf_val < 5 else pf_val + 1 
+            fig_pf = go.Figure(go.Indicator(
+                mode = "gauge+number",
+                value = pf_val,
+                number = {'font': {'size': 40, 'color': '#1d1d1f'}},
+                title = {'text': "Ratio Ganancia/Pérdida<br><span style='font-size:0.8em;color:gray'>Profit Factor</span>", 'font': {'size': 18}},
+                gauge = {
+                    'axis': {'range': [0, pf_max], 'tickwidth': 1, 'tickcolor': "darkblue"},
+                    'bar': {'color': "#16a34a" if pf_val >= 1.5 else ("#eab308" if pf_val >= 1.0 else "#dc2626")},
+                    'bgcolor': "white",
+                    'steps': [
+                        {'range': [0, 1], 'color': "#fee2e2"},
+                        {'range': [1, 2], 'color': "#fef9c3"},
+                        {'range': [2, pf_max], 'color': "#dcfce7"}],
+                    'threshold': {'line': {'color': "black", 'width': 4}, 'thickness': 0.75, 'value': 1}
+                }
+            ))
+            fig_pf.update_layout(height=250, margin=dict(l=10, r=10, t=50, b=10), paper_bgcolor="rgba(0,0,0,0)")
+            col_v2.plotly_chart(fig_pf, use_container_width=True)
+
+            # Tarjeta 3: Ganancia en Euros
+            color_eur = "#16a34a" if campeon['Euros Medio'] > 0 else "#dc2626"
+            col_v3.markdown(f"""
+            <div style='text-align: center; padding: 20px; background-color: white; border-radius: 10px; border: 1px solid #e8eaed; height: 100%; display: flex; flex-direction: column; justify-content: center;'>
+                <h3 style='color: gray; margin:0; font-size:1.1rem;'>Ganancia Media por Trade</h3>
+                <p style='color: gray; font-size: 0.8rem; margin-bottom: 10px;'>(Invirtiendo {capital_trade}€)</p>
+                <h1 style='color: {color_eur}; margin:0; font-size: 2.8rem;'>{campeon['Euros Medio']:+,.2f} €</h1>
+                <p style='color: #1d1d1f; font-size: 1.2rem; margin-top: 5px; font-weight: bold;'>{campeon['Rend Medio %']:+,.2f} %</p>
             </div>
             """, unsafe_allow_html=True)
             
+            # --- TABLA DE RANKING ---
             st.markdown("#### 📋 Top Rankings de Sistemas:")
             def c_hist(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
             df_disp = df_hist.drop(columns=["Logs"])
-            styled = df_disp.style.map(c_hist, subset=['Rend Medio %'])
+            styled = df_disp.style.map(c_hist, subset=['Rend Medio %', 'Euros Medio'])
             st.dataframe(styled, use_container_width=True, hide_index=True)
 
             # --- INSPECTOR FORENSE ---
             st.markdown("---")
             st.markdown("### 🔍 Inspección Forense (Auditoría de Trades)")
-            st.markdown("Revisa exactamente cuánto tiempo ha estado retenido el capital (Velas vs Días Reales).")
             tests_vis = df_hist.to_dict('records')
-            opc_insp = [f"Top {i+1} | {t['Sistema']} {t['Compresión']} | Z {t['Z-Score']} | Vol {t['Volumen']} ({t['Trades']} trades)" for i, t in enumerate(tests_vis)]
+            opc_insp = [f"Top {i+1} | {t['Sistema']} {t['Compresión']} | PF: {t['Profit Factor']} | Win: {t['WinRate']}%" for i, t in enumerate(tests_vis)]
             idx_el = st.selectbox("Abre la caja negra del Test:", range(len(opc_insp)), format_func=lambda x: opc_insp[x])
             datos_for = tests_vis[idx_el]["Logs"]
             
@@ -863,8 +946,10 @@ with tab4:
                 df_for = pd.DataFrame(datos_for)
                 df_for = df_for.sort_values(by="Fecha Entrada", ascending=False)
                 
+                df_for['Ganancia €'] = (df_for['Rendimiento Real'] / 100) * capital_trade
+                
                 def f_pct(val): return f"{val:+.2f}%" if isinstance(val, (int, float)) else val
-                def f_dol(val): return f"{val:.2f} $" if isinstance(val, (int, float)) else val
+                def f_dol(val): return f"{val:,.2f}" if isinstance(val, (int, float)) else val
                 def c_for(val): return 'color: #16a34a; font-weight: bold' if isinstance(val, (int, float)) and val > 0 else ('color: #dc2626' if isinstance(val, (int, float)) and val < 0 else '')
                 def c_dd(val):
                     if isinstance(val, (int, float)):
@@ -873,8 +958,10 @@ with tab4:
                     return ''
                 def c_salida(val): return 'background-color: #dcfce7; color: #166534; font-weight: bold' if "ABIERTA" in str(val) else ''
                     
-                styled_f = df_for.style.format(f_pct, subset=['Rendimiento Real', 'Max Drawdown']).format(f_dol, subset=['Precio Ent', 'Precio Sal']).map(c_for, subset=['Rendimiento Real']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
-                st.dataframe(styled_f, use_container_width=True, hide_index=True)
+                styled_f = df_for.style.format(f_pct, subset=['Rendimiento Real', 'Max Drawdown']).format(f_dol, subset=['Precio Ent', 'Precio Sal', 'Ganancia €']).map(c_for, subset=['Rendimiento Real', 'Ganancia €']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
+                
+                cols_order = ['Fecha Entrada', 'Fecha Salida', 'Velas Dentro', 'Días Reales', 'Precio Ent', 'Precio Sal', 'Max Drawdown', 'Rendimiento Real', 'Ganancia €']
+                st.dataframe(styled_f[cols_order], use_container_width=True, hide_index=True)
 # =====================================================================
 # PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
 # =====================================================================
