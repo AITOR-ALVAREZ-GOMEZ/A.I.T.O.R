@@ -552,7 +552,6 @@ with tab3:
     fecha_compra = col_v3.date_input("Fecha de Compra:")
     cap_invertido = col_v4.number_input("Capital Invertido (€):", value=10000, step=1000)
 
-    # ⏳ EL RELOJ ATÓMICO (Anclas fijadas al pasado para sincronizar índices de PRT)
     past_anchors = {
         1: "2026-03-13", 2: "2026-03-13", 3: "2026-03-13", 5: "2026-03-09", 
         6: "2026-03-13", 7: "2026-03-06", 8: "2026-03-09", 11: "2026-03-13", 
@@ -566,7 +565,6 @@ with tab3:
                 df_adn = conn.read(worksheet="ADN_Quant", ttl=0)
                 adn_ticker = df_adn[df_adn['Ticker'] == ticker_vivo]
                 
-                # 🛡️ FILTRO CORE: Excluir los sistemas que son SOLO para el Radar Intradía
                 if 'Perfil' in adn_ticker.columns:
                     adn_ticker['Perfil'] = adn_ticker['Perfil'].fillna("Escáner")
                     adn_ticker = adn_ticker[adn_ticker['Perfil'].astype(str).str.contains("Escáner")]
@@ -594,6 +592,11 @@ with tab3:
                     detalles_sistemas = []
                     max_ev_absoluto = adn_ticker['Rendimiento'].astype(float).max()
 
+                    # Leer la configuración maestra de Goma y Paracaídas del ADN líder
+                    lider_adn = adn_ticker.loc[adn_ticker['Rendimiento'].astype(float).idxmax()]
+                    max_z_global = float(lider_adn.get('Z_Max', 99))
+                    paracaidas_dias = int(lider_adn.get('Paracaidas_Dias', 3)) if not pd.isna(lider_adn.get('Paracaidas_Dias')) else 3
+
                     for index, row in adn_ticker.iterrows():
                         horizonte = row['Horizonte']
                         comp_str = horizonte.split('_')[0]
@@ -601,15 +604,10 @@ with tab3:
                         sys_type = horizonte.split('_')[1]
                         ev_sistema = float(row['Rendimiento']) 
                         
-                        # PARÁMETROS QUANT
                         c_z = float(row.get('Z_Min', -99))
                         c_a = float(row.get('Acc_Min', -99))
                         c_v = float(row.get('Vol_Min', -99))
-                        # NUEVOS PARÁMETROS GOMA ELÁSTICA Y EPS (Compatibles con bases de datos antiguas)
-                        c_z_max = float(row.get('Z_Max', 99)) 
-                        c_vol_eps = float(row.get('Vol_EPS', 99))
                         
-                        # 🧩 AGRUPACIÓN DE VELAS CLONADA A PROREALTIME
                         if comp_int > 1:
                             ancla_str = past_anchors.get(comp_int)
                             if ancla_str:
@@ -640,7 +638,6 @@ with tab3:
                         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
                         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
 
-                        # 🎯 LÁSER MATEMÁTICO (PRT Clone)
                         df_b['AMA_Rápida'] = df_b['Close'].ewm(alpha=4/9, adjust=False).mean()
                         df_b['AMA_Lenta'] = df_b['Open'].ewm(alpha=0.25, adjust=False).mean()
                         
@@ -673,14 +670,8 @@ with tab3:
                         cond_v = (df_b['Vol_Z_Score'] > c_v) if c_v != -99 else pd.Series(True, index=df_b.index)
                         cond_medias = (df_b['AMA_Rápida'] > df_b['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_b.index)
                         
-                        # 🛡️ FILTRO DE GOMA ELÁSTICA Y EXCEPCIÓN INSTITUCIONAL
-                        cond_goma = (df_b['Z_Score'] <= c_z_max) if c_z_max != 99 else pd.Series(True, index=df_b.index)
-                        if c_z_max != 99 and c_vol_eps != 99:
-                            eps_override = (df_b['Z_Score'] > c_z_max) & (df_b['Vol_Z_Score'] > c_vol_eps)
-                            cond_goma = cond_goma | eps_override # Se permite si NO está sobreextendido O si hay EPS Override
-                        
                         df_b['Tech_OK'] = (df_b['Votos_Azul'] >= 2) & cond_medias
-                        df_b['Quant_OK'] = cond_z & cond_a & cond_v & cond_goma
+                        df_b['Quant_OK'] = cond_z & cond_a & cond_v 
                         df_b['Candidato_Ent'] = df_b['Tech_OK'] & df_b['Quant_OK']
 
                         en_mercado = False
@@ -744,14 +735,8 @@ with tab3:
                             fecha_ent_final = "---"
                             fecha_sal_final = memoria_sal_str
                             
-                            # 🚨 DETECTOR DE VETO QUANT MEJORADO
-                            if df_b['Tech_OK'].iloc[-2] and not df_b['Quant_OK'].iloc[-2]:
-                                if not cond_goma.iloc[-2]:
-                                    gatillo_texto = "Bloqueado: Goma tensa (Cima de mercado sin EPS)"
-                                else:
-                                    gatillo_texto = "Bloqueado por Quant (Z/Vol insuficiente)"
-                            elif df_b['Candidato_Ent'].iloc[-2]:
-                                gatillo_texto = f"Esperando rotura de {df_b['High'].iloc[-2]:.2f}$"
+                            if df_b['Tech_OK'].iloc[-2] and not df_b['Quant_OK'].iloc[-2]: gatillo_texto = "Bloqueado por Quant (Z/Vol insuficiente)"
+                            elif df_b['Candidato_Ent'].iloc[-2]: gatillo_texto = f"Esperando rotura de {df_b['High'].iloc[-2]:.2f}$"
                             else:
                                 razon_salida = "Cruce Medias" if "TENDENCIAL" in sys_type else "Tribunal Rojo"
                                 gatillo_texto = f"Últ. Salida por {razon_salida} + Mínimo"
@@ -763,29 +748,74 @@ with tab3:
                             "Rol": rol_texto, "Fractal": comp_str, "Sistema": sys_type, 
                             "EV (Peso)": ev_sistema, "Estado": estado_sistema, 
                             "F. Entrada": fecha_ent_final, "F. Salida": fecha_sal_final,
-                            "Gatillo (Hoy)": gatillo_texto
+                            "Gatillo (Hoy)": gatillo_texto, "Dias_Int": comp_int
                         })
 
                     st.markdown("---")
-                    ev_total = votos_mantener_ev + votos_vender_ev
-                    pct_venta = (votos_vender_ev / ev_total) * 100 if ev_total > 0 else 0
                     
-                    if pct_venta >= 50:
+                    # 🛠️ MOTOR DE SALIDA ADAPTATIVA (Leyendo el ADN del Laboratorio)
+                    df_real['MA55_D'] = df_real['Close'].rolling(window=55).mean()
+                    df_real['STD55_D'] = df_real['Close'].rolling(window=55).std()
+                    df_real['Z_Score_Global'] = (df_real['Close'] - df_real['MA55_D']) / df_real['STD55_D']
+                    z_score_hoy = df_real['Z_Score_Global'].iloc[-1]
+
+                    df_votos = pd.DataFrame(detalles_sistemas)
+                    df_votos = df_votos.sort_values(by="EV (Peso)", ascending=False).reset_index(drop=True)
+                    
+                    lider_dias = df_votos.loc[df_votos['Rol'].str.contains('JUEZ'), 'Dias_Int'].values[0]
+                    
+                    # ¿Hay paracaídas activado en el ADN?
+                    hay_paracaidas = max_z_global != 99
+                    es_parabolico = hay_paracaidas and (z_score_hoy >= max_z_global)
+                    
+                    votos_vender_ev_real = votos_vender_ev
+                    
+                    # 🚀 LÓGICA DE EXPLICACIÓN EN CARTERA EN VIVO
+                    if hay_paracaidas:
+                        modo_txt = f"🚀 MODO PARABÓLICO ACTIVO (Z-Score > {max_z_global}σ)" if es_parabolico else f"🐢 MODO ESTRUCTURAL (Z-Score < {max_z_global}σ)"
+                        stop_txt = f"El laboratorio determinó que la salida óptima en euforia es perdiendo el mínimo de <b>{paracaidas_dias} días</b>." if es_parabolico else f"El Stop lo dirige pacíficamente el Juez Supremo de <b>{lider_dias}d</b> para dejar correr la ganancia."
+                        
+                        st.markdown(f"""
+                        <div style='background-color: white; padding: 15px; border-radius: 8px; margin: 15px 0; border: 1px solid #e8eaed; border-left: 5px solid {"#9333ea" if es_parabolico else "#16a34a"};'>
+                            <h4 style='margin:0; color:#1d1d1f;'>🛡️ Control de Vuelo (Salida Adaptativa)</h4>
+                            <p style='margin:5px 0; font-size:0.95rem; color:#374151;'>
+                                Z-Score Global Actual: <b>{z_score_hoy:.2f}σ</b> ➔ {modo_txt}<br>
+                                {stop_txt}
+                            </p>
+                        </div>
+                        """, unsafe_allow_html=True)
+                        
+                        # Si estamos en parabólico, chequeamos si el precio perdió el mínimo del Paracaídas hoy
+                        if es_parabolico:
+                            min_paracaidas_ayer = df_real['Low'].iloc[-1-paracaidas_dias : -1].min()
+                            if df_real['Close'].iloc[-1] < min_paracaidas_ayer:
+                                votos_vender_ev_real = max_ev_absoluto * 100 # Dispara venta total
+                    else:
+                        st.info("ℹ️ Esta acción no tiene 'Paracaídas Parabólico' configurado en su ADN. El stop es puramente estructural.")
+
+                    ev_total = votos_mantener_ev + votos_vender_ev_real
+                    pct_venta = (votos_vender_ev_real / ev_total) * 100 if ev_total > 0 else 0
+                    
+                    if pct_venta >= 50 and es_parabolico:
+                        alerta_color = "#9333ea" 
+                        veredicto = "🚀 LIQUIDACIÓN PARABÓLICA ACTIVADA"
+                        sub_veredicto = f"El precio ha roto el Paracaídas Óptimo de {paracaidas_dias}d. Asegura beneficios antes del colapso."
+                    elif pct_venta >= 50:
                         alerta_color = "#dc2626"
-                        veredicto = "🚨 ALARMA DE VENTA GENERAL 🚨"
-                        sub_veredicto = f"El {pct_venta:.0f}% de la EV en mercado exige liquidar la posición hoy."
+                        veredicto = "🚨 ALARMA DE VENTA ESTRUCTURAL"
+                        sub_veredicto = f"El {pct_venta:.0f}% de la EV exige liquidar la posición hoy por pérdida de tendencia lenta."
                     elif pct_venta > 0:
                         alerta_color = "#eab308" 
                         veredicto = "⚠️ ALERTA TEMPRANA (Giro en curso)"
-                        sub_veredicto = f"Sistemas rápidos ({pct_venta:.0f}% del EV) detectan debilidad."
+                        sub_veredicto = f"Sistemas rápidos detectan debilidad estructural."
                     elif votos_mantener_ev > 0:
                         alerta_color = "#16a34a" 
                         veredicto = "🛡️ POSICIÓN BLINDADA (Dejar Correr)"
-                        sub_veredicto = "La tendencia es sólida. Todos los sistemas activos apoyan MANTENER."
+                        sub_veredicto = "La tendencia es sólida y controlada. Mantener."
                     else:
                         alerta_color = "#6b7280" 
                         veredicto = "⚪ MERCADO NEUTRAL"
-                        sub_veredicto = "Ningún sistema está dentro (o han sido bloqueados por Z-Score/Volumen)."
+                        sub_veredicto = "Ningún sistema está dentro."
 
                     st.markdown(f"""
                     <div style='text-align: center; padding: 20px; background-color: {alerta_color}15; border-radius: 10px; border: 2px solid {alerta_color};'>
@@ -795,10 +825,8 @@ with tab3:
                         <p style='color: gray; font-size: 0.9rem;'>Precio Actual: {precio_actual:.2f} $</p>
                     </div>
                     """, unsafe_allow_html=True)
-
+                    
                     st.markdown("#### 🗳️ Auditoría de Fechas y Salidas (Tus 5 Sistemas)")
-                    df_votos = pd.DataFrame(detalles_sistemas)
-                    df_votos = df_votos.sort_values(by="EV (Peso)", ascending=False).reset_index(drop=True)
                     
                     def c_estado(val): 
                         if "VENTA" in str(val): return 'color: #dc2626; font-weight: bold'
@@ -817,10 +845,10 @@ with tab3:
                         if "👑" in row['Rol']: return ['background-color: #fef9c3; font-weight: bold'] * len(row)
                         return [''] * len(row)
 
-                    styled_votos = df_votos.style.apply(highlight_lider, axis=1).map(c_estado, subset=['Estado']).map(c_gatillo, subset=['Gatillo (Hoy)']).map(c_fecha_salida, subset=['F. Salida']).format({"EV (Peso)": "{:+.2f} €"})
+                    styled_votos = df_votos.drop(columns=['Dias_Int']).style.apply(highlight_lider, axis=1).map(c_estado, subset=['Estado']).map(c_gatillo, subset=['Gatillo (Hoy)']).map(c_fecha_salida, subset=['F. Salida']).format({"EV (Peso)": "{:+.2f} €"})
                     st.dataframe(styled_votos, use_container_width=True, hide_index=True)
 
-                    st.markdown("#### 📉 Gráfico Táctico desde la Compra")
+                    st.markdown("#### 📉 Gráfico Táctico (Stop Predictivo)")
                     fecha_c_dt = pd.to_datetime(fecha_compra)
                     df_grafico = df_real[df_real.index >= fecha_c_dt]
                     
@@ -831,13 +859,23 @@ with tab3:
                         fig.add_trace(go.Candlestick(x=df_grafico.index, open=df_grafico['Open'], high=df_grafico['High'], low=df_grafico['Low'], close=df_grafico['Close'], name='Precio'))
                         fig.add_hline(y=precio_compra, line_dash="dot", line_color="blue", annotation_text="Precio Compra", annotation_position="bottom right")
                         
-                        lider = df_votos.iloc[0]
-                        comp_lider = int(lider['Fractal'].replace('d',''))
-                        
-                        df_real['Trailing_Stop'] = df_real['Low'].rolling(window=comp_lider).min().shift(1)
+                        df_real['Stop_Lento'] = df_real['Low'].rolling(window=lider_dias).min().shift(1)
+                        if hay_paracaidas:
+                            df_real['Stop_Rapido'] = df_real['Low'].rolling(window=paracaidas_dias).min().shift(1)
+                            df_real['Stop_Adaptativo'] = np.where(df_real['Z_Score_Global'] >= max_z_global, df_real['Stop_Rapido'], df_real['Stop_Lento'])
+                        else:
+                            df_real['Stop_Adaptativo'] = df_real['Stop_Lento']
+                            
                         df_stop_grafico = df_real[df_real.index >= fecha_c_dt]
                         
-                        fig.add_trace(go.Scatter(x=df_stop_grafico.index, y=df_stop_grafico['Trailing_Stop'], mode='lines', line=dict(color='red', width=2, dash='dot'), name=f"Stop Dinámico ({lider['Fractal']})"))
+                        for i in range(len(df_stop_grafico)-1):
+                            color_linea = 'purple' if (hay_paracaidas and df_stop_grafico['Z_Score_Global'].iloc[i] >= max_z_global) else 'red'
+                            fig.add_trace(go.Scatter(x=df_stop_grafico.index[i:i+2], y=df_stop_grafico['Stop_Adaptativo'].iloc[i:i+2], mode='lines', line=dict(color=color_linea, width=2, dash='dot'), showlegend=False))
+                            
+                        fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines', line=dict(color='red', width=2, dash='dot'), name=f"Stop Estructural ({lider_dias}d)"))
+                        if hay_paracaidas:
+                            fig.add_trace(go.Scatter(x=[None], y=[None], mode='lines', line=dict(color='purple', width=2, dash='dot'), name=f"Stop Parabólico ({paracaidas_dias}d)"))
+
                         fig.update_layout(height=500, margin=dict(l=10, r=10, t=10, b=10), template="plotly_white", xaxis_rangeslider_visible=False)
                         st.plotly_chart(fig, use_container_width=True)
 
@@ -845,7 +883,7 @@ with tab3:
                 st.error(f"Error al procesar la posición viva: {e}")
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO QUANT (ESTABILIDAD INSTITUCIONAL ABSOLUTA)
+# PESTAÑA 4: LABORATORIO QUANT Y OPTIMIZACIÓN DE SALIDA
 # =====================================================================
 with tab4:
     if 'resultados_quant_definitivos' not in st.session_state:
@@ -857,55 +895,44 @@ with tab4:
     st.markdown("### ⏳ 1. Configuración del Motor")
     col_c1, col_c2, col_c3, col_c4 = st.columns(4)
     opciones_compresion = [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]
-    compresion = col_c1.selectbox("Velas (Test Manual):", opciones_compresion, index=3)
+    compresion = col_c1.selectbox("Velas Entrada (Test Manual):", opciones_compresion, index=3)
     anos_test = col_c2.selectbox("Historia a testear:", ["5y", "10y", "15y", "max"], index=1)
     capital_trade = col_c3.number_input("Capital/Trade (€):", value=10000, step=1000)
     min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1)
 
-    st.markdown("### 🎛️ 2. Panel Quant Manual (Filtros de Tensión)")
-    col_p1, col_p2, col_p3 = st.columns(3)
-    
-    with col_p1:
-        use_z = st.checkbox("🟢 Usar Z-Score Mínimo", value=False)
-        bt_z_precio = st.number_input("Z-Score Min (>)", value=1.0, step=0.1, disabled=not use_z)
-    with col_p2:
-        use_acc = st.checkbox("🟢 Usar Momentum (Accel)", value=False)
-        bt_accel = st.number_input("Aceleración Min (>)", value=0.0, step=0.5, disabled=not use_acc)
-    with col_p3:
-        use_vol = st.checkbox("🟢 Usar Huella Volumen", value=False)
-        bt_z_vol = st.number_input("Volumen Min (>)", value=1.5, step=0.1, disabled=not use_vol)
-        
-    st.markdown("#### 🛡️ Filtros de Extensión Institucional")
-    col_g1, col_g2 = st.columns(2)
+    st.markdown("### 🎛️ 2. Paracaídas de Emergencia (Salida Parabólica)")
+    col_g1, col_g2, col_g3 = st.columns(3)
     with col_g1:
-        use_goma = st.checkbox("🔴 Goma Elástica (Veto de Sobrecompra)", value=False)
-        bt_max_z = st.number_input("Bloquear Compra si Z-Score supera (>)", value=2.5, step=0.1, disabled=not use_goma)
+        use_goma = st.checkbox("🚀 Activar Salida Adaptativa", value=False)
     with col_g2:
-        use_eps = st.checkbox("🔥 Excepción Institucional (Detector EPS)", value=False)
-        bt_eps_vol = st.number_input("Permitir Extensión Extrema si Vol. supera (>)", value=3.0, step=0.1, disabled=not use_eps)
+        bt_max_z = st.number_input("Activar si Z-Score supera (>)", value=2.5, step=0.1, disabled=not use_goma)
+    with col_g3:
+        bt_paracaidas_dias = st.selectbox("Paracaídas (Días de pérdida mínima):", [1, 2, 3, 5, 7], index=1, disabled=not use_goma)
 
-    st.markdown("### 🏛️ 3. Tipo de Sistema")
-    tipo_sistema = st.radio("Filtro de Medias Adaptativas Kaufman (AMA):", ["PURO: Sin medias. Entrar con Tribunal Azul. Salir con Tribunal Rojo + Perder Mínimo.", "HÍBRIDO: Entrar si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.", "TENDENCIAL: Entrar si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."], index=1)
+    st.markdown("### 🏛️ 3. Tipo de Sistema Base")
+    tipo_sistema = st.radio("Filtro de Medias Adaptativas Kaufman (AMA):", ["PURO: Sin medias. Entrar con Tribunal Azul.", "HÍBRIDO: Entrar si AMA Rápida > Lenta. Salida Estructural por Tribunal Rojo.", "TENDENCIAL: Entrar si AMA Rápida > Lenta. Salida Estructural por Cruce Bajista."], index=1)
     
     st.markdown("<br>", unsafe_allow_html=True)
     col_run_man, col_run_auto = st.columns(2)
     
     def procesar_datos_fractales(ticker_str, comp, periodo):
         df_raw = yf.Ticker(ticker_str).history(period=periodo)
-        if df_raw.empty: return pd.DataFrame()
+        if df_raw.empty: return pd.DataFrame(), pd.DataFrame()
         
+        if df_raw.index.tz is not None: df_raw.index = df_raw.index.tz_localize(None)
+        df_raw['MA55_D'] = df_raw['Close'].rolling(window=55).mean()
+        df_raw['STD55_D'] = df_raw['Close'].rolling(window=55).std()
+        df_raw['Z_Score_Global'] = (df_raw['Close'] - df_raw['MA55_D']) / df_raw['STD55_D']
+
         past_anchors_lab = {1: "2026-03-13", 2: "2026-03-13", 3: "2026-03-13", 5: "2026-03-09", 6: "2026-03-13", 7: "2026-03-06", 8: "2026-03-09", 11: "2026-03-13", 13: "2026-03-13", 14: "2026-02-25", 17: "2026-02-20", 21: "2026-02-25", 34: "2026-01-28", 55: "2026-01-09", 89: "2026-01-30"}
         
         if comp > 1:
             ancla_str = past_anchors_lab.get(comp)
             if ancla_str:
                 ancla_dt = pd.to_datetime(ancla_str)
-                try:
-                    idx_ancla = df_raw.index.get_indexer([ancla_dt], method='nearest')[0]
-                except:
-                    idx_ancla = len(df_raw) - 1
-            else:
-                idx_ancla = len(df_raw) - 1
+                try: idx_ancla = df_raw.index.get_indexer([ancla_dt], method='nearest')[0]
+                except: idx_ancla = len(df_raw) - 1
+            else: idx_ancla = len(df_raw) - 1
                 
             grupos_raw = (np.arange(len(df_raw)) - idx_ancla) // comp
             df_temp = df_raw.copy()
@@ -915,7 +942,7 @@ with tab4:
             df_b.set_index('Date', inplace=True)
         else: df_b = df_raw.copy()
             
-        if len(df_b) < 55: return pd.DataFrame()
+        if len(df_b) < 55: return pd.DataFrame(), pd.DataFrame()
             
         df_b['MA55'] = df_b['Close'].rolling(window=55).mean()
         df_b['Vol_MA55'] = df_b['Volume'].rolling(window=55).mean()
@@ -925,7 +952,6 @@ with tab4:
         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
 
-        # 🚀 LÁSER PRT TAMBIÉN EN EL LABORATORIO
         df_b['AMA_Rápida'] = df_b['Close'].ewm(alpha=4/9, adjust=False).mean()
         df_b['AMA_Lenta'] = df_b['Open'].ewm(alpha=0.25, adjust=False).mean()
         
@@ -952,21 +978,11 @@ with tab4:
         df_b['Votos_Azul'] = df_b['J1_Azul'].astype(int) + df_b['J2_Azul'].astype(int) + df_b['J3_Azul'].astype(int)
         df_b['Votos_Rojo'] = df_b['J1_Rojo'].astype(int) + df_b['J2_Rojo'].astype(int) + df_b['J3_Rojo'].astype(int)
         
-        return df_b
+        return df_b, df_raw
 
-    def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp, t_max_z, b_goma, t_eps_v, b_eps):
-        cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
-        cond_acc = (df_bt['Accel'] > t_a) if b_a else pd.Series(True, index=df_bt.index)
-        cond_vol = (df_bt['Vol_Z_Score'] > t_v) if b_v else pd.Series(True, index=df_bt.index)
+    def ejecutar_backtest_doble(df_bt, df_daily, sys_type, comp, b_goma, t_max_z, p_dias):
         cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_bt.index)
-        
-        # 🛡️ FILTRO GOMA ELÁSTICA Y EXCEPCIÓN EPS (Core Backtest Logic)
-        cond_goma = (df_bt['Z_Score'] <= t_max_z) if b_goma else pd.Series(True, index=df_bt.index)
-        if b_goma and b_eps:
-            eps_override = (df_bt['Z_Score'] > t_max_z) & (df_bt['Vol_Z_Score'] > t_eps_v)
-            cond_goma = cond_goma | eps_override
-
-        df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias & cond_goma
+        df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_medias
         
         log_forense = []
         i = 55 
@@ -975,33 +991,64 @@ with tab4:
                 if df_bt.iloc[i+1]['High'] > df_bt.iloc[i]['High']:
                     idx_ent = i + 1
                     p_ent = max(df_bt.iloc[idx_ent]['Open'], df_bt.iloc[i]['High'])
+                    fecha_ent_dt = df_bt.index[idx_ent]
                     
-                    idx_salida = -1
+                    # 🚀 LÓGICA DE DOBLE MARCO TEMPORAL PARA SALIDAS
+                    idx_salida_bt = -1
+                    f_sal_final = None
+                    p_sal_final = 0.0
+                    
+                    # 1. Detectar salida estructural normal (en velas lentas)
                     for j in range(idx_ent + 1, len(df_bt)):
                         trib_rojo = df_bt.iloc[j-1]['Votos_Rojo'] >= 2
                         pierde_min = df_bt['Low'].iloc[j] < df_bt['Low'].iloc[j-1]
-                        if "TENDENCIAL" in sys_type:
-                            cruce_b = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
-                            if cruce_b and pierde_min: idx_salida = j; break
-                        else:
-                            if trib_rojo and pierde_min: idx_salida = j; break
-                                
-                    if idx_salida != -1:
-                        p_sal = min(df_bt.iloc[idx_salida]['Open'], df_bt.iloc[idx_salida-1]['Low'])
-                        f_sal = pd.to_datetime(df_bt.index[idx_salida]).strftime("%Y-%m-%d")
-                        velas_in = idx_salida - idx_ent
-                    else:
-                        idx_salida = len(df_bt) - 1
-                        p_sal = df_bt['Close'].iloc[idx_salida]
-                        f_sal = "🟢 ABIERTA ACTUAL"
-                        velas_in = idx_salida - idx_ent
+                        cruce_b = df_bt['AMA_Rápida'].iloc[j-1] < df_bt['AMA_Lenta'].iloc[j-1]
                         
-                    ret = ((p_sal - p_ent) / p_ent) * 100
-                    min_dd_v = df_bt['Low'].iloc[idx_ent:idx_salida+1].min()
+                        salida_lenta = (cruce_b and pierde_min) if "TENDENCIAL" in sys_type else (trib_rojo and pierde_min)
+                        if salida_lenta:
+                            idx_salida_bt = j
+                            p_sal_final = min(df_bt.iloc[j]['Open'], df_bt.iloc[j-1]['Low'])
+                            f_sal_final = df_bt.index[j]
+                            break
+                    
+                    # 2. Cruzar con el gráfico diario si el Paracaídas está activo
+                    if b_goma:
+                        # Extraer solo los días entre la entrada y la salida estructural
+                        fecha_limite = f_sal_final if f_sal_final else df_daily.index[-1]
+                        df_viaje = df_daily[(df_daily.index >= fecha_ent_dt) & (df_daily.index <= fecha_limite)].copy()
+                        
+                        # Simular día a día
+                        if len(df_viaje) > p_dias:
+                            df_viaje['Min_Paracaidas'] = df_viaje['Low'].rolling(window=p_dias).min().shift(1)
+                            for k in range(p_dias, len(df_viaje)):
+                                z_dia_ayer = df_viaje['Z_Score_Global'].iloc[k-1]
+                                # Si ayer estaba en euforia y hoy rompe el mínimo rápido -> VENTA INMEDIATA
+                                if z_dia_ayer >= t_max_z and df_viaje['Close'].iloc[k] < df_viaje['Min_Paracaidas'].iloc[k]:
+                                    f_sal_final = df_viaje.index[k]
+                                    p_sal_final = df_viaje['Close'].iloc[k]
+                                    break # Sale por Paracaídas antes que por Estructural
+
+                    velas_in = 0
+                    if f_sal_final:
+                        ret = ((p_sal_final - p_ent) / p_ent) * 100
+                        velas_in = len(df_bt[(df_bt.index >= fecha_ent_dt) & (df_bt.index <= f_sal_final)])
+                        f_sal_str = pd.to_datetime(f_sal_final).strftime("%Y-%m-%d")
+                    else:
+                        p_sal_final = df_bt['Close'].iloc[-1]
+                        ret = ((p_sal_final - p_ent) / p_ent) * 100
+                        velas_in = len(df_bt) - idx_ent
+                        f_sal_str = "🟢 ABIERTA ACTUAL"
+                        
+                    min_dd_v = df_bt['Low'].iloc[idx_ent : idx_ent + velas_in].min() if velas_in > 0 else p_ent
                     max_dd = ((min_dd_v - p_ent) / p_ent) * 100
                     
-                    log_forense.append({"Fecha Entrada": pd.to_datetime(df_bt.index[idx_ent]).strftime("%Y-%m-%d"), "Fecha Salida": f_sal, "Velas Dentro": velas_in, "Días Reales": velas_in * comp, "Precio Ent": p_ent, "Precio Sal": p_sal, "Max Drawdown": max_dd, "Rendimiento Real": ret})
-                    i = idx_salida 
+                    log_forense.append({"Fecha Entrada": pd.to_datetime(fecha_ent_dt).strftime("%Y-%m-%d"), "Fecha Salida": f_sal_str, "Velas Dentro": velas_in, "Días Reales": velas_in * comp, "Precio Ent": p_ent, "Precio Sal": p_sal_final, "Max Drawdown": max_dd, "Rendimiento Real": ret})
+                    
+                    # Avanzar el bucle hasta la fecha de salida final
+                    if f_sal_final:
+                        # Buscar el índice en df_bt correspondiente a la salida para reanudar el bucle
+                        siguiente_idx = df_bt.index.get_indexer([f_sal_final], method='ffill')[0]
+                        i = siguiente_idx if siguiente_idx > i else i
             i += 1
         return log_forense
 
@@ -1018,49 +1065,51 @@ with tab4:
         return wr, ev_pct, profit_factor, ev_eur, velas_med
 
     if col_run_man.button(f"⚙️ Test Manual ({compresion}d)", type="primary", use_container_width=True):
-        with st.spinner(f"Testeando..."):
+        with st.spinner(f"Simulando doble marco temporal (Estructural + Paracaídas)..."):
             try:
-                min_trades_real = max(3, int(min_trades_base * (1 / (compresion ** 0.5))))
-                df_bt = procesar_datos_fractales(ticker, compresion, anos_test)
+                df_bt, df_daily = procesar_datos_fractales(ticker, compresion, anos_test)
                 if not df_bt.empty:
                     sys_name = tipo_sistema.split(":")[0]
-                    log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion, bt_max_z, use_goma, bt_eps_vol, use_eps)
+                    log_for = ejecutar_backtest_doble(df_bt, df_daily, tipo_sistema, compresion, use_goma, bt_max_z, bt_paracaidas_dias)
                     if len(log_for) > 0:
                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                         st.session_state['resultados_quant_definitivos'] = [{
                             "Compresión": f"{compresion}d", "Sistema": sys_name,
-                            "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
-                            "Max Z-Score": f"< {bt_max_z}" if use_goma else "OFF", "Vol. Extremo": f"> {bt_eps_vol}" if use_eps else "OFF",
+                            "Max Z-Score": f"> {bt_max_z}" if use_goma else "OFF", "Paracaídas": f"{bt_paracaidas_dias}d" if use_goma else "OFF",
                             "Trades": len(log_for), "WinRate": round(wr, 1), "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2), "Velas Medias": round(v_med, 1), "Logs": log_for
                         }]
                     else: st.warning("Cero operaciones cerradas.")
             except Exception as e: st.error(f"Error: {e}")
 
-    if col_run_auto.button(f"🤖 MODO DIOS: Buscar Campeones", type="secondary", use_container_width=True):
-        with st.spinner(f"Analizando topografía para {ticker}..."):
+    if col_run_auto.button(f"🤖 MODO DIOS: Buscar Paracaídas Óptimo", type="secondary", use_container_width=True):
+        with st.spinner(f"Cruzando fractales para encontrar la salida perfecta..."):
             try:
                 resultados_campeones = []
                 for cmp in [1, 2, 3, 5, 6, 7, 8, 11, 13, 14, 17, 21, 34, 55, 89]: 
                     min_trades_real = max(3, int(min_trades_base * (1 / (cmp ** 0.5))))
-                    df_bt = procesar_datos_fractales(ticker, cmp, anos_test)
+                    df_bt, df_daily = procesar_datos_fractales(ticker, cmp, anos_test)
                     if df_bt.empty: continue
+                    
                     mejor_ev_cmp = -999999
                     mejor_sistema_cmp = None
+                    
                     for s_type in ["PURO", "HÍBRIDO", "TENDENCIAL"]:
-                        for test_z in [None, 0.5, 1.0, 1.5]:
-                            for test_v in [None, 0.5, 1.0]:
-                                for test_goma in [None, 2.5]: # Opcional buscar Goma Automática
-                                    log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp, test_goma if test_goma else 99, test_goma is not None, 3.0, test_goma is not None)
-                                    if len(log_for) >= min_trades_real: 
-                                        wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
-                                        if ev_eur > mejor_ev_cmp:
-                                            mejor_ev_cmp = ev_eur
-                                            mejor_sistema_cmp = {
-                                                "Compresión": f"{cmp}d", "Sistema": s_type, "Z-Score": f"> {test_z}" if test_z is not None else "OFF", "Accel": "OFF", "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
-                                                "Max Z-Score": f"< {test_goma}" if test_goma is not None else "OFF", "Vol. Extremo": f"> 3.0" if test_goma is not None else "OFF",
-                                                "Trades": len(log_for), "WinRate": round(wr, 1), "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2), "Velas Medias": round(v_med, 1), "Logs": log_for
-                                            }
+                        # Simulamos TODAS las combinaciones de salida para ver cuál gana
+                        for test_goma in [False, True]:
+                            opciones_p = [1, 2, 3, 5] if test_goma else [0]
+                            for pdias in opciones_p:
+                                log_for = ejecutar_backtest_doble(df_bt, df_daily, s_type, cmp, test_goma, 2.5, pdias)
+                                if len(log_for) >= min_trades_real: 
+                                    wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
+                                    if ev_eur > mejor_ev_cmp:
+                                        mejor_ev_cmp = ev_eur
+                                        mejor_sistema_cmp = {
+                                            "Compresión": f"{cmp}d", "Sistema": s_type,
+                                            "Max Z-Score": "> 2.5" if test_goma else "OFF", "Paracaídas": f"{pdias}d" if test_goma else "OFF",
+                                            "Trades": len(log_for), "WinRate": round(wr, 1), "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2), "Velas Medias": round(v_med, 1), "Logs": log_for
+                                        }
                     if mejor_sistema_cmp is not None: resultados_campeones.append(mejor_sistema_cmp)
+                    
                 if resultados_campeones:
                     df_temp = pd.DataFrame(resultados_campeones)
                     df_temp = df_temp.sort_values(by=["EV (€)", "Profit Factor"], ascending=[False, False])
@@ -1069,21 +1118,20 @@ with tab4:
             except Exception as e: st.error(f"Error en Modo Dios: {e}")
 
     # =========================================================================
-    # EL COLISEO QUANT: TABLA DE DELEGACIÓN INTERACTIVA (2 CASILLAS)
+    # TABLA Y GUARDADO DE ADN (INCLUYENDO PARACAÍDAS)
     # =========================================================================
     if len(st.session_state['resultados_quant_definitivos']) > 0:
         import plotly.graph_objects as go
         
         st.markdown("---")
         st.markdown("## 🗺️ Topografía Fractal de Campeones")
-        st.info("💡 **Marca el destino** de los sistemas que quieras guardar (Puedes marcar uno o ambos).")
         
         df_hist = pd.DataFrame(st.session_state['resultados_quant_definitivos'])
         
         if "⭐ Escáner" not in df_hist.columns: df_hist.insert(0, "⭐ Escáner", False)
         if "📡 Radar" not in df_hist.columns: df_hist.insert(1, "📡 Radar", False)
             
-        cols_visibles = ["⭐ Escáner", "📡 Radar", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Max Z-Score", "Volumen", "Vol. Extremo"]
+        cols_visibles = ["⭐ Escáner", "📡 Radar", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Max Z-Score", "Paracaídas"]
         
         edited_df = st.data_editor(
             df_hist[cols_visibles],
@@ -1093,10 +1141,9 @@ with tab4:
                 "WinRate": st.column_config.NumberColumn("WinRate", format="%.1f%%"),
                 "Profit Factor": st.column_config.NumberColumn("Profit", format="%.2f"),
                 "EV (%)": st.column_config.NumberColumn("EV (%)", format="%+.2f%%"),
-                "EV (€)": st.column_config.NumberColumn("EV (€)", format="%+.2f €"),
-                "Velas Medias": st.column_config.NumberColumn("Velas", format="%.1f")
+                "EV (€)": st.column_config.NumberColumn("EV (€)", format="%+.2f €")
             },
-            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Max Z-Score", "Volumen", "Vol. Extremo", "Accel"],
+            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Max Z-Score", "Paracaídas"],
             hide_index=True, use_container_width=True, key="tabla_favoritos_intocable" 
         )
 
@@ -1105,22 +1152,19 @@ with tab4:
             sistemas_marcados = edited_df[(edited_df["⭐ Escáner"] == True) | (edited_df["📡 Radar"] == True)]
             
             if sistemas_marcados.empty: 
-                st.warning("⚠️ No has marcado ninguna casilla (ni Escáner ni Radar).")
+                st.warning("⚠️ No has marcado ninguna casilla.")
             else:
-                with st.spinner(f"Inyectando sistemas en tu ADN Quant..."):
+                with st.spinner(f"Inyectando Sistemas en tu ADN Quant..."):
                     try:
                         df_adn_act = conn.read(worksheet="ADN_Quant", ttl=0)
                         if not df_adn_act.empty: df_adn_act = df_adn_act[df_adn_act['Ticker'] != ticker]
                         
                         nuevas_filas = []
                         for idx, sys in sistemas_marcados.iterrows():
-                            c_z = float(sys['Z-Score'].replace("> ", "")) if sys['Z-Score'] != "OFF" else -99
-                            c_acc = float(sys.get('Accel', "OFF").replace("> ", "")) if sys.get('Accel', "OFF") != "OFF" else -99
-                            c_vol = float(sys['Volumen'].replace("> ", "")) if sys['Volumen'] != "OFF" else -99
+                            # Nuevas Variables a guardar
+                            c_z_max = 2.5 if sys['Max Z-Score'] != "OFF" else 99
+                            c_paracaidas = int(sys['Paracaídas'].replace("d", "")) if sys['Paracaídas'] != "OFF" else 99
                             
-                            c_z_max = float(sys['Max Z-Score'].replace("< ", "")) if sys['Max Z-Score'] != "OFF" else 99
-                            c_vol_eps = float(sys['Vol. Extremo'].replace("> ", "")) if sys['Vol. Extremo'] != "OFF" else 99
-
                             horizonte = f"{sys['Compresión']}_{sys['Sistema']}" 
                             n_id = str(int(datetime.datetime.now().timestamp())) + "_" + sys['Compresión']
                             
@@ -1130,8 +1174,8 @@ with tab4:
                             perfil_str = " + ".join(perfiles)
                             
                             nuevas_filas.append({
-                                "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
-                                "Z_Max": c_z_max, "Vol_EPS": c_vol_eps, # NUEVOS PARÁMETROS GUARDADOS
+                                "Ticker": ticker, 
+                                "Z_Max": c_z_max, "Paracaidas_Dias": c_paracaidas, 
                                 "Horizonte": horizonte, "Rendimiento": sys['EV (€)'], 
                                 "WinRate": sys['WinRate'], "Es_Default": True, "ID_ADN": n_id,
                                 "Perfil": perfil_str
@@ -1140,13 +1184,12 @@ with tab4:
                         df_final = pd.concat([df_adn_act, pd.DataFrame(nuevas_filas)], ignore_index=True)
                         conn.update(worksheet="ADN_Quant", data=df_final)
                         st.cache_data.clear()
-                        st.success(f"✅ ¡Éxito! Has inyectado {len(nuevas_filas)} fractales con sus etiquetas para {ticker}.")
+                        st.success(f"✅ ¡Éxito! Has inyectado los nuevos Adns (incluyendo Paracaídas si los tienen). Ve a la Pestaña 3 para verlo en Vivo.")
                     except Exception as e: st.error(f"Error al guardar: {e}")
 
         st.markdown("---")
         st.markdown("### 🎛️ Auditoría Profunda (Inspecciona un Campeón)")
         opciones_dash = [f"Campeón {row['Compresión']} | {row['Sistema']} | EV: {row['EV (€)']:+.2f} €" for i, row in df_hist.iterrows()]
-        
         idx_sel = st.selectbox("🎯 Elige un campeón para auditar:", range(len(opciones_dash)), format_func=lambda x: opciones_dash[x], key="visor_detalle_operaciones")
         sistema_activo = df_hist.iloc[idx_sel]
         
