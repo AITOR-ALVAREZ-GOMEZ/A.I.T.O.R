@@ -1219,161 +1219,181 @@ with tab4:
             styled_f = df_for.style.format({"Rendimiento Real": "{:+.2f}%", "Max Drawdown": "{:.2f}%", "Precio Ent": "{:.2f} $", "Precio Sal": "{:.2f} $", "Ganancia €": "{:+.2f} €"}).map(lambda x: 'color: #16a34a; font-weight: bold' if x > 0 else ('color: #dc2626' if x < 0 else ''), subset=['Rendimiento Real', 'Ganancia €']).map(c_dd, subset=['Max Drawdown']).map(c_salida, subset=['Fecha Salida'])
             st.dataframe(styled_f, use_container_width=True, hide_index=True)
 # =====================================================================
-# PESTAÑA 5: EL RADAR DIARIO CON VISOR GLOBAL DE ADN (TREEMAP)
+# PESTAÑA 5: CENTRO DE RADARES Y FLUJO DE OPORTUNIDADES
 # =====================================================================
 with tab5:
-    st.title("📡 Radar Institucional (El Centro de Mando)")
-    st.markdown("Esta herramienta escanea todas tus acciones y detecta cuáles cumplen **cualquiera de tus sistemas guardados** HOY.")
-    
-    # --- VISOR GLOBAL: MAPA DE CALOR TREEMAP ---
-    st.markdown("### 🗺️ Mapa de Calor de tu ADN Global")
-    if not df_adn.empty:
-        import plotly.express as px
-        
-        df_mapa = df_adn.copy()
-        # Limpieza de datos por si hay errores en Sheets
-        df_mapa['WinRate'] = pd.to_numeric(df_mapa['WinRate'], errors='coerce').fillna(1)
-        df_mapa['Rendimiento'] = pd.to_numeric(df_mapa['Rendimiento'], errors='coerce').fillna(0)
-        
-        # Crear el Treemap (Mapa de Calor)
-        fig_tree = px.treemap(
-            df_mapa, 
-            path=[px.Constant("Mercado Vigilado"), 'Ticker', 'Horizonte'],
-            values='WinRate',  # TAMAÑO: Cuanto mayor WinRate, más grande el cuadro
-            color='Rendimiento', # COLOR: Verde si gana mucho, Rojo si pierde
-            color_continuous_scale=['#ff3b30', '#1d1d1f', '#34c759'], # Rojo -> Negro -> Verde Apple
-            color_continuous_midpoint=0,
-            custom_data=['WinRate', 'Rendimiento', 'Z_Min', 'Acc_Min', 'Vol_Min']
-        )
-        
-        # Formatear el texto que sale dentro de los cuadros y al pasar el ratón
-        fig_tree.update_traces(
-            hovertemplate="<b>%{label}</b><br>WinRate: %{customdata[0]:.1f}%<br>Rendimiento: +%{customdata[1]:.2f}%<br>Filtros: Z>%{customdata[2]} | Acc>%{customdata[3]} | Vol>%{customdata[4]}<extra></extra>",
-            textfont=dict(size=14, family="Inter", color="white"),
-            marker=dict(line=dict(width=1, color="#f5f5f7"))
-        )
-        fig_tree.update_layout(margin=dict(t=20, l=10, r=10, b=10), height=500, paper_bgcolor="rgba(0,0,0,0)")
-        
-        # Mostrar el gráfico
-        st.plotly_chart(fig_tree, use_container_width=True)
-        
-        # Resumen rápido de tropas
-        total_activos = df_mapa['Ticker'].nunique()
-        total_sistemas_guardados = len(df_mapa)
-        st.markdown(f"<div style='font-size:0.95rem; color:#86868b; margin-bottom:20px; text-align:right;'>Vigilando <b>{total_sistemas_guardados} sistemas</b> distribuidos en <b>{total_activos} activos</b>. El tamaño del cuadro representa la fiabilidad (WinRate).</div>", unsafe_allow_html=True)
-        
-        with st.expander("Ver tabla de datos crudos"):
-            st.dataframe(df_mapa[['Ticker', 'Horizonte', 'WinRate', 'Rendimiento', 'Z_Min', 'Acc_Min', 'Vol_Min']].sort_values(by=['Ticker', 'Horizonte']), hide_index=True, use_container_width=True)
+    st.title("📡 Centro de Radares: Control de Flujo")
+    st.markdown("Monitorización en tiempo real de tus activos bajo vigilancia.")
 
-    else:
-        st.info("Tu piscina de ADN está vacía. Ve al Laboratorio Quant, busca un Ticker y guarda tu primer sistema ganador.")
+    # Sub-pestañas internas para no mezclar filosofías
+    tab_radar_auto, tab_radar_manual = st.tabs(["🚀 Escáner Cuantitativo (Hipercrecimiento)", "🛡️ Tu Reserva Privada (Escaneos Manuales)"])
 
-    st.markdown("---")
-    
-    # --- MOTOR DEL RADAR ---
-    if st.button("🔄 Lanzar Radar Diario de Mercado", type="primary", use_container_width=True):
-        if df_adn.empty:
-            st.warning("Aún no has guardado el ADN de ninguna acción en el Laboratorio Quant. No hay nada que vigilar.")
-        else:
-            with st.spinner("Escaneando el multiverso del mercado en directo..."):
-                tickers_adn = df_adn['Ticker'].unique().tolist()
-                alertas_encontradas = []
-                
-                for t in tickers_adn:
-                    try:
-                        adns_del_ticker = df_adn[df_adn['Ticker'] == t]
-                        if adns_del_ticker.empty: continue
-                        
-                        stock_rad = yf.Ticker(t)
-                        df_rad = stock_rad.history(period="3mo")
-                        if df_rad.empty: continue
-                        
-                        df_rad['MA55'] = df_rad['Close'].rolling(window=55).mean()
-                        df_rad['STD55'] = df_rad['Close'].rolling(window=55).std()
-                        df_rad['Z_Score'] = (df_rad['Close'] - df_rad['MA55']) / df_rad['STD55']
-                        df_rad['ROC_10'] = df_rad['Close'].pct_change(periods=10) * 100
-                        df_rad['Accel'] = df_rad['ROC_10'].diff(periods=5)
-                        df_rad['Vol_MA55'] = df_rad['Volume'].rolling(window=55).mean()
-                        df_rad['Vol_STD55'] = df_rad['Volume'].rolling(window=55).std()
-                        df_rad['Vol_Z_Score'] = (df_rad['Volume'] - df_rad['Vol_MA55']) / df_rad['Vol_STD55']
-                        
-                        atr_rad = np.max(pd.concat([df_rad['High'] - df_rad['Low'], np.abs(df_rad['High'] - df_rad['Close'].shift()), np.abs(df_rad['Low'] - df_rad['Close'].shift())], axis=1), axis=1).rolling(14).mean().iloc[-1]
-                        
-                        hoy_z = df_rad['Z_Score'].iloc[-1]
-                        hoy_acc = df_rad['Accel'].iloc[-1]
-                        hoy_vol = df_rad['Vol_Z_Score'].iloc[-1]
-                        precio_hoy = df_rad['Close'].iloc[-1]
-                        
-                        # CHEQUEAR TODOS LOS SISTEMAS GUARDADOS
-                        sistemas_disparados = []
-                        for _, sys_adn in adns_del_ticker.iterrows():
-                            adn_z = float(sys_adn['Z_Min'])
-                            adn_acc = float(sys_adn['Acc_Min'])
-                            adn_vol = float(sys_adn['Vol_Min'])
-                            
-                            c_z = True if adn_z == -99 else (hoy_z >= adn_z)
-                            c_a = True if adn_acc == -99 else (hoy_acc >= adn_acc)
-                            c_v = True if adn_vol == -99 else (hoy_vol >= adn_vol)
-                            
-                            if c_z and c_a and c_v:
-                                sistemas_disparados.append(f"🔥 Sistema <b>{sys_adn['Horizonte']}</b> (Histórico: +{float(sys_adn['Rendimiento']):.2f}% | WinRate: {float(sys_adn['WinRate']):.1f}%)")
-                        
-                        if len(sistemas_disparados) > 0:
-                            alertas_encontradas.append({
-                                "Ticker": t, "Z_Hoy": hoy_z, "A_Hoy": hoy_acc, "V_Hoy": hoy_vol,
-                                "Precio": precio_hoy, "ATR": atr_rad, "Sistemas": sistemas_disparados
-                            })
-                    except: pass
-                
-                st.markdown("---")
-                if len(alertas_encontradas) > 0:
-                    st.markdown(f"### 🚨 ¡ALERTA MULTIDIMENSIONAL! {len(alertas_encontradas)} acciones acaban de detonar hoy:")
+    # -----------------------------------------------------------------
+    # SUB-RADAR 1: HIPERCRECIMIENTO AUTOMÁTICO (TIER 1)
+    # -----------------------------------------------------------------
+    with tab_radar_auto:
+        st.markdown("### 🚀 El Embudo Quant (Buscador de Momentum)")
+        try:
+            df_universo = conn.read(worksheet="Universo_Tier1", ttl=0)
+            if "Ticker" not in df_universo.columns:
+                df_universo = pd.DataFrame({"Ticker": ["NVDA", "PLTR", "MU", "MSTR", "ASTS", "OKLO", "APP", "CELH", "CRWD", "HIMS"]})
+                conn.update(worksheet="Universo_Tier1", data=df_universo)
+        except:
+            df_universo = pd.DataFrame({"Ticker": ["NVDA", "PLTR", "MU", "MSTR", "ASTS", "OKLO", "APP", "CELH", "CRWD", "HIMS"]})
+
+        lista_tickers = df_universo["Ticker"].dropna().unique().tolist()
+        
+        col_u1, col_u2 = st.columns([3, 1])
+        nuevo_tier1 = col_u1.text_input("➕ Añadir empresa al Universo Tier 1 (Ej: TSLA):", key="add_t1").strip().upper()
+        if col_u2.button("Añadir a Base Automática", use_container_width=True) and nuevo_tier1:
+            if nuevo_tier1 not in lista_tickers:
+                df_universo = pd.concat([df_universo, pd.DataFrame([{"Ticker": nuevo_tier1}])], ignore_index=True)
+                conn.update(worksheet="Universo_Tier1", data=df_universo)
+                st.success(f"{nuevo_tier1} añadido al radar automático.")
+                st.rerun()
+
+        st.markdown(f"<div style='font-size:0.85rem; color:gray;'>Vigilando <b>{len(lista_tickers)}</b> activos de alto crecimiento.</div>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
+
+        if st.button("🚀 INICIAR ESCÁNER TIER 1", type="primary", use_container_width=True):
+            resultados_radar = []
+            barra_progreso = st.progress(0)
+            texto_progreso = st.empty()
+            
+            for i, tick in enumerate(lista_tickers):
+                texto_progreso.markdown(f"**Escaneando {tick}...** ({i+1}/{len(lista_tickers)})")
+                try:
+                    df_t = yf.Ticker(tick).history(period="1y")
+                    if len(df_t) < 200: continue 
                     
-                    for alerta in alertas_encontradas:
-                        t_alert = alerta['Ticker']
-                        sistemas_html = "<br>".join([f"<div class='radar-sys-box'>{s}</div>" for s in alerta['Sistemas']])
+                    cierre = df_t['Close'].iloc[-1]
+                    volumen = df_t['Volume'].iloc[-1]
+                    
+                    sma50 = df_t['Close'].rolling(50).mean().iloc[-1]
+                    sma200 = df_t['Close'].rolling(200).mean().iloc[-1]
+                    max_52w = df_t['High'].rolling(252).max().iloc[-1]
+                    distancia_max = ((cierre - max_52w) / max_52w) * 100
+                    
+                    if not (cierre > sma50 and sma50 > sma200): continue
+                    if distancia_max < -20.0: continue
+                    
+                    df_t['MA55'] = df_t['Close'].rolling(55).mean()
+                    df_t['STD55'] = df_t['Close'].rolling(55).std()
+                    z_score = (cierre - df_t['MA55'].iloc[-1]) / df_t['STD55'].iloc[-1]
+                    
+                    df_t['Vol_MA55'] = df_t['Volume'].rolling(55).mean()
+                    df_t['Vol_STD55'] = df_t['Volume'].rolling(55).std()
+                    vol_z = (volumen - df_t['Vol_MA55'].iloc[-1]) / df_t['Vol_STD55'].iloc[-1]
+                    
+                    accel = (df_t['Close'].pct_change(10) * 100).diff(5).iloc[-1]
+                    score = (vol_z * 2) + (z_score if z_score < 3 else -5) + (distancia_max / 2) + (accel / 5)
+                    
+                    estado = "🔥 SETUP ACTIVO" if (z_score > 1.0 and vol_z > 1.0) else "👀 VIGILAR"
+                    if z_score > 2.5: estado = "🚀 PARABÓLICA (Cima)"
+
+                    resultados_radar.append({"Ticker": tick, "Puntuación": score, "Estado": estado, "Z-Score": z_score, "Volumen (Z)": vol_z, "Accel": accel, "Dist. Máximo": distancia_max, "Precio": cierre})
+                except: pass
+                barra_progreso.progress((i + 1) / len(lista_tickers))
+                
+            texto_progreso.empty(); barra_progreso.empty()
+            
+            if len(resultados_radar) > 0:
+                df_resultados = pd.DataFrame(resultados_radar).sort_values(by="Puntuación", ascending=False).reset_index(drop=True)
+                st.success(f"🎯 Escáner completado. {len(df_resultados)} pura sangre cumplen los requisitos Tier 1 hoy.")
+                
+                def color_estado(val):
+                    if "SETUP ACTIVO" in val: return 'background-color: #dcfce7; color: #166534; font-weight: bold'
+                    elif "PARABÓLICA" in val: return 'background-color: #f3e8ff; color: #7e22ce; font-weight: bold'
+                    return 'color: #6b7280; font-weight: bold'
+                def color_z(val): return 'color: #dc2626; font-weight: bold' if val > 2.5 else ('color: #16a34a; font-weight: bold' if val > 1.0 else 'color: gray')
+
+                styled_radar = df_resultados.style.map(color_estado, subset=['Estado']).map(color_z, subset=['Z-Score']).format({"Puntuación": "{:.1f}", "Z-Score": "{:.2f}σ", "Volumen (Z)": "{:.2f}σ", "Accel": "{:.1f}", "Dist. Máximo": "{:.1f}%", "Precio": "${:.2f}"})
+                st.dataframe(styled_radar, use_container_width=True, hide_index=True)
+            else: st.warning("⚠️ Ninguna empresa automática cumple las condiciones de Momentum hoy.")
+
+    # -----------------------------------------------------------------
+    # SUB-RADAR 2: RESERVA PRIVADA (Tus Escaneos Manuales Pestaña 1)
+    # -----------------------------------------------------------------
+    with tab_radar_manual:
+        st.markdown("### 🛡️ Tu Reserva Privada (Base de Datos Fundamental)")
+        st.info("Aquí viven las acciones que analizaste manualmente en el Escáner Cuántico (Pestaña 1) y clasificaste por su calidad estructural y de EPS.")
+        
+        if df_datos.empty:
+            st.warning("No tienes ninguna acción guardada. Ve a la Pestaña 1, analiza un Ticker y dale a 'Solo Guardar Escaneo'.")
+        else:
+            # Limpiamos duplicados quedándonos con el escaneo más reciente de cada Ticker
+            df_reserva = df_datos.drop_duplicates(subset=['Ticker'], keep='last').copy()
+            
+            # Filtramos las que marcaste como "NO VIABLE" para no ensuciar el radar
+            df_reserva = df_reserva[~df_reserva['Tier'].astype(str).str.contains("NO VIABLE", na=False)]
+            
+            if df_reserva.empty:
+                st.warning("Todas tus acciones guardadas están marcadas como NO VIABLES.")
+            else:
+                if st.button("🔄 ACTUALIZAR PRECIOS Y TENSIONES (Escaneo Vivo)", type="secondary", use_container_width=True):
+                    with st.spinner("Conectando con Wall Street para actualizar tu Reserva..."):
+                        precios_hoy = []
+                        z_scores_hoy = []
+                        estados_hoy = []
                         
-                        with st.expander(f"🎯 {t_alert} | Vol: {alerta['V_Hoy']:.2f}σ | Accel: {alerta['A_Hoy']:.2f} ➡️ ABRIR CALCULADORA"):
-                            st.markdown(f"### Plan de Vuelo: {t_alert}")
-                            st.markdown(f"**ADNs Activados en esta vela:**<br>{sistemas_html}", unsafe_allow_html=True)
-                            st.markdown("<br>", unsafe_allow_html=True)
-                            
-                            col_calc1, col_calc2 = st.columns(2)
-                            with col_calc1:
-                                p_compra_rad = st.number_input(f"Precio Compra ({t_alert})", value=float(alerta['Precio']), key=f"buy_rad_{t_alert}")
-                                stop_sug_rad = alerta['Precio'] - (2 * alerta['ATR']) if alerta['ATR'] > 0 else alerta['Precio'] * 0.95
-                                p_stop_rad = st.number_input(f"Stop Loss ({t_alert})", value=float(stop_sug_rad), key=f"sl_rad_{t_alert}")
-                            
-                            with col_calc2:
-                                r_pct_rad = st.slider(f"Riesgo % ({t_alert})", 0.5, 10.0, 3.3, 0.1, key=f"r_rad_{t_alert}")
-                                dist_stop_rad = p_compra_rad - p_stop_rad
+                        for tick in df_reserva['Ticker']:
+                            try:
+                                df_t = yf.Ticker(tick).history(period="100d")
+                                if not df_t.empty:
+                                    cierre = df_t['Close'].iloc[-1]
+                                    df_t['MA55'] = df_t['Close'].rolling(55).mean()
+                                    df_t['STD55'] = df_t['Close'].rolling(55).std()
+                                    z_act = (cierre - df_t['MA55'].iloc[-1]) / df_t['STD55'].iloc[-1]
+                                    
+                                    # Lógica de semáforo técnico
+                                    estado_t = "🟢 EN ZONA DE COMPRA" if -1.0 <= z_act <= 1.5 else ("🔴 SOBRECOMPRADA" if z_act > 2.5 else "⚪ ESPERANDO GATILLO")
+                                    
+                                    precios_hoy.append(cierre)
+                                    z_scores_hoy.append(z_act)
+                                    estados_hoy.append(estado_t)
+                                else:
+                                    precios_hoy.append(0.0); z_scores_hoy.append(0.0); estados_hoy.append("ERROR DATOS")
+                            except:
+                                precios_hoy.append(0.0); z_scores_hoy.append(0.0); estados_hoy.append("ERROR DATOS")
                                 
-                                if dist_stop_rad > 0 and p_compra_rad > 0:
-                                    riesgo_eur_rad = CAPITAL * (r_pct_rad / 100.0)
-                                    acciones_rad = math.floor(riesgo_eur_rad / dist_stop_rad)
-                                    inv_rad = acciones_rad * p_compra_rad
-                                    st.success(f"**Posición:** {acciones_rad} acciones")
-                                    st.info(f"**Inversión total:** {inv_rad:,.2f} $")
-                                else:
-                                    acciones_rad = 0
-                                    st.error("⚠️ El Stop Loss debe ser menor al precio de compra.")
+                        df_reserva['Precio Hoy'] = precios_hoy
+                        df_reserva['Z-Score Hoy'] = z_scores_hoy
+                        df_reserva['Estado Técnico'] = estados_hoy
+
+                        # Ordenar por Puntuación IDT (Tu nota fundamental) de mayor a menor
+                        df_reserva['IDT_Puntos'] = pd.to_numeric(df_reserva['IDT_Puntos'], errors='coerce').fillna(0)
+                        df_reserva = df_reserva.sort_values(by="IDT_Puntos", ascending=False).reset_index(drop=True)
+                        
+                        cols_mostrar = ['Ticker', 'Tier', 'IDT_Puntos', 'EV_Total', 'Estado Técnico', 'Z-Score Hoy', 'Precio Hoy']
+                        df_display = df_reserva[cols_mostrar]
+                        
+                        def c_tier(val):
+                            if "OBLIGATORIA" in str(val): return 'background-color: #1d1d1f; color: white; font-weight: bold'
+                            elif "TACTICA" in str(val): return 'background-color: #fef3c7; color: #d97706; font-weight: bold'
+                            return 'color: gray'
                             
-                            if st.button(f"🚀 EJECUTAR OPERACIÓN: Enviar {t_alert} a Cartera", key=f"btn_send_{t_alert}", type="primary"):
-                                if acciones_rad > 0:
-                                    with st.spinner("Enviando a Cartera en Vivo..."):
-                                        try:
-                                            df_c = conn.read(worksheet="Cartera", ttl=0)
-                                            n_pos = {"Ticker": t_alert, "Fecha_Entrada": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Entrada": p_compra_rad, "Num_Acciones": acciones_rad, "Stop_Actual": p_stop_rad, "Fecha_Ruptura_S4": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S4": p_compra_rad, "Fecha_Ruptura_S5": datetime.date.today().strftime("%Y-%m-%d"), "Precio_Ruptura_S5": p_compra_rad}
-                                            conn.update(worksheet="Cartera", data=pd.concat([df_c, pd.DataFrame([n_pos])], ignore_index=True))
-                                            st.cache_data.clear()
-                                            st.success(f"✅ ¡Operación en {t_alert} registrada con éxito! (Pestaña Cartera)")
-                                        except Exception as e: st.error(f"Error en base de datos: {e}")
-                                else:
-                                    st.error("Calcula bien el riesgo antes de disparar.")
+                        def c_estado_t(val):
+                            if "ZONA DE COMPRA" in str(val): return 'color: #16a34a; font-weight: bold'
+                            elif "SOBRECOMPRADA" in str(val): return 'color: #dc2626; font-weight: bold'
+                            return 'color: #6b7280'
+
+                        styled_reserva = df_display.style.map(c_tier, subset=['Tier']).map(c_estado_t, subset=['Estado Técnico']).format({
+                            "IDT_Puntos": "{:.0f} pts", "EV_Total": "{:.2f}", "Z-Score Hoy": "{:.2f}σ", "Precio Hoy": "${:.2f}"
+                        })
+                        
+                        st.dataframe(styled_reserva, use_container_width=True, hide_index=True)
                 else:
-                    st.markdown("""
-                    <div class='radar-wait'>
-                        <h2>⏳ Día de Pesca (0 Alertas)</h2>
-                        <p>Ninguna de las acciones en tu Piscina de ADN cumple las condiciones hoy. Mantén el capital a salvo.</p>
-                    </div>
-                    """, unsafe_allow_html=True)
+                    # Mostrar la tabla estática (la última vez que se guardó) si no le dan al botón
+                    st.caption("👇 Aquí están tus acciones. Pulsa el botón de arriba para ver a qué precio están cotizando en este mismo instante.")
+                    df_reserva['IDT_Puntos'] = pd.to_numeric(df_reserva['IDT_Puntos'], errors='coerce').fillna(0)
+                    df_reserva = df_reserva.sort_values(by="IDT_Puntos", ascending=False).reset_index(drop=True)
+                    cols_estaticas = ['Ticker', 'Tier', 'IDT_Puntos', 'EV_Total', 'ITE_Porc']
+                    
+                    def c_tier_s(val):
+                        if "OBLIGATORIA" in str(val): return 'background-color: #1d1d1f; color: white; font-weight: bold'
+                        elif "TACTICA" in str(val): return 'background-color: #fef3c7; color: #d97706; font-weight: bold'
+                        return 'color: gray'
+                        
+                    st.dataframe(df_reserva[cols_estaticas].style.map(c_tier_s, subset=['Tier']).format({
+                        "IDT_Puntos": "{:.0f} pts", "EV_Total": "{:.2f}", "ITE_Porc": "{:.1f}%"
+                    }), use_container_width=True, hide_index=True)
