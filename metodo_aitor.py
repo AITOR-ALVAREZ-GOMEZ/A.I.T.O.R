@@ -568,7 +568,6 @@ with tab3:
                 
                 # 🛡️ FILTRO CORE: Excluir los sistemas que son SOLO para el Radar Intradía
                 if 'Perfil' in adn_ticker.columns:
-                    # Rellenamos los vacíos antiguos asumiendo que eran del Escáner
                     adn_ticker['Perfil'] = adn_ticker['Perfil'].fillna("Escáner")
                     adn_ticker = adn_ticker[adn_ticker['Perfil'].astype(str).str.contains("Escáner")]
                 
@@ -602,9 +601,13 @@ with tab3:
                         sys_type = horizonte.split('_')[1]
                         ev_sistema = float(row['Rendimiento']) 
                         
+                        # PARÁMETROS QUANT
                         c_z = float(row.get('Z_Min', -99))
                         c_a = float(row.get('Acc_Min', -99))
                         c_v = float(row.get('Vol_Min', -99))
+                        # NUEVOS PARÁMETROS GOMA ELÁSTICA Y EPS (Compatibles con bases de datos antiguas)
+                        c_z_max = float(row.get('Z_Max', 99)) 
+                        c_vol_eps = float(row.get('Vol_EPS', 99))
                         
                         # 🧩 AGRUPACIÓN DE VELAS CLONADA A PROREALTIME
                         if comp_int > 1:
@@ -637,7 +640,7 @@ with tab3:
                         df_b['ROC_10'] = df_b['Close'].pct_change(periods=10) * 100
                         df_b['Accel'] = df_b['ROC_10'].diff(periods=5)
 
-                        # 🎯 LÁSER MATEMÁTICO: Replica exacta de tu PRT (1,2,1) y (1,3,1)
+                        # 🎯 LÁSER MATEMÁTICO (PRT Clone)
                         df_b['AMA_Rápida'] = df_b['Close'].ewm(alpha=4/9, adjust=False).mean()
                         df_b['AMA_Lenta'] = df_b['Open'].ewm(alpha=0.25, adjust=False).mean()
                         
@@ -670,8 +673,14 @@ with tab3:
                         cond_v = (df_b['Vol_Z_Score'] > c_v) if c_v != -99 else pd.Series(True, index=df_b.index)
                         cond_medias = (df_b['AMA_Rápida'] > df_b['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_b.index)
                         
+                        # 🛡️ FILTRO DE GOMA ELÁSTICA Y EXCEPCIÓN INSTITUCIONAL
+                        cond_goma = (df_b['Z_Score'] <= c_z_max) if c_z_max != 99 else pd.Series(True, index=df_b.index)
+                        if c_z_max != 99 and c_vol_eps != 99:
+                            eps_override = (df_b['Z_Score'] > c_z_max) & (df_b['Vol_Z_Score'] > c_vol_eps)
+                            cond_goma = cond_goma | eps_override # Se permite si NO está sobreextendido O si hay EPS Override
+                        
                         df_b['Tech_OK'] = (df_b['Votos_Azul'] >= 2) & cond_medias
-                        df_b['Quant_OK'] = cond_z & cond_a & cond_v
+                        df_b['Quant_OK'] = cond_z & cond_a & cond_v & cond_goma
                         df_b['Candidato_Ent'] = df_b['Tech_OK'] & df_b['Quant_OK']
 
                         en_mercado = False
@@ -735,8 +744,12 @@ with tab3:
                             fecha_ent_final = "---"
                             fecha_sal_final = memoria_sal_str
                             
+                            # 🚨 DETECTOR DE VETO QUANT MEJORADO
                             if df_b['Tech_OK'].iloc[-2] and not df_b['Quant_OK'].iloc[-2]:
-                                gatillo_texto = "Bloqueado por Quant (Z/Vol insuficiente)"
+                                if not cond_goma.iloc[-2]:
+                                    gatillo_texto = "Bloqueado: Goma tensa (Cima de mercado sin EPS)"
+                                else:
+                                    gatillo_texto = "Bloqueado por Quant (Z/Vol insuficiente)"
                             elif df_b['Candidato_Ent'].iloc[-2]:
                                 gatillo_texto = f"Esperando rotura de {df_b['High'].iloc[-2]:.2f}$"
                             else:
@@ -832,7 +845,7 @@ with tab3:
                 st.error(f"Error al procesar la posición viva: {e}")
 
 # =====================================================================
-# PESTAÑA 4: LABORATORIO QUANT Y DELEGACIÓN
+# PESTAÑA 4: LABORATORIO QUANT (ESTABILIDAD INSTITUCIONAL ABSOLUTA)
 # =====================================================================
 with tab4:
     if 'resultados_quant_definitivos' not in st.session_state:
@@ -849,22 +862,28 @@ with tab4:
     capital_trade = col_c3.number_input("Capital/Trade (€):", value=10000, step=1000)
     min_trades_base = col_c4.number_input("Mínimo Trades (Base 1d):", value=15, step=1)
 
-    st.markdown("### 🎛️ 2. Panel Quant Manual")
+    st.markdown("### 🎛️ 2. Panel Quant Manual (Filtros de Tensión)")
     col_p1, col_p2, col_p3 = st.columns(3)
-    val_z = True if opt_z != -99 else False
-    val_acc = True if opt_acc != -99 else False
-    val_vol = True if opt_vol != -99 else False
     
     with col_p1:
-        use_z = st.checkbox("🟢 Usar Z-Score", value=val_z)
-        bt_z_precio = st.number_input("Z-Score Mínimo (>)", value=float(opt_z) if opt_z != -99 else 1.0, step=0.1, disabled=not use_z)
+        use_z = st.checkbox("🟢 Usar Z-Score Mínimo", value=False)
+        bt_z_precio = st.number_input("Z-Score Min (>)", value=1.0, step=0.1, disabled=not use_z)
     with col_p2:
-        use_acc = st.checkbox("🟢 Usar Momentum (Accel)", value=val_acc)
-        bt_accel = st.number_input("Aceleración Mínima (>)", value=float(opt_acc) if opt_acc != -99 else 0.0, step=0.5, disabled=not use_acc)
+        use_acc = st.checkbox("🟢 Usar Momentum (Accel)", value=False)
+        bt_accel = st.number_input("Aceleración Min (>)", value=0.0, step=0.5, disabled=not use_acc)
     with col_p3:
-        use_vol = st.checkbox("🟢 Usar Huella Volumen", value=val_vol)
-        bt_z_vol = st.number_input("Volumen Mínimo (>)", value=float(opt_vol) if opt_vol != -99 else 1.5, step=0.1, disabled=not use_vol)
+        use_vol = st.checkbox("🟢 Usar Huella Volumen", value=False)
+        bt_z_vol = st.number_input("Volumen Min (>)", value=1.5, step=0.1, disabled=not use_vol)
         
+    st.markdown("#### 🛡️ Filtros de Extensión Institucional")
+    col_g1, col_g2 = st.columns(2)
+    with col_g1:
+        use_goma = st.checkbox("🔴 Goma Elástica (Veto de Sobrecompra)", value=False)
+        bt_max_z = st.number_input("Bloquear Compra si Z-Score supera (>)", value=2.5, step=0.1, disabled=not use_goma)
+    with col_g2:
+        use_eps = st.checkbox("🔥 Excepción Institucional (Detector EPS)", value=False)
+        bt_eps_vol = st.number_input("Permitir Extensión Extrema si Vol. supera (>)", value=3.0, step=0.1, disabled=not use_eps)
+
     st.markdown("### 🏛️ 3. Tipo de Sistema")
     tipo_sistema = st.radio("Filtro de Medias Adaptativas Kaufman (AMA):", ["PURO: Sin medias. Entrar con Tribunal Azul. Salir con Tribunal Rojo + Perder Mínimo.", "HÍBRIDO: Entrar si AMA Rápida > Lenta. Salir con Tribunal Rojo + Perder Mínimo.", "TENDENCIAL: Entrar si AMA Rápida > Lenta. Salir SOLO con Cruce Bajista + Perder Mínimo."], index=1)
     
@@ -935,13 +954,19 @@ with tab4:
         
         return df_b
 
-    def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp):
+    def ejecutar_backtest(df_bt, sys_type, t_z, t_a, t_v, b_z, b_a, b_v, comp, t_max_z, b_goma, t_eps_v, b_eps):
         cond_z = (df_bt['Z_Score'] > t_z) if b_z else pd.Series(True, index=df_bt.index)
         cond_acc = (df_bt['Accel'] > t_a) if b_a else pd.Series(True, index=df_bt.index)
         cond_vol = (df_bt['Vol_Z_Score'] > t_v) if b_v else pd.Series(True, index=df_bt.index)
         cond_medias = (df_bt['AMA_Rápida'] > df_bt['AMA_Lenta']) if "PURO" not in sys_type else pd.Series(True, index=df_bt.index)
-            
-        df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias
+        
+        # 🛡️ FILTRO GOMA ELÁSTICA Y EXCEPCIÓN EPS (Core Backtest Logic)
+        cond_goma = (df_bt['Z_Score'] <= t_max_z) if b_goma else pd.Series(True, index=df_bt.index)
+        if b_goma and b_eps:
+            eps_override = (df_bt['Z_Score'] > t_max_z) & (df_bt['Vol_Z_Score'] > t_eps_v)
+            cond_goma = cond_goma | eps_override
+
+        df_bt['Candidato_Ent'] = (df_bt['Votos_Azul'] >= 2) & cond_z & cond_acc & cond_vol & cond_medias & cond_goma
         
         log_forense = []
         i = 55 
@@ -999,12 +1024,13 @@ with tab4:
                 df_bt = procesar_datos_fractales(ticker, compresion, anos_test)
                 if not df_bt.empty:
                     sys_name = tipo_sistema.split(":")[0]
-                    log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion)
+                    log_for = ejecutar_backtest(df_bt, tipo_sistema, bt_z_precio, bt_accel, bt_z_vol, use_z, use_acc, use_vol, compresion, bt_max_z, use_goma, bt_eps_vol, use_eps)
                     if len(log_for) > 0:
                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                         st.session_state['resultados_quant_definitivos'] = [{
                             "Compresión": f"{compresion}d", "Sistema": sys_name,
                             "Z-Score": f"> {bt_z_precio}" if use_z else "OFF", "Accel": f"> {bt_accel}" if use_acc else "OFF", "Volumen": f"> {bt_z_vol}" if use_vol else "OFF", 
+                            "Max Z-Score": f"< {bt_max_z}" if use_goma else "OFF", "Vol. Extremo": f"> {bt_eps_vol}" if use_eps else "OFF",
                             "Trades": len(log_for), "WinRate": round(wr, 1), "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2), "Velas Medias": round(v_med, 1), "Logs": log_for
                         }]
                     else: st.warning("Cero operaciones cerradas.")
@@ -1023,14 +1049,15 @@ with tab4:
                     for s_type in ["PURO", "HÍBRIDO", "TENDENCIAL"]:
                         for test_z in [None, 0.5, 1.0, 1.5]:
                             for test_v in [None, 0.5, 1.0]:
-                                for test_a in [None, 0.0]:
-                                    log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, test_a if test_a else 0, test_v if test_v else 0, test_z is not None, test_a is not None, test_v is not None, cmp)
+                                for test_goma in [None, 2.5]: # Opcional buscar Goma Automática
+                                    log_for = ejecutar_backtest(df_bt, s_type, test_z if test_z else 0, 0, test_v if test_v else 0, test_z is not None, False, test_v is not None, cmp, test_goma if test_goma else 99, test_goma is not None, 3.0, test_goma is not None)
                                     if len(log_for) >= min_trades_real: 
                                         wr, ev_pct, pf, ev_eur, v_med = compilar_metricas(log_for, capital_trade)
                                         if ev_eur > mejor_ev_cmp:
                                             mejor_ev_cmp = ev_eur
                                             mejor_sistema_cmp = {
-                                                "Compresión": f"{cmp}d", "Sistema": s_type, "Z-Score": f"> {test_z}" if test_z is not None else "OFF", "Accel": f"> {test_a}" if test_a is not None else "OFF", "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
+                                                "Compresión": f"{cmp}d", "Sistema": s_type, "Z-Score": f"> {test_z}" if test_z is not None else "OFF", "Accel": "OFF", "Volumen": f"> {test_v}" if test_v is not None else "OFF", 
+                                                "Max Z-Score": f"< {test_goma}" if test_goma is not None else "OFF", "Vol. Extremo": f"> 3.0" if test_goma is not None else "OFF",
                                                 "Trades": len(log_for), "WinRate": round(wr, 1), "EV (%)": round(ev_pct, 2), "Profit Factor": round(pf, 2), "EV (€)": round(ev_eur, 2), "Velas Medias": round(v_med, 1), "Logs": log_for
                                             }
                     if mejor_sistema_cmp is not None: resultados_campeones.append(mejor_sistema_cmp)
@@ -1053,11 +1080,10 @@ with tab4:
         
         df_hist = pd.DataFrame(st.session_state['resultados_quant_definitivos'])
         
-        # Inyectamos las dos columnas booleanas si no existen
         if "⭐ Escáner" not in df_hist.columns: df_hist.insert(0, "⭐ Escáner", False)
         if "📡 Radar" not in df_hist.columns: df_hist.insert(1, "📡 Radar", False)
             
-        cols_visibles = ["⭐ Escáner", "📡 Radar", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"]
+        cols_visibles = ["⭐ Escáner", "📡 Radar", "Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Max Z-Score", "Volumen", "Vol. Extremo"]
         
         edited_df = st.data_editor(
             df_hist[cols_visibles],
@@ -1070,13 +1096,12 @@ with tab4:
                 "EV (€)": st.column_config.NumberColumn("EV (€)", format="%+.2f €"),
                 "Velas Medias": st.column_config.NumberColumn("Velas", format="%.1f")
             },
-            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Volumen", "Accel"],
+            disabled=["Compresión", "Sistema", "WinRate", "Profit Factor", "EV (%)", "EV (€)", "Trades", "Velas Medias", "Z-Score", "Max Z-Score", "Volumen", "Vol. Extremo", "Accel"],
             hide_index=True, use_container_width=True, key="tabla_favoritos_intocable" 
         )
 
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("💾 INYECTAR SISTEMAS SELECCIONADOS", type="primary", use_container_width=True):
-            # Filtramos los que tengan al menos una casilla marcada
             sistemas_marcados = edited_df[(edited_df["⭐ Escáner"] == True) | (edited_df["📡 Radar"] == True)]
             
             if sistemas_marcados.empty: 
@@ -1090,12 +1115,15 @@ with tab4:
                         nuevas_filas = []
                         for idx, sys in sistemas_marcados.iterrows():
                             c_z = float(sys['Z-Score'].replace("> ", "")) if sys['Z-Score'] != "OFF" else -99
-                            c_acc = float(sys['Accel'].replace("> ", "")) if sys['Accel'] != "OFF" else -99
+                            c_acc = float(sys.get('Accel', "OFF").replace("> ", "")) if sys.get('Accel', "OFF") != "OFF" else -99
                             c_vol = float(sys['Volumen'].replace("> ", "")) if sys['Volumen'] != "OFF" else -99
+                            
+                            c_z_max = float(sys['Max Z-Score'].replace("< ", "")) if sys['Max Z-Score'] != "OFF" else 99
+                            c_vol_eps = float(sys['Vol. Extremo'].replace("> ", "")) if sys['Vol. Extremo'] != "OFF" else 99
+
                             horizonte = f"{sys['Compresión']}_{sys['Sistema']}" 
                             n_id = str(int(datetime.datetime.now().timestamp())) + "_" + sys['Compresión']
                             
-                            # Creamos la etiqueta de Perfil combinada
                             perfiles = []
                             if sys["⭐ Escáner"]: perfiles.append("Escáner")
                             if sys["📡 Radar"]: perfiles.append("Radar")
@@ -1103,6 +1131,7 @@ with tab4:
                             
                             nuevas_filas.append({
                                 "Ticker": ticker, "Z_Min": c_z, "Acc_Min": c_acc, "Vol_Min": c_vol, 
+                                "Z_Max": c_z_max, "Vol_EPS": c_vol_eps, # NUEVOS PARÁMETROS GUARDADOS
                                 "Horizonte": horizonte, "Rendimiento": sys['EV (€)'], 
                                 "WinRate": sys['WinRate'], "Es_Default": True, "ID_ADN": n_id,
                                 "Perfil": perfil_str
